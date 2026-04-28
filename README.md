@@ -30,3 +30,8 @@ The project currently uses no runtime dependencies. It is plain browser JavaScri
 - Responsive canvas with high-DPI rendering.
 - Pointer drag camera movement and wheel zoom.
 - Hovered sector readout.
+- Sampled FPS counter in the HUD.
+
+## AI Guidance
+
+Claude project guidance lives in `CLAUDE.md` and `.claude/skills/nido-wars-architecture/SKILL.md`.

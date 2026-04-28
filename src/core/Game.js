@@ -1,4 +1,5 @@
 import { GameLoop } from "./GameLoop.js";
+import { FpsCounter } from "./FpsCounter.js";
 import { InputController } from "../engine/InputController.js";
 import { Camera2D } from "../rendering/Camera2D.js";
 import { CanvasRenderer } from "../rendering/CanvasRenderer.js";
@@ -22,6 +23,7 @@ export class Game {
       camera: this.camera,
       config: config.render,
     });
+    this.fpsCounter = new FpsCounter();
     this.input = new InputController({
       canvas,
       camera: this.camera,
@@ -49,6 +51,12 @@ export class Game {
   }
 
   update(frame) {
+    const fps = this.fpsCounter.record(frame.delta);
+
+    if (fps !== null) {
+      this.hud.setFps(fps);
+    }
+
     this.units.update(frame.delta);
 
     const hoveredTile = this.input.getHoveredTile();

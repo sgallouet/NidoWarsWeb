@@ -4,6 +4,7 @@ export class Hud {
       turn: root.querySelector('[data-ui="turn"]'),
       water: root.querySelector('[data-ui="water"]'),
       supplies: root.querySelector('[data-ui="supplies"]'),
+      fps: root.querySelector('[data-ui="fps"]'),
       tileName: root.querySelector('[data-ui="tile-name"]'),
       tileCoords: root.querySelector('[data-ui="tile-coords"]'),
       unitName: root.querySelector('[data-ui="unit-name"]'),
@@ -17,6 +18,10 @@ export class Hud {
     this.nodes.turn.textContent = String(turn).padStart(3, "0");
     this.nodes.water.textContent = String(water);
     this.nodes.supplies.textContent = String(supplies);
+  }
+
+  setFps(fps) {
+    this.nodes.fps.textContent = String(fps);
   }
 
   setTile(tile) {
