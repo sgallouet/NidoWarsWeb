@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Herbs">
+  <defs>
+    <radialGradient id="leafLight" cx="34%" cy="22%" r="76%">
+      <stop offset="0" stop-color="#d3ff5d" />
+      <stop offset="0.42" stop-color="#75d620" />
+      <stop offset="1" stop-color="#1a681d" />
+    </radialGradient>
+    <linearGradient id="bucket" x1="18" x2="80" y1="52" y2="90">
+      <stop offset="0" stop-color="#b7682d" />
+      <stop offset="0.52" stop-color="#7f351c" />
+      <stop offset="1" stop-color="#4b1b18" />
+    </linearGradient>
+    <linearGradient id="rim" x1="14" x2="82" y1="49" y2="59">
+      <stop offset="0" stop-color="#e29a52" />
+      <stop offset="0.5" stop-color="#8f3f25" />
+      <stop offset="1" stop-color="#35151b" />
+    </linearGradient>
+    <filter id="shadow" x="-15%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <ellipse cx="48" cy="82" rx="27" ry="6" fill="#2c130f" opacity="0.35" />
+    <path d="M19 52h58l-7 31c-1 5-6 8-11 8H37c-5 0-10-3-11-8z" fill="url(#bucket)" />
+    <path d="M25 58h6l3 27h-7zM45 57h6l1 29h-8zM65 57h6l-4 28h-8z" fill="#d6853d" opacity="0.36" />
+    <path d="M19 52c3-8 55-8 58 0 2 5-10 10-29 10s-31-5-29-10z" fill="url(#rim)" />
+    <path d="M22 52c6 5 47 5 52 0" fill="none" stroke="#ffd08a" stroke-width="2" stroke-opacity="0.48" />
+    <path d="M26 82c11 5 33 5 44 0" fill="none" stroke="#1b0c0b" stroke-width="3" stroke-linecap="round" opacity="0.45" />
+    <g stroke="#102c10" stroke-width="2" stroke-linejoin="round">
+      <ellipse cx="23" cy="43" rx="10" ry="7" fill="url(#leafLight)" transform="rotate(-24 23 43)" />
+      <ellipse cx="31" cy="32" rx="10" ry="7" fill="url(#leafLight)" transform="rotate(-38 31 32)" />
+      <ellipse cx="42" cy="25" rx="10" ry="7" fill="url(#leafLight)" transform="rotate(-26 42 25)" />
+      <ellipse cx="55" cy="24" rx="10" ry="7" fill="url(#leafLight)" transform="rotate(18 55 24)" />
+      <ellipse cx="68" cy="31" rx="10" ry="7" fill="url(#leafLight)" transform="rotate(38 68 31)" />
+      <ellipse cx="75" cy="44" rx="10" ry="7" fill="url(#leafLight)" transform="rotate(28 75 44)" />
+      <ellipse cx="34" cy="47" rx="10" ry="8" fill="url(#leafLight)" transform="rotate(18 34 47)" />
+      <ellipse cx="48" cy="40" rx="11" ry="8" fill="url(#leafLight)" transform="rotate(-6 48 40)" />
+      <ellipse cx="62" cy="47" rx="10" ry="8" fill="url(#leafLight)" transform="rotate(-18 62 47)" />
+      <ellipse cx="40" cy="36" rx="9" ry="7" fill="url(#leafLight)" transform="rotate(34 40 36)" />
+      <ellipse cx="56" cy="34" rx="9" ry="7" fill="url(#leafLight)" transform="rotate(-33 56 34)" />
+    </g>
+    <g fill="#cfff4c" opacity="0.62">
+      <circle cx="31" cy="33" r="2" />
+      <circle cx="43" cy="26" r="2" />
+      <circle cx="55" cy="25" r="2" />
+      <circle cx="69" cy="32" r="2" />
+      <circle cx="49" cy="41" r="2" />
+    </g>
+  </g>
+</svg>

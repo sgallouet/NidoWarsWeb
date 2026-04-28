@@ -20,6 +20,8 @@ export class DayNightCycle {
     return {
       phase: isDay ? "day" : "night",
       label: isDay ? "Day" : "Night",
+      cycleProgress: position / this.totalMs,
+      dayShare: this.dayMs / this.totalMs,
       phaseProgress: phaseElapsed / phaseDuration,
       nightAmount,
       light: 1 - nightAmount * 0.46,

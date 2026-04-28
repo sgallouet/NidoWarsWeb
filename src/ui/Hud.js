@@ -7,14 +7,8 @@ export class Hud {
       berries: root.querySelector('[data-ui="berries"]'),
       wood: root.querySelector('[data-ui="wood"]'),
       cycle: root.querySelector('[data-ui="cycle"]'),
-      units: root.querySelector('[data-ui="units"]'),
+      cycleHand: root.querySelector('[data-ui="cycle-hand"]'),
       fps: root.querySelector('[data-ui="fps"]'),
-      tileName: root.querySelector('[data-ui="tile-name"]'),
-      tileCoords: root.querySelector('[data-ui="tile-coords"]'),
-      unitName: root.querySelector('[data-ui="unit-name"]'),
-      unitRole: root.querySelector('[data-ui="unit-role"]'),
-      unitCoords: root.querySelector('[data-ui="unit-coords"]'),
-      unitMove: root.querySelector('[data-ui="unit-move"]'),
     };
   }
 
@@ -31,27 +25,20 @@ export class Hud {
   }
 
   setCycle(dayNight) {
-    this.nodes.cycle.textContent = dayNight.label;
+    const cycleProgress = Number.isFinite(dayNight.cycleProgress) ? dayNight.cycleProgress : 0;
+    const dayShare = Number.isFinite(dayNight.dayShare) ? dayNight.dayShare : 0.5;
+
+    this.nodes.cycle.dataset.phase = dayNight.phase;
+    this.nodes.cycle.setAttribute("aria-label", `${dayNight.label} cycle`);
+    this.nodes.cycle.style.setProperty("--day-share", `${dayShare}turn`);
+    this.nodes.cycleHand.style.setProperty("--cycle-turn", `${cycleProgress}turn`);
   }
 
   setTile(tile) {
-    if (!tile) {
-      return;
-    }
-
-    this.nodes.tileName.textContent = tile.biomeLabel ? `${tile.biomeLabel} - ${tile.label}` : tile.label;
-    this.nodes.tileCoords.textContent = `${tile.column}, ${tile.row}`;
+    void tile;
   }
 
   setUnitSummary(units) {
-    const playerUnits = units.filter((unit) => unit.faction === "player");
-    const activeOrders = playerUnits.filter((unit) => unit.order !== "patrol").length;
-    const haulingUnits = playerUnits.filter((unit) => unit.carryingTreasureId).length;
-
-    this.nodes.units.textContent = String(playerUnits.length);
-    this.nodes.unitName.textContent = "Fire Camp";
-    this.nodes.unitRole.textContent = activeOrders > 0 ? `${activeOrders} active order` : "Patrol active";
-    this.nodes.unitCoords.textContent = haulingUnits > 0 ? `${haulingUnits} carrying` : `${playerUnits.length} warriors`;
-    this.nodes.unitMove.textContent = "Realtime orders";
+    void units;
   }
 }

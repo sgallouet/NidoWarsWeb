@@ -12,79 +12,56 @@
       <canvas id="game-canvas" aria-label="Nido Wars realtime desert island map"></canvas>
 
       <header class="hud hud-top" aria-label="Game status">
-        <div class="brand-block">
-          <span class="brand-mark" aria-hidden="true">NW</span>
-          <div>
-            <h1>Nido Wars</h1>
-            <p>Five realms</p>
-          </div>
-        </div>
-
         <dl class="resource-strip">
-          <div>
-            <dt>Cycle</dt>
-            <dd data-ui="cycle">Day</dd>
+          <div class="cycle-item">
+            <dt class="sr-only">Day and night cycle</dt>
+            <dd class="cycle-meter" data-ui="cycle" data-phase="day" aria-label="Day">
+              <span class="cycle-clock" aria-hidden="true">
+                <span class="cycle-hand" data-ui="cycle-hand"></span>
+              </span>
+            </dd>
           </div>
-          <div>
-            <dt>Gold</dt>
+          <div class="resource-item">
+            <dt class="sr-only">Gold</dt>
             <dd class="resource-value">
               <img src="./assets/gold.png" alt="" />
               <span data-ui="gold">0</span>
             </dd>
           </div>
-          <div>
-            <dt>Herbs</dt>
-            <dd data-ui="herbs">0</dd>
+          <div class="resource-item">
+            <dt class="sr-only">Herbs</dt>
+            <dd class="resource-value">
+              <img src="./assets/herbs.svg" alt="" />
+              <span data-ui="herbs">0</span>
+            </dd>
           </div>
-          <div>
-            <dt>Fish</dt>
+          <div class="resource-item">
+            <dt class="sr-only">Fish</dt>
             <dd class="resource-value">
               <img src="./assets/fish.png" alt="" />
               <span data-ui="fish">0</span>
             </dd>
           </div>
-          <div>
-            <dt>Berries</dt>
+          <div class="resource-item">
+            <dt class="sr-only">Berries</dt>
             <dd class="resource-value">
               <img src="./assets/berries.png" alt="" />
               <span data-ui="berries">0</span>
             </dd>
           </div>
-          <div>
-            <dt>Wood</dt>
+          <div class="resource-item">
+            <dt class="sr-only">Wood</dt>
             <dd class="resource-value">
               <img src="./assets/wood.png" alt="" />
               <span data-ui="wood">0</span>
             </dd>
           </div>
-          <div>
-            <dt>Units</dt>
-            <dd data-ui="units">3</dd>
-          </div>
-          <div>
-            <dt>Survey</dt>
-            <dd data-ui="survey">60 x 60</dd>
-          </div>
-          <div>
+          <div class="fps-item">
             <dt>FPS</dt>
             <dd data-ui="fps">--</dd>
           </div>
         </dl>
       </header>
-
-      <aside class="hud tile-panel" aria-live="polite">
-        <span class="panel-kicker">Sector</span>
-        <strong data-ui="tile-name">Temperate Wilds</strong>
-        <span data-ui="tile-coords">30, 30</span>
-      </aside>
-
-      <aside class="hud unit-panel" aria-live="polite">
-        <span class="panel-kicker">Camp</span>
-        <strong data-ui="unit-name">Fire Camp</strong>
-        <span data-ui="unit-role">Patrol active</span>
-        <span data-ui="unit-coords">3 warriors</span>
-        <span data-ui="unit-move">Realtime orders</span>
-      </aside>
     </main>
 
     <script type="module" src="./src/main.js"></script>
