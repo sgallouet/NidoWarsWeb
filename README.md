@@ -1,6 +1,6 @@
 # Nido Wars Web
 
-Nido Wars is starting as a browser-based realtime strategy prototype. This slice focuses on a polished, scalable world renderer and lightweight RTS simulation: a 30 x 30 isometric desert island with a player fire camp, patrolling units, monsters, fog, and treasure hauling.
+Nido Wars is starting as a browser-based realtime strategy prototype. This slice focuses on a polished, scalable world renderer and lightweight RTS simulation: a 60 x 60 isometric island with a player fire camp, patrolling units, biome monsters, fog, water, herbs, fish, berries, and treasure hauling.
 
 ## Run
 
@@ -23,19 +23,24 @@ The project currently uses no runtime dependencies. It is plain browser JavaScri
 
 ## Current Slice
 
-- 30 x 30 randomly seeded isometric desert island.
-- Sand, dunes, rock shelves, scrub, salt flats, and rare oasis tiles.
+- 60 x 60 randomly seeded isometric island.
+- Five regions: snow mountain, desert expanse, temperate wilds, volcanic scar, and paradise reach.
+- Sand, dunes, grass, forest, flowers, snow, ice, ash, obsidian, lava, rock shelves, scrub, salt flats, oasis tiles, and Grand Lake water.
 - Fire camp base with player warriors patrolling nearby.
-- Monsters randomly patrol around the island.
+- Biome-specific scary monsters and friendly decorative critters patrol around the island.
+- Tiny birds can fly over any terrain; rabbits are small ambient decoration.
+- Scary monsters raise an alert when they close on player units; nearby player units answer the alert and attack.
 - Click fogged terrain to place an exploration order; nearby idle units investigate and return to camp patrol.
 - Click treasure to assign a carrier and protector; the carrier hauls treasure back to the fire camp.
+- Click herbs to assign a gatherer; each herb supports 5 round trips back to the fire camp.
+- Click fish or berry resources to assign a gatherer and increase separate food currencies.
 - Sand and dunes slow realtime movement; carried treasure slows a unit by 50%.
-- Impassable mountain ridges.
+- Impassable mountain ridges, obsidian, lava, and lake water.
 - Transparent fog of war with clean revealed terrain.
-- Collectible treasures that increase gold.
+- Collectible treasures that increase gold and herbs that increase supplies.
 - Cached terrain and fog rendering for 60 FPS-oriented realtime performance.
 - Responsive canvas with high-DPI rendering.
-- Pointer drag camera movement and wheel zoom.
+- Desktop pointer drag, wheel zoom, touch drag, and two-finger pinch zoom.
 - Hovered sector readout.
 - Sampled FPS counter in the HUD.
 

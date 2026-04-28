@@ -2,32 +2,60 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Nido Wars</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./styles/main.css" />
   </head>
   <body>
     <main class="game-shell" data-app-root>
-      <canvas id="game-canvas" aria-label="Nido Wars desert world map"></canvas>
+      <canvas id="game-canvas" aria-label="Nido Wars realtime desert island map"></canvas>
 
       <header class="hud hud-top" aria-label="Game status">
         <div class="brand-block">
           <span class="brand-mark" aria-hidden="true">NW</span>
           <div>
             <h1>Nido Wars</h1>
-            <p>Desert frontier</p>
+            <p>Five realms</p>
           </div>
         </div>
 
         <dl class="resource-strip">
           <div>
-            <dt>Mode</dt>
-            <dd>RTS</dd>
+            <dt>Cycle</dt>
+            <dd data-ui="cycle">Day</dd>
           </div>
           <div>
             <dt>Gold</dt>
-            <dd data-ui="gold">0</dd>
+            <dd class="resource-value">
+              <img src="./assets/gold.png" alt="" />
+              <span data-ui="gold">0</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Herbs</dt>
+            <dd data-ui="herbs">0</dd>
+          </div>
+          <div>
+            <dt>Fish</dt>
+            <dd class="resource-value">
+              <img src="./assets/fish.png" alt="" />
+              <span data-ui="fish">0</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Berries</dt>
+            <dd class="resource-value">
+              <img src="./assets/berries.png" alt="" />
+              <span data-ui="berries">0</span>
+            </dd>
+          </div>
+          <div>
+            <dt>Wood</dt>
+            <dd class="resource-value">
+              <img src="./assets/wood.png" alt="" />
+              <span data-ui="wood">0</span>
+            </dd>
           </div>
           <div>
             <dt>Units</dt>
@@ -35,7 +63,7 @@
           </div>
           <div>
             <dt>Survey</dt>
-            <dd data-ui="survey">30 x 30</dd>
+            <dd data-ui="survey">60 x 60</dd>
           </div>
           <div>
             <dt>FPS</dt>
@@ -46,8 +74,8 @@
 
       <aside class="hud tile-panel" aria-live="polite">
         <span class="panel-kicker">Sector</span>
-        <strong data-ui="tile-name">Open Sand</strong>
-        <span data-ui="tile-coords">14, 14</span>
+        <strong data-ui="tile-name">Temperate Wilds</strong>
+        <span data-ui="tile-coords">30, 30</span>
       </aside>
 
       <aside class="hud unit-panel" aria-live="polite">

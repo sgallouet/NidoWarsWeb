@@ -1,4 +1,6 @@
 import { TilePainter } from "./TilePainter.js";
+import { HerbPainter } from "./HerbPainter.js";
+import { ResourceNodePainter } from "./ResourceNodePainter.js";
 import { TreasurePainter } from "./TreasurePainter.js";
 import { UnitPainter } from "./UnitPainter.js";
 import { gridToWorld, worldToGrid } from "./isoMath.js";
@@ -11,6 +13,8 @@ export class CanvasRenderer {
     this.config = config;
     this.viewport = { width: 1, height: 1, dpr: 1 };
     this.tilePainter = new TilePainter(config);
+    this.herbPainter = new HerbPainter();
+    this.resourceNodePainter = new ResourceNodePainter();
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
     this.terrainCache = null;
@@ -35,17 +39,20 @@ export class CanvasRenderer {
     world,
     units,
     treasures,
+    herbs,
+    resourceNodes,
     fogOfWar,
     campTile,
     orderMarkers,
     hoveredTile,
+    dayNight,
     elapsed,
   }) {
     const ctx = this.context;
     const { width, height, dpr } = this.viewport;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.paintBackdrop(ctx, width, height, elapsed);
+    this.paintBackdrop(ctx, width, height, elapsed, dayNight);
 
     ctx.save();
     ctx.translate(width / 2, height * 0.54);
@@ -53,24 +60,29 @@ export class CanvasRenderer {
     ctx.translate(-this.camera.x, -this.camera.y);
 
     this.paintWorld(ctx, world);
+    this.paintResourceNodes(ctx, world, resourceNodes, elapsed);
+    this.paintHerbs(ctx, world, herbs);
     this.paintTreasures(ctx, world, treasures, elapsed);
     this.paintCamp(ctx, campTile, elapsed);
     this.paintFog(ctx, world, fogOfWar);
     this.paintHover(ctx, hoveredTile);
     this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
     this.paintUnits(ctx, world, units, elapsed);
+    this.paintNightLayer(ctx, world, dayNight);
 
     ctx.restore();
+    this.paintScreenNight(ctx, width, height, dayNight);
     this.paintVignette(ctx, width, height);
   }
 
-  paintBackdrop(ctx, width, height, elapsed) {
+  paintBackdrop(ctx, width, height, elapsed, dayNight) {
     const shimmer = Math.sin(elapsed * 0.00055) * 0.04;
     const sky = ctx.createLinearGradient(0, 0, 0, height);
+    const night = dayNight?.nightAmount || 0;
 
-    sky.addColorStop(0, "#222434");
-    sky.addColorStop(0.36 + shimmer, "#5a4632");
-    sky.addColorStop(1, "#b17439");
+    sky.addColorStop(0, mixColor("#222434", "#071127", night));
+    sky.addColorStop(0.36 + shimmer, mixColor("#5a4632", "#14213d", night));
+    sky.addColorStop(1, mixColor("#b17439", "#27324d", night));
 
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, width, height);
@@ -91,7 +103,7 @@ export class CanvasRenderer {
     ctx.closePath();
     ctx.fill();
 
-    ctx.globalAlpha = 0.16;
+    ctx.globalAlpha = 0.16 + night * 0.18;
     ctx.strokeStyle = "#ffe2a2";
     ctx.lineWidth = 1;
     for (let i = 0; i < 5; i += 1) {
@@ -102,6 +114,46 @@ export class CanvasRenderer {
       ctx.lineTo(width * 0.88, y + i * 2);
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  paintNightLayer(ctx, world, dayNight) {
+    const night = dayNight?.nightAmount || 0;
+
+    if (night <= 0.01) {
+      return;
+    }
+
+    const cache = this.getTerrainCache(world);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = `rgba(19, 33, 72, ${0.42 * night})`;
+    ctx.fillRect(cache.bounds.x, cache.bounds.y, cache.bounds.width, cache.bounds.height);
+    ctx.restore();
+  }
+
+  paintScreenNight(ctx, width, height, dayNight) {
+    const night = dayNight?.nightAmount || 0;
+
+    if (night <= 0.01) {
+      return;
+    }
+
+    ctx.save();
+    const glow = ctx.createRadialGradient(
+      width * 0.72,
+      height * 0.18,
+      0,
+      width * 0.72,
+      height * 0.18,
+      Math.max(width, height) * 0.72,
+    );
+
+    glow.addColorStop(0, `rgba(104, 144, 255, ${0.1 * night})`);
+    glow.addColorStop(1, `rgba(4, 10, 26, ${0.28 * night})`);
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
     ctx.restore();
   }
 
@@ -233,7 +285,7 @@ export class CanvasRenderer {
 
   paintMarkerIcon(ctx, type, x, y) {
     ctx.save();
-    ctx.fillStyle = type === "eye" ? "rgba(42, 60, 66, 0.9)" : "rgba(74, 48, 20, 0.92)";
+    ctx.fillStyle = getMarkerBackground(type);
     ctx.strokeStyle = "rgba(255, 244, 214, 0.75)";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -250,6 +302,50 @@ export class CanvasRenderer {
       ctx.beginPath();
       ctx.arc(x, y, 3.5, 0, Math.PI * 2);
       ctx.fill();
+    } else if (type === "herb") {
+      ctx.strokeStyle = "#cce68a";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      for (let i = 0; i < 5; i += 1) {
+        const angle = -Math.PI / 2 + (i - 2) * 0.28;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y + 7);
+        ctx.lineTo(x + Math.cos(angle) * 10, y + 7 + Math.sin(angle) * 13);
+        ctx.stroke();
+      }
+    } else if (type === "fish") {
+      ctx.fillStyle = "#8fe8ef";
+      ctx.beginPath();
+      ctx.ellipse(x, y, 8, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y);
+      ctx.lineTo(x - 13, y - 5);
+      ctx.lineTo(x - 12, y + 5);
+      ctx.closePath();
+      ctx.fill();
+    } else if (type === "berries") {
+      ctx.fillStyle = "#85ba68";
+      ctx.beginPath();
+      ctx.arc(x - 3, y, 5, 0, Math.PI * 2);
+      ctx.arc(x + 4, y - 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e0527e";
+      ctx.beginPath();
+      ctx.arc(x - 4, y - 2, 2, 0, Math.PI * 2);
+      ctx.arc(x + 3, y + 1, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type === "wood") {
+      ctx.strokeStyle = "#d79a50";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 4);
+      ctx.lineTo(x + 8, y - 5);
+      ctx.moveTo(x - 6, y - 3);
+      ctx.lineTo(x + 10, y + 4);
+      ctx.stroke();
     } else {
       ctx.fillStyle = "#f3d35f";
       ctx.fillRect(x - 8, y - 5, 16, 10);
@@ -293,6 +389,37 @@ export class CanvasRenderer {
       const point = this.getTileCenter(tile);
 
       this.treasurePainter.paint(ctx, {
+        x: point.x,
+        y: point.y,
+        elapsed,
+      });
+    }
+  }
+
+  paintHerbs(ctx, world, herbs) {
+    for (const herb of herbs) {
+      const tile = world.getTile(herb.column, herb.row);
+      const point = this.getTileCenter(tile);
+
+      this.herbPainter.paint(ctx, {
+        x: point.x,
+        y: point.y,
+        loadsRemaining: herb.loadsRemaining,
+      });
+    }
+  }
+
+  paintResourceNodes(ctx, world, resourceNodes, elapsed) {
+    if (!resourceNodes) {
+      return;
+    }
+
+    for (const node of resourceNodes) {
+      const tile = world.getTile(node.column, node.row);
+      const point = this.getTileCenter(tile);
+
+      this.resourceNodePainter.paint(ctx, {
+        node,
         x: point.x,
         y: point.y,
         elapsed,
@@ -415,6 +542,49 @@ export class CanvasRenderer {
   worldToGrid(x, y) {
     return worldToGrid(x, y, this.config.tileWidth, this.config.tileHeight);
   }
+}
+
+function getMarkerBackground(type) {
+  if (type === "eye") {
+    return "rgba(42, 60, 66, 0.9)";
+  }
+
+  if (type === "herb") {
+    return "rgba(35, 67, 35, 0.92)";
+  }
+
+  if (type === "fish") {
+    return "rgba(18, 72, 84, 0.92)";
+  }
+
+  if (type === "berries") {
+    return "rgba(75, 38, 56, 0.92)";
+  }
+
+  if (type === "wood") {
+    return "rgba(79, 44, 24, 0.92)";
+  }
+
+  return "rgba(74, 48, 20, 0.92)";
+}
+
+function mixColor(fromHex, toHex, amount) {
+  const from = parseHex(fromHex);
+  const to = parseHex(toHex);
+  const mix = (start, end) => Math.round(start + (end - start) * amount);
+
+  return `rgb(${mix(from.r, to.r)}, ${mix(from.g, to.g)}, ${mix(from.b, to.b)})`;
+}
+
+function parseHex(hex) {
+  const color = hex.replace("#", "");
+  const number = Number.parseInt(color, 16);
+
+  return {
+    r: (number >> 16) & 255,
+    g: (number >> 8) & 255,
+    b: number & 255,
+  };
 }
 
 function drawDiamond(ctx, corners) {

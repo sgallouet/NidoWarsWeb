@@ -69,9 +69,13 @@ export class TilePainter {
     drawDiamond(ctx, corners);
     ctx.clip();
 
-    if (tile.type === "dune") {
+    if (tile.type === "water" || tile.type === "lava") {
+      this.paintWaterRipples(ctx, corners, tile);
+    } else if (tile.type === "snow" || tile.type === "ice") {
+      this.paintSnowCrystals(ctx, corners, tile);
+    } else if (tile.type === "dune") {
       this.paintDuneLines(ctx, corners, tile);
-    } else if (tile.type === "salt") {
+    } else if (tile.type === "salt" || tile.type === "ash") {
       this.paintSaltCracks(ctx, corners, tile);
     } else {
       this.paintSandGrain(ctx, corners, tile);
@@ -98,6 +102,48 @@ export class TilePainter {
         corners.right.x - 18,
         y - 2,
       );
+      ctx.stroke();
+    }
+  }
+
+  paintWaterRipples(ctx, corners, tile) {
+    ctx.strokeStyle =
+      tile.type === "lava"
+        ? `rgba(255, 216, 118, ${0.28 + tile.texture * 0.18})`
+        : `rgba(205, 255, 247, ${0.22 + tile.texture * 0.12})`;
+    ctx.lineWidth = 1.5;
+
+    for (let i = 0; i < 3; i += 1) {
+      const y = corners.top.y + this.tileHeight * (0.36 + i * 0.16);
+      const drift = (tile.texture - 0.5) * 12;
+
+      ctx.beginPath();
+      ctx.moveTo(corners.left.x + 16, y);
+      ctx.bezierCurveTo(
+        corners.left.x + 32,
+        y - 6 + drift,
+        corners.right.x - 32,
+        y + 6 - drift,
+        corners.right.x - 16,
+        y,
+      );
+      ctx.stroke();
+    }
+  }
+
+  paintSnowCrystals(ctx, corners, tile) {
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.22 + tile.texture * 0.16})`;
+    ctx.lineWidth = 1;
+
+    for (let i = 0; i < 5; i += 1) {
+      const x = corners.left.x + 16 + seeded(tile.seed, i) * (this.tileWidth - 32);
+      const y = corners.top.y + 10 + seeded(tile.seed, i + 17) * (this.tileHeight - 18);
+
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y);
+      ctx.lineTo(x + 3, y);
+      ctx.moveTo(x, y - 3);
+      ctx.lineTo(x, y + 3);
       ctx.stroke();
     }
   }
@@ -130,12 +176,20 @@ export class TilePainter {
   }
 
   paintFeature(ctx, corners, tile, elapsed) {
-    if (tile.type === "rock") {
+    if (tile.type === "rock" || tile.type === "obsidian") {
       this.paintRock(ctx, corners, tile);
     }
 
     if (tile.type === "scrub") {
       this.paintScrub(ctx, corners, tile);
+    }
+
+    if (tile.type === "forest") {
+      this.paintForest(ctx, corners, tile);
+    }
+
+    if (tile.type === "flower") {
+      this.paintFlowers(ctx, corners, tile);
     }
 
     if (tile.type === "oasis") {
@@ -153,7 +207,7 @@ export class TilePainter {
     ctx.ellipse(cx + 4, cy + 8, 20, 7, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = shade("#9e7550", tile.lightness);
+    ctx.fillStyle = shade(tile.type === "obsidian" ? "#4a404e" : "#9e7550", tile.lightness);
     ctx.beginPath();
     ctx.moveTo(cx - 18, cy + 5);
     ctx.lineTo(cx - 4, cy - 12);
@@ -195,6 +249,51 @@ export class TilePainter {
     ctx.beginPath();
     ctx.ellipse(cx, cy + 7, 11, 4, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  paintForest(ctx, corners, tile) {
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
+
+    ctx.save();
+    for (let i = 0; i < 3; i += 1) {
+      const offset = (i - 1) * 12;
+
+      ctx.fillStyle = "#345b3f";
+      ctx.beginPath();
+      ctx.moveTo(cx + offset, cy - 18);
+      ctx.lineTo(cx + offset - 11, cy + 7);
+      ctx.lineTo(cx + offset + 12, cy + 7);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#6fa060";
+      ctx.beginPath();
+      ctx.moveTo(cx + offset, cy - 24);
+      ctx.lineTo(cx + offset - 9, cy - 2);
+      ctx.lineTo(cx + offset + 10, cy - 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  paintFlowers(ctx, corners, tile) {
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
+
+    this.paintScrub(ctx, corners, tile);
+
+    ctx.save();
+    for (let i = 0; i < 7; i += 1) {
+      const x = cx - 18 + seeded(tile.seed, i) * 36;
+      const y = cy - 6 + seeded(tile.seed, i + 20) * 20;
+
+      ctx.fillStyle = i % 2 === 0 ? "#ff9cc1" : "#f7df6b";
+      ctx.beginPath();
+      ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 

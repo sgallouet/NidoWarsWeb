@@ -9,6 +9,86 @@ export const TILE_TYPES = {
       shadow: "#a87436",
     },
   },
+  grass: {
+    label: "Temperate Meadow",
+    movementCost: 1,
+    passable: true,
+    colors: {
+      light: "#b7d486",
+      base: "#7fa961",
+      shadow: "#4f7448",
+    },
+  },
+  forest: {
+    label: "Old Forest",
+    movementCost: 1.25,
+    passable: true,
+    colors: {
+      light: "#9cbf72",
+      base: "#5f8b56",
+      shadow: "#345b3f",
+    },
+  },
+  flower: {
+    label: "Paradise Bloom",
+    movementCost: 1,
+    passable: true,
+    colors: {
+      light: "#d6e892",
+      base: "#8fcf77",
+      shadow: "#4e9462",
+    },
+  },
+  snow: {
+    label: "Snowfield",
+    movementCost: 1.5,
+    passable: true,
+    colors: {
+      light: "#f7fbff",
+      base: "#d7e7ec",
+      shadow: "#9cb7c3",
+    },
+  },
+  ice: {
+    label: "Blue Ice",
+    movementCost: 1.35,
+    passable: true,
+    colors: {
+      light: "#e6fbff",
+      base: "#a9dbe6",
+      shadow: "#6fa7bc",
+    },
+  },
+  ash: {
+    label: "Ash Plain",
+    movementCost: 1.25,
+    passable: true,
+    colors: {
+      light: "#9a928b",
+      base: "#675f5b",
+      shadow: "#3e3938",
+    },
+  },
+  obsidian: {
+    label: "Obsidian Ridge",
+    movementCost: Infinity,
+    passable: false,
+    colors: {
+      light: "#6b646d",
+      base: "#332f38",
+      shadow: "#18161d",
+    },
+  },
+  lava: {
+    label: "Lava Flow",
+    movementCost: Infinity,
+    passable: false,
+    colors: {
+      light: "#ffb457",
+      base: "#e3502e",
+      shadow: "#641f25",
+    },
+  },
   dune: {
     label: "Crescent Dune",
     movementCost: 2,
@@ -27,6 +107,16 @@ export const TILE_TYPES = {
       light: "#d9ad78",
       base: "#b88455",
       shadow: "#7d5537",
+    },
+  },
+  water: {
+    label: "Grand Lake",
+    movementCost: Infinity,
+    passable: false,
+    colors: {
+      light: "#48d7cf",
+      base: "#168e98",
+      shadow: "#07556d",
     },
   },
   scrub: {

@@ -2,6 +2,11 @@ export class Hud {
   constructor(root) {
     this.nodes = {
       gold: root.querySelector('[data-ui="gold"]'),
+      herbs: root.querySelector('[data-ui="herbs"]'),
+      fish: root.querySelector('[data-ui="fish"]'),
+      berries: root.querySelector('[data-ui="berries"]'),
+      wood: root.querySelector('[data-ui="wood"]'),
+      cycle: root.querySelector('[data-ui="cycle"]'),
       units: root.querySelector('[data-ui="units"]'),
       fps: root.querySelector('[data-ui="fps"]'),
       tileName: root.querySelector('[data-ui="tile-name"]'),
@@ -13,12 +18,20 @@ export class Hud {
     };
   }
 
-  setResources({ gold }) {
+  setResources({ gold, herbs, fish, berries, wood }) {
     this.nodes.gold.textContent = String(gold);
+    this.nodes.herbs.textContent = String(herbs);
+    this.nodes.fish.textContent = String(fish);
+    this.nodes.berries.textContent = String(berries);
+    this.nodes.wood.textContent = String(wood);
   }
 
   setFps(fps) {
     this.nodes.fps.textContent = String(fps);
+  }
+
+  setCycle(dayNight) {
+    this.nodes.cycle.textContent = dayNight.label;
   }
 
   setTile(tile) {
@@ -26,7 +39,7 @@ export class Hud {
       return;
     }
 
-    this.nodes.tileName.textContent = tile.label;
+    this.nodes.tileName.textContent = tile.biomeLabel ? `${tile.biomeLabel} - ${tile.label}` : tile.label;
     this.nodes.tileCoords.textContent = `${tile.column}, ${tile.row}`;
   }
 

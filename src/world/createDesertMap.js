@@ -1,28 +1,58 @@
 import { TILE_TYPES } from "./tileTypes.js";
 
+const BIOME_CENTERS = [
+  { id: "snow", label: "Snow Mountain", column: 0.18, row: 0.18 },
+  { id: "desert", label: "Desert Expanse", column: 0.78, row: 0.23 },
+  { id: "temperate", label: "Temperate Wilds", column: 0.5, row: 0.52 },
+  { id: "volcanic", label: "Volcanic Scar", column: 0.2, row: 0.82 },
+  { id: "paradise", label: "Paradise Reach", column: 0.82, row: 0.78 },
+];
+
 export function createDesertMap({ columns, rows, seed = Date.now() }) {
   const tiles = [];
+  const campCenter = {
+    column: Math.floor(columns / 2),
+    row: Math.floor(rows / 2),
+  };
+  const lakeCenter = {
+    column: Math.floor(columns * 0.36 + hash(seed, 12, 4) * 5),
+    row: Math.floor(rows * 0.68 + hash(seed, 7, 17) * 4),
+  };
 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
       const tileSeed = hash(seed, column, row);
-      const duneBand = Math.sin((column + seed * 0.01) * 0.48) + Math.cos(row * 0.34);
-      const ridge = Math.sin((column - row) * 0.28 + seed) * 0.5;
-      const dryness = noise(seed, column * 0.27, row * 0.27);
-      const mineral = noise(seed + 81, column * 0.21, row * 0.21);
-      const roughness = noise(seed + 191, column * 0.35, row * 0.35);
-      const oasis = distanceTo(column, row, 7, 21) < 2.1 || distanceTo(column, row, 23, 8) < 1.8;
-      const type = chooseType({ oasis, duneBand, ridge, dryness, mineral, roughness });
+      const biome = chooseBiome({ column, row, columns, rows, seed, campCenter });
+      const duneBand = Math.sin((column + seed * 0.01) * 0.38) + Math.cos(row * 0.29);
+      const ridge = Math.sin((column - row) * 0.21 + seed) * 0.5;
+      const dryness = noise(seed, column * 0.16, row * 0.16);
+      const mineral = noise(seed + 81, column * 0.15, row * 0.15);
+      const roughness = noise(seed + 191, column * 0.23, row * 0.23);
+      const lakeDistance = normalizedDistance(column, row, lakeCenter.column, lakeCenter.row, 8.4, 5.8);
+      const campDistance = distanceTo(column, row, campCenter.column, campCenter.row);
+      const forceOpenCamp = campDistance <= 6.2;
+      const type = chooseType({
+        biome: biome.id,
+        duneBand,
+        ridge,
+        dryness,
+        mineral,
+        roughness,
+        lakeDistance,
+        forceOpenCamp,
+      });
 
       tiles.push({
         id: `${column}:${row}`,
         column,
         row,
         type,
+        biome: biome.id,
+        biomeLabel: biome.label,
         label: TILE_TYPES[type].label,
         seed: tileSeed,
         texture: tileSeed,
-        elevation: Math.max(0, Math.round((duneBand + ridge + roughness - 0.74) * 1.55)),
+        elevation: getElevation(type, duneBand, ridge, roughness),
         lightness: (tileSeed - 0.5) * 0.055,
       });
     }
@@ -44,9 +74,78 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
   };
 }
 
-function chooseType({ oasis, duneBand, ridge, dryness, mineral, roughness }) {
-  if (oasis) {
-    return "oasis";
+function chooseBiome({ column, row, columns, rows, seed, campCenter }) {
+  if (distanceTo(column, row, campCenter.column, campCenter.row) <= 7.5) {
+    return BIOME_CENTERS.find((biome) => biome.id === "temperate");
+  }
+
+  const normalizedColumn = column / Math.max(1, columns - 1);
+  const normalizedRow = row / Math.max(1, rows - 1);
+  let bestBiome = BIOME_CENTERS[0];
+  let bestScore = Infinity;
+
+  for (const biome of BIOME_CENTERS) {
+    const warp = (noise(seed + biome.id.length * 31, normalizedColumn * 4, normalizedRow * 4) - 0.5) * 0.12;
+    const dx = normalizedColumn - biome.column + warp;
+    const dy = normalizedRow - biome.row - warp;
+    const score = dx * dx + dy * dy;
+
+    if (score < bestScore) {
+      bestBiome = biome;
+      bestScore = score;
+    }
+  }
+
+  return bestBiome;
+}
+
+function chooseType({ biome, duneBand, ridge, dryness, mineral, roughness, lakeDistance, forceOpenCamp }) {
+  if (forceOpenCamp) {
+    if (dryness < 0.22 && roughness > 0.42) {
+      return "forest";
+    }
+
+    return dryness > 0.66 ? "grass" : "scrub";
+  }
+
+  if ((biome === "temperate" || biome === "paradise") && lakeDistance < 1) {
+    return "water";
+  }
+
+  if (biome === "snow") {
+    if (roughness > 0.68 || ridge > 0.34) {
+      return "rock";
+    }
+
+    return mineral > 0.66 ? "ice" : "snow";
+  }
+
+  if (biome === "volcanic") {
+    if (mineral > 0.72 || ridge > 0.42) {
+      return "lava";
+    }
+
+    if (roughness > 0.62) {
+      return "obsidian";
+    }
+
+    return "ash";
+  }
+
+  if (biome === "paradise") {
+    if (mineral > 0.78) {
+      return "oasis";
+    }
+
+    return dryness < 0.44 ? "flower" : "grass";
+  }
+
+  if (biome === "temperate") {
+    if (roughness > 0.74 || ridge > 0.42) {
+      return "rock";
+    }
+
+    return dryness < 0.42 ? "forest" : "grass";
   }
 
   if (mineral > 0.78 && dryness < 0.58) {
@@ -68,9 +167,28 @@ function chooseType({ oasis, duneBand, ridge, dryness, mineral, roughness }) {
   return "sand";
 }
 
+function getElevation(type, duneBand, ridge, roughness) {
+  if (type === "water" || type === "lava") {
+    return 0;
+  }
+
+  if (type === "rock" || type === "obsidian") {
+    return 2 + Math.max(0, Math.round((roughness + ridge) * 1.5));
+  }
+
+  return Math.max(0, Math.round((duneBand + ridge + roughness - 0.74) * 1.45));
+}
+
 function distanceTo(column, row, targetColumn, targetRow) {
   const dx = column - targetColumn;
   const dy = row - targetRow;
+
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function normalizedDistance(column, row, targetColumn, targetRow, radiusX, radiusY) {
+  const dx = (column - targetColumn) / radiusX;
+  const dy = (row - targetRow) / radiusY;
 
   return Math.sqrt(dx * dx + dy * dy);
 }

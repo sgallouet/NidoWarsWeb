@@ -1,3 +1,5 @@
+import { isTilePassable } from "../world/tileTypes.js";
+
 export const UNIT_DEFINITIONS = {
   duneVanguard: {
     label: "Dune Vanguard",
@@ -15,9 +17,11 @@ export const UNIT_DEFINITIONS = {
   emberMaw: {
     label: "Ember Maw",
     faction: "monster",
+    temperament: "scary",
     role: "Monster",
     speed: 1.25,
     patrolRadius: 6,
+    health: 4,
     colors: {
       primary: "#9e5035",
       secondary: "#e59a49",
@@ -25,12 +29,78 @@ export const UNIT_DEFINITIONS = {
       shadow: "#4d291f",
     },
   },
+  frostHorn: {
+    label: "Frost Horn",
+    faction: "monster",
+    temperament: "scary",
+    role: "Snow Monster",
+    speed: 1.1,
+    patrolRadius: 7,
+    health: 5,
+    body: "thornback",
+    colors: {
+      primary: "#b8d4de",
+      secondary: "#f4fbff",
+      accent: "#7be1f2",
+      shadow: "#537284",
+    },
+  },
+  groveStalker: {
+    label: "Grove Stalker",
+    faction: "monster",
+    temperament: "scary",
+    role: "Forest Monster",
+    speed: 1.35,
+    patrolRadius: 7,
+    health: 4,
+    body: "thornback",
+    colors: {
+      primary: "#476d44",
+      secondary: "#9abf6f",
+      accent: "#f0e6a2",
+      shadow: "#253d2c",
+    },
+  },
+  cinderMaw: {
+    label: "Cinder Maw",
+    faction: "monster",
+    temperament: "scary",
+    role: "Volcanic Monster",
+    speed: 1.25,
+    patrolRadius: 7,
+    health: 5,
+    body: "emberMaw",
+    colors: {
+      primary: "#6c2425",
+      secondary: "#ff7a36",
+      accent: "#ffd45f",
+      shadow: "#251718",
+    },
+  },
+  bloomWisp: {
+    label: "Bloom Wisp",
+    faction: "monster",
+    temperament: "friendly",
+    role: "Paradise Spirit",
+    speed: 1.7,
+    patrolRadius: 6,
+    health: 2,
+    body: "glassStalker",
+    colors: {
+      primary: "#8fcf77",
+      secondary: "#ffc0d4",
+      accent: "#fff4a3",
+      shadow: "#476a54",
+    },
+  },
   glassStalker: {
     label: "Glass Stalker",
     faction: "monster",
+    temperament: "scary",
     role: "Monster",
     speed: 1.45,
     patrolRadius: 7,
+    health: 3,
     colors: {
       primary: "#665e8f",
       secondary: "#b9c2dc",
@@ -41,14 +111,51 @@ export const UNIT_DEFINITIONS = {
   thornback: {
     label: "Thornback",
     faction: "monster",
+    temperament: "scary",
     role: "Monster",
     speed: 1.05,
     patrolRadius: 5,
+    health: 5,
     colors: {
       primary: "#6f854d",
       secondary: "#c2a75c",
       accent: "#efe8a8",
       shadow: "#354226",
+    },
+  },
+  duneHare: {
+    label: "Dune Hare",
+    faction: "monster",
+    temperament: "friendly",
+    role: "Critter",
+    speed: 1.8,
+    patrolRadius: 4,
+    health: 1,
+    decorative: true,
+    scale: 0.52,
+    colors: {
+      primary: "#cda66b",
+      secondary: "#f3ddb0",
+      accent: "#fff6d9",
+      shadow: "#735839",
+    },
+  },
+  sunBird: {
+    label: "Sun Bird",
+    faction: "monster",
+    temperament: "friendly",
+    role: "Critter",
+    speed: 2,
+    patrolRadius: 20,
+    health: 1,
+    canFly: true,
+    decorative: true,
+    scale: 0.42,
+    colors: {
+      primary: "#d9a24b",
+      secondary: "#f4d676",
+      accent: "#fff4b7",
+      shadow: "#7c5b2d",
     },
   },
 };
@@ -70,10 +177,18 @@ export function createStartingUnits(world, campTile) {
     reserve(campTile.column + 1, campTile.row),
     reserve(campTile.column, campTile.row + 1),
   ];
-  const monsterSpawns = [
-    reserve(8, 20),
-    reserve(22, 9),
-    reserve(23, 21),
+  const monsterSpawns = {
+    snow: reserveBiome(world, "snow", occupied, 10, 10),
+    desert: reserveBiome(world, "desert", occupied, 48, 14),
+    temperate: reserveBiome(world, "temperate", occupied, 30, 34),
+    volcanic: reserveBiome(world, "volcanic", occupied, 12, 49),
+    paradise: reserveBiome(world, "paradise", occupied, 50, 50),
+  };
+  const critterSpawns = [
+    reserveBiome(world, "desert", occupied, 45, 18),
+    reserveBiome(world, "paradise", occupied, 51, 46),
+    reserveBiome(world, "temperate", occupied, 25, 31),
+    reserveBiome(world, "snow", occupied, 16, 12),
   ];
 
   return [
@@ -99,19 +214,67 @@ export function createStartingUnits(world, campTile) {
       id: "monster-ember-01",
       definition: "emberMaw",
       name: "Ember Maw",
-      tile: monsterSpawns[0],
+      tile: monsterSpawns.desert,
+    }),
+    createUnit({
+      id: "monster-frost-01",
+      definition: "frostHorn",
+      name: "Frost Horn",
+      tile: monsterSpawns.snow,
+    }),
+    createUnit({
+      id: "monster-grove-01",
+      definition: "groveStalker",
+      name: "Grove Stalker",
+      tile: monsterSpawns.temperate,
+    }),
+    createUnit({
+      id: "monster-cinder-01",
+      definition: "cinderMaw",
+      name: "Cinder Maw",
+      tile: monsterSpawns.volcanic,
     }),
     createUnit({
       id: "monster-glass-01",
       definition: "glassStalker",
       name: "Glass Stalker",
-      tile: monsterSpawns[1],
+      tile: monsterSpawns.paradise,
     }),
     createUnit({
       id: "monster-thorn-01",
       definition: "thornback",
       name: "Thornback",
-      tile: monsterSpawns[2],
+      tile: reserveBiome(world, "temperate", occupied, 33, 27),
+    }),
+    createUnit({
+      id: "critter-bloom-01",
+      definition: "bloomWisp",
+      name: "Bloom Wisp",
+      tile: reserveBiome(world, "paradise", occupied, 53, 49),
+    }),
+    createUnit({
+      id: "critter-hare-01",
+      definition: "duneHare",
+      name: "Dune Hare",
+      tile: critterSpawns[0],
+    }),
+    createUnit({
+      id: "critter-hare-02",
+      definition: "duneHare",
+      name: "Dune Hare",
+      tile: critterSpawns[2],
+    }),
+    createUnit({
+      id: "critter-bird-01",
+      definition: "sunBird",
+      name: "Sun Bird",
+      tile: critterSpawns[1],
+    }),
+    createUnit({
+      id: "critter-bird-02",
+      definition: "sunBird",
+      name: "Sun Bird",
+      tile: critterSpawns[3],
     }),
   ];
 }
@@ -135,7 +298,16 @@ function createUnit({ id, definition, name, tile }) {
     speech: null,
     pauseMs: Math.random() * 900,
     carryingTreasureId: null,
+    carryingHerbId: null,
+    carryingResourceNodeId: null,
+    carryingResourceType: null,
+    carryingResourceAmount: 0,
     escortTargetId: null,
+    targetResourceNodeId: null,
+    targetMonsterId: null,
+    targetUnitId: null,
+    attackCooldownMs: 0,
+    health: template.health || 3,
     home: null,
   };
 }
@@ -146,7 +318,7 @@ function findNearestOpenTile(world, originColumn, originRow, occupied) {
       for (let column = originColumn - radius; column <= originColumn + radius; column += 1) {
         const tile = world.getTile(column, row);
 
-        if (!tile || occupied.has(tile.id) || tile.type === "rock") {
+        if (!tile || occupied.has(tile.id) || !isTilePassable(tile)) {
           continue;
         }
 
@@ -156,4 +328,28 @@ function findNearestOpenTile(world, originColumn, originRow, occupied) {
   }
 
   return world.getTile(originColumn, originRow);
+}
+
+function reserveBiome(world, biome, occupied, fallbackColumn, fallbackRow) {
+  const nearest = findNearestBiomeTile(world, biome, fallbackColumn, fallbackRow, occupied);
+  occupied.add(nearest.id);
+  return nearest;
+}
+
+function findNearestBiomeTile(world, biome, originColumn, originRow, occupied) {
+  for (let radius = 0; radius < Math.max(world.columns, world.rows); radius += 1) {
+    for (let row = originRow - radius; row <= originRow + radius; row += 1) {
+      for (let column = originColumn - radius; column <= originColumn + radius; column += 1) {
+        const tile = world.getTile(column, row);
+
+        if (!tile || tile.biome !== biome || occupied.has(tile.id) || !isTilePassable(tile)) {
+          continue;
+        }
+
+        return tile;
+      }
+    }
+  }
+
+  return findNearestOpenTile(world, originColumn, originRow, occupied);
 }
