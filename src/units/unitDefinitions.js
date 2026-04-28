@@ -49,37 +49,66 @@ export const UNIT_DEFINITIONS = {
   },
 };
 
-export function createStartingUnits() {
+export function createStartingUnits(world) {
+  const occupied = new Set();
+  const reserve = (column, row) => {
+    occupied.add(`${column}:${row}`);
+    return { column, row };
+  };
+  const warrior = reserve(...findNearestOpenTile(world, 14, 15, occupied));
+  const ember = reserve(...findNearestOpenTile(world, 9, 18, occupied));
+  const glass = reserve(...findNearestOpenTile(world, 20, 11, occupied));
+  const thorn = reserve(...findNearestOpenTile(world, 22, 20, occupied));
+
   return [
     createUnit({
       id: "warrior-01",
       definition: "duneVanguard",
       name: "Asha",
-      column: 14,
-      row: 15,
+      column: warrior.column,
+      row: warrior.row,
     }),
     createUnit({
       id: "monster-ember-01",
       definition: "emberMaw",
       name: "Ember Maw",
-      column: 9,
-      row: 18,
+      column: ember.column,
+      row: ember.row,
     }),
     createUnit({
       id: "monster-glass-01",
       definition: "glassStalker",
       name: "Glass Stalker",
-      column: 20,
-      row: 11,
+      column: glass.column,
+      row: glass.row,
     }),
     createUnit({
       id: "monster-thorn-01",
       definition: "thornback",
       name: "Thornback",
-      column: 22,
-      row: 20,
+      column: thorn.column,
+      row: thorn.row,
     }),
   ];
+}
+
+function findNearestOpenTile(world, originColumn, originRow, occupied) {
+  for (let radius = 0; radius < Math.max(world.columns, world.rows); radius += 1) {
+    for (let row = originRow - radius; row <= originRow + radius; row += 1) {
+      for (let column = originColumn - radius; column <= originColumn + radius; column += 1) {
+        const tile = world.getTile(column, row);
+        const key = `${column}:${row}`;
+
+        if (!tile || occupied.has(key) || tile.type === "rock") {
+          continue;
+        }
+
+        return [column, row];
+      }
+    }
+  }
+
+  return [originColumn, originRow];
 }
 
 function createUnit({ id, definition, name, column, row }) {

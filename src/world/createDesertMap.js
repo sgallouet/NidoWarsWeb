@@ -1,6 +1,6 @@
 import { TILE_TYPES } from "./tileTypes.js";
 
-export function createDesertMap({ columns, rows, seed }) {
+export function createDesertMap({ columns, rows, seed = Date.now() }) {
   const tiles = [];
 
   for (let row = 0; row < rows; row += 1) {
@@ -29,6 +29,7 @@ export function createDesertMap({ columns, rows, seed }) {
   }
 
   return {
+    seed,
     columns,
     rows,
     tiles,

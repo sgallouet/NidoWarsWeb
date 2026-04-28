@@ -10,6 +10,8 @@ export class UnitManager {
     this.reachableTiles = new Map();
     this.previewPath = [];
     this.commandPath = [];
+    this.playerMoveCompleted = false;
+    this.playerCanAct = true;
   }
 
   update(delta) {
@@ -24,6 +26,14 @@ export class UnitManager {
 
   getUnitAt(column, row) {
     return this.units.find((unit) => unit.column === column && unit.row === row) || null;
+  }
+
+  getPlayerUnit() {
+    return this.units.find((unit) => unit.faction === "player") || null;
+  }
+
+  hasMovingUnits() {
+    return this.units.some((unit) => unit.movementSegment);
   }
 
   selectUnit(unitId) {
@@ -49,7 +59,7 @@ export class UnitManager {
   setPreviewTile(tile) {
     const selectedUnit = this.getSelectedUnit();
 
-    if (!selectedUnit || selectedUnit.movementSegment || !tile) {
+    if (!selectedUnit || !this.playerCanAct || selectedUnit.movementSegment || !tile) {
       this.previewPath = [];
       return;
     }
@@ -60,7 +70,7 @@ export class UnitManager {
   tryMoveSelectedTo(tile) {
     const selectedUnit = this.getSelectedUnit();
 
-    if (!selectedUnit || selectedUnit.movementSegment || !tile) {
+    if (!selectedUnit || !this.playerCanAct || this.hasMovingUnits() || !tile) {
       return false;
     }
 
@@ -73,8 +83,79 @@ export class UnitManager {
     selectedUnit.movementQueue = path.slice(1);
     this.commandPath = path;
     this.previewPath = [];
+    this.playerCanAct = false;
     this.startNextSegment(selectedUnit);
     return true;
+  }
+
+  beginPlayerTurn() {
+    this.playerCanAct = true;
+    this.refreshReachableTiles();
+  }
+
+  consumePlayerMoveCompleted() {
+    const completed = this.playerMoveCompleted;
+
+    this.playerMoveCompleted = false;
+    return completed;
+  }
+
+  moveMonstersTowardPlayer() {
+    const player = this.getPlayerUnit();
+
+    if (!player || this.hasMovingUnits()) {
+      return false;
+    }
+
+    const reservedDestinations = new Set();
+    let issuedMove = false;
+
+    for (const monster of this.units.filter((unit) => unit.faction === "monster")) {
+      const reachableTiles = findReachableTiles({
+        world: this.world,
+        start: monster,
+        maxDistance: monster.moveRange,
+        blockedKeys: this.getBlockedKeys(monster.id),
+      });
+      let bestNode = null;
+      let bestScore = Infinity;
+
+      for (const node of reachableTiles.values()) {
+        const nodeKey = toKey(node.column, node.row);
+
+        if (node.distance === 0 || reservedDestinations.has(nodeKey)) {
+          continue;
+        }
+
+        const score = Math.abs(node.column - player.column) + Math.abs(node.row - player.row);
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestNode = node;
+        }
+      }
+
+      if (!bestNode) {
+        continue;
+      }
+
+      const path = buildPath(reachableTiles, bestNode);
+
+      if (path.length < 2) {
+        continue;
+      }
+
+      monster.movementQueue = path.slice(1);
+      reservedDestinations.add(toKey(bestNode.column, bestNode.row));
+      this.startNextSegment(monster);
+      issuedMove = true;
+    }
+
+    if (!issuedMove) {
+      this.beginPlayerTurn();
+    }
+
+    return issuedMove;
   }
 
   getReachableTileList() {
@@ -148,6 +229,10 @@ export class UnitManager {
     if (!unit.movementSegment && unit.id === this.selectedUnitId) {
       this.commandPath = [];
       this.refreshReachableTiles();
+    }
+
+    if (!unit.movementSegment && unit.faction === "player") {
+      this.playerMoveCompleted = true;
     }
   }
 

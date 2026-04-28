@@ -1,3 +1,5 @@
+import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
+
 const DIRECTIONS = [
   { column: 1, row: 0 },
   { column: -1, row: 0 },
@@ -7,7 +9,7 @@ const DIRECTIONS = [
 
 export function findReachableTiles({ world, start, maxDistance, blockedKeys }) {
   const startKey = toKey(start.column, start.row);
-  const frontier = [{ column: start.column, row: start.row }];
+  const frontier = [{ column: start.column, row: start.row, distance: 0 }];
   const visited = new Map([
     [
       startKey,
@@ -21,10 +23,12 @@ export function findReachableTiles({ world, start, maxDistance, blockedKeys }) {
   ]);
 
   while (frontier.length > 0) {
+    frontier.sort((a, b) => a.distance - b.distance);
     const current = frontier.shift();
-    const currentNode = visited.get(toKey(current.column, current.row));
+    const currentKey = toKey(current.column, current.row);
+    const currentNode = visited.get(currentKey);
 
-    if (currentNode.distance >= maxDistance) {
+    if (current.distance > currentNode.distance || currentNode.distance >= maxDistance) {
       continue;
     }
 
@@ -34,22 +38,31 @@ export function findReachableTiles({ world, start, maxDistance, blockedKeys }) {
         row: current.row + direction.row,
       };
       const nextKey = toKey(next.column, next.row);
+      const tile = world.getTile(next.column, next.row);
 
-      if (visited.has(nextKey) || blockedKeys.has(nextKey)) {
+      if (!tile || blockedKeys.has(nextKey) || !isTilePassable(tile)) {
         continue;
       }
 
-      if (!world.getTile(next.column, next.row)) {
+      const nextDistance = currentNode.distance + getTileMovementCost(tile);
+
+      if (nextDistance > maxDistance) {
+        continue;
+      }
+
+      const existing = visited.get(nextKey);
+
+      if (existing && existing.distance <= nextDistance) {
         continue;
       }
 
       visited.set(nextKey, {
         column: next.column,
         row: next.row,
-        distance: currentNode.distance + 1,
-        previous: toKey(current.column, current.row),
+        distance: nextDistance,
+        previous: currentKey,
       });
-      frontier.push(next);
+      frontier.push({ ...next, distance: nextDistance });
     }
   }
 

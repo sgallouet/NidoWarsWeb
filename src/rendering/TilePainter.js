@@ -7,7 +7,7 @@ export class TilePainter {
   }
 
   paint(ctx, { tile, x, y, elapsed, isHovered }) {
-    const corners = this.getCorners(x, y - tile.elevation * 3);
+    const corners = this.getCorners(x, y);
 
     this.paintShadow(ctx, corners, tile);
     this.paintTop(ctx, corners, tile);
@@ -144,8 +144,8 @@ export class TilePainter {
   }
 
   paintRock(ctx, corners, tile) {
-    const cx = corners.top.x + (tile.texture - 0.5) * 12;
-    const cy = corners.top.y + this.tileHeight * 0.52;
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
 
     ctx.save();
     ctx.fillStyle = "rgba(52, 34, 25, 0.24)";
@@ -174,8 +174,8 @@ export class TilePainter {
   }
 
   paintScrub(ctx, corners, tile) {
-    const cx = corners.top.x + (tile.texture - 0.5) * 18;
-    const cy = corners.top.y + this.tileHeight * 0.58;
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
 
     ctx.save();
     ctx.strokeStyle = "#6f8653";
@@ -201,7 +201,7 @@ export class TilePainter {
   paintOasis(ctx, corners, tile, elapsed) {
     const shimmer = Math.sin(elapsed * 0.003 + tile.seed) * 0.08;
     const cx = corners.top.x;
-    const cy = corners.top.y + this.tileHeight * 0.55;
+    const cy = corners.top.y + this.tileHeight * 0.5;
 
     ctx.save();
     ctx.fillStyle = "rgba(31, 25, 18, 0.24)";

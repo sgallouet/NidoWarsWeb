@@ -1,4 +1,5 @@
 import { TilePainter } from "./TilePainter.js";
+import { TreasurePainter } from "./TreasurePainter.js";
 import { UnitPainter } from "./UnitPainter.js";
 import { gridToWorld, worldToGrid } from "./isoMath.js";
 
@@ -10,6 +11,7 @@ export class CanvasRenderer {
     this.config = config;
     this.viewport = { width: 1, height: 1, dpr: 1 };
     this.tilePainter = new TilePainter(config);
+    this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
   }
 
@@ -27,7 +29,17 @@ export class CanvasRenderer {
     this.canvas.height = Math.floor(rect.height * dpr);
   }
 
-  render({ world, units, selectedUnit, reachableTiles, movementPath, hoveredTile, elapsed }) {
+  render({
+    world,
+    units,
+    treasures,
+    fogOfWar,
+    selectedUnit,
+    reachableTiles,
+    movementPath,
+    hoveredTile,
+    elapsed,
+  }) {
     const ctx = this.context;
     const { width, height, dpr } = this.viewport;
 
@@ -40,6 +52,8 @@ export class CanvasRenderer {
     ctx.translate(-this.camera.x, -this.camera.y);
 
     this.paintWorld(ctx, world, hoveredTile, elapsed);
+    this.paintTreasures(ctx, world, treasures, elapsed);
+    this.paintFog(ctx, world, fogOfWar);
     this.paintMovementRange(ctx, world, reachableTiles, selectedUnit);
     this.paintMovementPath(ctx, world, movementPath);
     this.paintUnits(ctx, world, units, selectedUnit, elapsed);
@@ -124,9 +138,9 @@ export class CanvasRenderer {
       const corners = this.getTileCorners(tile);
       const intensity = 1 - node.distance / (selectedUnit.moveRange + 1);
 
-      ctx.fillStyle = `rgba(73, 215, 194, ${0.08 + intensity * 0.08})`;
-      ctx.strokeStyle = `rgba(169, 255, 241, ${0.12 + intensity * 0.16})`;
-      ctx.lineWidth = 1;
+      ctx.fillStyle = `rgba(73, 215, 194, ${0.12 + intensity * 0.12})`;
+      ctx.strokeStyle = `rgba(169, 255, 241, ${0.32 + intensity * 0.28})`;
+      ctx.lineWidth = 1.4;
       drawDiamond(ctx, corners);
       ctx.fill();
       ctx.stroke();
@@ -192,17 +206,52 @@ export class CanvasRenderer {
         this.config.tileWidth,
         this.config.tileHeight,
       );
-      const tile = world.getTile(Math.round(unit.visualColumn), Math.round(unit.visualRow));
-      const elevation = tile?.elevation || 0;
-
       this.unitPainter.paint(ctx, {
         unit,
         x: point.x,
-        y: point.y + this.config.tileHeight * 0.54 - elevation * 3,
+        y: point.y + this.config.tileHeight * 0.5,
         elapsed,
         isSelected: selectedUnit?.id === unit.id,
       });
     }
+  }
+
+  paintTreasures(ctx, world, treasures, elapsed) {
+    for (const treasure of treasures) {
+      const tile = world.getTile(treasure.column, treasure.row);
+      const point = this.getTileCenter(tile);
+
+      this.treasurePainter.paint(ctx, {
+        x: point.x,
+        y: point.y,
+        elapsed,
+      });
+    }
+  }
+
+  paintFog(ctx, world, fogOfWar) {
+    if (!fogOfWar) {
+      return;
+    }
+
+    ctx.save();
+
+    for (const tile of world.tilesByDrawOrder) {
+      if (fogOfWar.isRevealed(tile)) {
+        continue;
+      }
+
+      const corners = this.getTileCorners(tile);
+
+      ctx.fillStyle = "rgba(45, 55, 60, 0.28)";
+      ctx.strokeStyle = "rgba(181, 214, 210, 0.08)";
+      ctx.lineWidth = 1;
+      drawDiamond(ctx, corners);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 
   getTileCorners(tile) {
@@ -212,7 +261,7 @@ export class CanvasRenderer {
       this.config.tileWidth,
       this.config.tileHeight,
     );
-    const y = point.y - tile.elevation * 3;
+    const y = point.y;
     const halfWidth = this.config.tileWidth / 2;
     const halfHeight = this.config.tileHeight / 2;
 
@@ -234,7 +283,7 @@ export class CanvasRenderer {
 
     return {
       x: point.x,
-      y: point.y + this.config.tileHeight * 0.54 - tile.elevation * 3,
+      y: point.y + this.config.tileHeight * 0.5,
     };
   }
 

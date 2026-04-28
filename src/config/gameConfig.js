@@ -2,7 +2,6 @@ export const GAME_CONFIG = {
   map: {
     columns: 30,
     rows: 30,
-    seed: 4197,
   },
   render: {
     tileWidth: 82,
@@ -15,5 +14,6 @@ export const GAME_CONFIG = {
     turn: 1,
     water: 48,
     supplies: 132,
+    gold: 0,
   },
 };

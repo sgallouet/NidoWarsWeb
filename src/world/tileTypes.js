@@ -1,6 +1,8 @@
 export const TILE_TYPES = {
   sand: {
     label: "Open Sand",
+    movementCost: 2,
+    passable: true,
     colors: {
       light: "#eec878",
       base: "#d7a85d",
@@ -9,6 +11,8 @@ export const TILE_TYPES = {
   },
   dune: {
     label: "Crescent Dune",
+    movementCost: 2,
+    passable: true,
     colors: {
       light: "#f3d08b",
       base: "#d9a85b",
@@ -16,7 +20,9 @@ export const TILE_TYPES = {
     },
   },
   rock: {
-    label: "Rock Shelf",
+    label: "Mountain Ridge",
+    movementCost: Infinity,
+    passable: false,
     colors: {
       light: "#d9ad78",
       base: "#b88455",
@@ -25,6 +31,8 @@ export const TILE_TYPES = {
   },
   scrub: {
     label: "Dry Scrub",
+    movementCost: 1,
+    passable: true,
     colors: {
       light: "#ddbf77",
       base: "#c79b57",
@@ -33,6 +41,8 @@ export const TILE_TYPES = {
   },
   salt: {
     label: "Salt Flat",
+    movementCost: 1,
+    passable: true,
     colors: {
       light: "#efe1b9",
       base: "#d2c18e",
@@ -41,6 +51,8 @@ export const TILE_TYPES = {
   },
   oasis: {
     label: "Oasis",
+    movementCost: 1,
+    passable: true,
     colors: {
       light: "#e4c47d",
       base: "#bd9653",
@@ -48,3 +60,11 @@ export const TILE_TYPES = {
     },
   },
 };
+
+export function getTileMovementCost(tile) {
+  return TILE_TYPES[tile.type].movementCost;
+}
+
+export function isTilePassable(tile) {
+  return TILE_TYPES[tile.type].passable;
+}

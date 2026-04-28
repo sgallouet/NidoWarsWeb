@@ -26,7 +26,11 @@ The project currently uses no runtime dependencies. It is plain browser JavaScri
 - 30 x 30 deterministic isometric desert world.
 - Sand, dunes, rock shelves, scrub, salt flats, and rare oasis tiles.
 - Warrior and monster units rendered on the isometric map.
-- Unit selection, movement range highlighting, route arrows, blockers, and animated tile movement.
+- Unit selection, weighted movement range highlighting, route arrows, blockers, and animated tile movement.
+- Impassable mountain ridges and sand/dune tiles that cost 2 movement points.
+- Transparent fog of war with clean revealed terrain.
+- Collectible treasures that increase gold.
+- Monster AI moves after the player turn delay.
 - Responsive canvas with high-DPI rendering.
 - Pointer drag camera movement and wheel zoom.
 - Hovered sector readout.
