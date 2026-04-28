@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nido Wars</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles/main.css" />
+  </head>
+  <body>
+    <main class="game-shell" data-app-root>
+      <canvas id="game-canvas" aria-label="Nido Wars desert world map"></canvas>
+
+      <header class="hud hud-top" aria-label="Game status">
+        <div class="brand-block">
+          <span class="brand-mark" aria-hidden="true">NW</span>
+          <div>
+            <h1>Nido Wars</h1>
+            <p>Desert frontier</p>
+          </div>
+        </div>
+
+        <dl class="resource-strip">
+          <div>
+            <dt>Turn</dt>
+            <dd data-ui="turn">001</dd>
+          </div>
+          <div>
+            <dt>Water</dt>
+            <dd data-ui="water">48</dd>
+          </div>
+          <div>
+            <dt>Supplies</dt>
+            <dd data-ui="supplies">132</dd>
+          </div>
+          <div>
+            <dt>Survey</dt>
+            <dd data-ui="survey">30 x 30</dd>
+          </div>
+        </dl>
+      </header>
+
+      <aside class="hud tile-panel" aria-live="polite">
+        <span class="panel-kicker">Sector</span>
+        <strong data-ui="tile-name">Open Sand</strong>
+        <span data-ui="tile-coords">14, 14</span>
+      </aside>
+
+      <aside class="hud unit-panel" aria-live="polite">
+        <span class="panel-kicker">Selected</span>
+        <strong data-ui="unit-name">Asha</strong>
+        <span data-ui="unit-role">Dune Vanguard</span>
+        <span data-ui="unit-coords">14, 15</span>
+        <span data-ui="unit-move">Move 5 tiles</span>
+      </aside>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
