@@ -4,46 +4,42 @@ export class UnitPainter {
     this.tileHeight = tileHeight;
   }
 
-  paint(ctx, { unit, x, y, elapsed, isSelected }) {
-    const bob = Math.sin(elapsed * 0.006 + unit.column * 0.4) * 1.4;
+  paint(ctx, { unit, x, y, elapsed }) {
+    const strain = unit.carryingTreasureId ? Math.sin(elapsed * 0.014) * 2.4 : 0;
+    const bob = Math.sin(elapsed * 0.006 + unit.column * 0.4) * (unit.carryingTreasureId ? 2.1 : 1.4);
     const drawY = y + bob;
 
-    this.paintGroundShadow(ctx, x, y, unit, isSelected);
+    this.paintGroundShadow(ctx, x, y, unit);
 
     if (unit.definition === "duneVanguard") {
-      this.paintWarrior(ctx, x, drawY, unit);
-      return;
-    }
-
-    if (unit.definition === "glassStalker") {
+      this.paintWarrior(ctx, x + strain, drawY, unit);
+    } else if (unit.definition === "glassStalker") {
       this.paintGlassStalker(ctx, x, drawY, unit, elapsed);
-      return;
-    }
-
-    if (unit.definition === "thornback") {
+    } else if (unit.definition === "thornback") {
       this.paintThornback(ctx, x, drawY, unit);
-      return;
+    } else {
+      this.paintEmberMaw(ctx, x, drawY, unit);
     }
 
-    this.paintEmberMaw(ctx, x, drawY, unit);
+    if (unit.carryingTreasureId) {
+      this.paintCarriedTreasure(ctx, x - 19 + strain, drawY - 17);
+    }
+
+    if (unit.orderIcon) {
+      this.paintOrderIcon(ctx, unit.orderIcon, x + 18, y - 50);
+    }
+
+    if (unit.speech) {
+      this.paintSpeech(ctx, unit.speech.text, x, y - 70);
+    }
   }
 
-  paintGroundShadow(ctx, x, y, unit, isSelected) {
+  paintGroundShadow(ctx, x, y, unit) {
     ctx.save();
     ctx.fillStyle = "rgba(25, 18, 13, 0.34)";
     ctx.beginPath();
     ctx.ellipse(x + 2, y + 9, unit.faction === "player" ? 18 : 22, 8, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    if (isSelected) {
-      ctx.strokeStyle = "rgba(130, 255, 236, 0.95)";
-      ctx.lineWidth = 2.25;
-      ctx.shadowColor = "rgba(73, 215, 194, 0.7)";
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.ellipse(x, y + 8, 24, 11, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
 
     ctx.restore();
   }
@@ -264,6 +260,92 @@ export class UnitPainter {
     ctx.moveTo(x + 18, y - 7);
     ctx.lineTo(x + 24, y + 2);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  paintCarriedTreasure(ctx, x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-0.08);
+    ctx.fillStyle = "#7b4828";
+    ctx.beginPath();
+    ctx.roundRect(-9, -6, 18, 13, 3);
+    ctx.fill();
+    ctx.fillStyle = "#f1c85b";
+    ctx.fillRect(-1, -7, 3, 15);
+    ctx.fillRect(-9, -1, 18, 3);
+    ctx.restore();
+  }
+
+  paintOrderIcon(ctx, icon, x, y) {
+    ctx.save();
+    ctx.fillStyle = "rgba(24, 21, 16, 0.82)";
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.74)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(x, y, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff3bd";
+    ctx.strokeStyle = "#fff3bd";
+    ctx.lineWidth = 1.8;
+
+    if (icon === "eye") {
+      ctx.beginPath();
+      ctx.ellipse(x, y, 7, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#173e42";
+      ctx.beginPath();
+      ctx.arc(x, y, 2.3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (icon === "muscle") {
+      ctx.beginPath();
+      ctx.arc(x - 2, y + 1, 5, 0.2, Math.PI * 1.6);
+      ctx.stroke();
+      ctx.fillRect(x + 2, y - 3, 5, 5);
+    } else if (icon === "shield") {
+      ctx.beginPath();
+      ctx.moveTo(x, y - 7);
+      ctx.lineTo(x + 7, y - 3);
+      ctx.lineTo(x + 4, y + 7);
+      ctx.lineTo(x, y + 9);
+      ctx.lineTo(x - 4, y + 7);
+      ctx.lineTo(x - 7, y - 3);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x - 2.5, y - 1.5, 1, 0, Math.PI * 2);
+      ctx.arc(x + 2.5, y - 1.5, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y + 1, 3.8, 0.1, Math.PI - 0.1);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  paintSpeech(ctx, text, x, y) {
+    ctx.save();
+    ctx.font = "700 11px Inter, system-ui, sans-serif";
+    const width = Math.ceil(ctx.measureText(text).width) + 16;
+
+    ctx.fillStyle = "rgba(24, 21, 16, 0.9)";
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.62)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y - 15, width, 21, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fff3bd";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y - 4);
     ctx.restore();
   }
 }

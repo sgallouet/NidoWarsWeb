@@ -13,6 +13,8 @@ export class CanvasRenderer {
     this.tilePainter = new TilePainter(config);
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
+    this.terrainCache = null;
+    this.fogCache = null;
   }
 
   resize() {
@@ -34,9 +36,8 @@ export class CanvasRenderer {
     units,
     treasures,
     fogOfWar,
-    selectedUnit,
-    reachableTiles,
-    movementPath,
+    campTile,
+    orderMarkers,
     hoveredTile,
     elapsed,
   }) {
@@ -51,12 +52,13 @@ export class CanvasRenderer {
     ctx.scale(this.camera.zoom, this.camera.zoom);
     ctx.translate(-this.camera.x, -this.camera.y);
 
-    this.paintWorld(ctx, world, hoveredTile, elapsed);
+    this.paintWorld(ctx, world);
     this.paintTreasures(ctx, world, treasures, elapsed);
+    this.paintCamp(ctx, campTile, elapsed);
     this.paintFog(ctx, world, fogOfWar);
-    this.paintMovementRange(ctx, world, reachableTiles, selectedUnit);
-    this.paintMovementPath(ctx, world, movementPath);
-    this.paintUnits(ctx, world, units, selectedUnit, elapsed);
+    this.paintHover(ctx, hoveredTile);
+    this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
+    this.paintUnits(ctx, world, units, elapsed);
 
     ctx.restore();
     this.paintVignette(ctx, width, height);
@@ -103,7 +105,23 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintWorld(ctx, world, hoveredTile, elapsed) {
+  paintWorld(ctx, world) {
+    const cache = this.getTerrainCache(world);
+
+    ctx.drawImage(cache.canvas, cache.bounds.x, cache.bounds.y);
+  }
+
+  renderTerrainToCache(world) {
+    const bounds = getWorldBounds(world, this.config);
+    const canvas = document.createElement("canvas");
+
+    canvas.width = bounds.width;
+    canvas.height = bounds.height;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.translate(-bounds.x, -bounds.y);
+
     for (const tile of world.tilesByDrawOrder) {
       const point = gridToWorld(
         tile.column,
@@ -116,85 +134,135 @@ export class CanvasRenderer {
         tile,
         x: point.x,
         y: point.y,
-        elapsed,
-        isHovered: hoveredTile?.id === tile.id,
+        elapsed: 0,
+        isHovered: false,
       });
     }
+
+    return {
+      canvas,
+      bounds,
+      key: `${world.seed}:${this.config.tileWidth}:${this.config.tileHeight}`,
+    };
   }
 
-  paintMovementRange(ctx, world, reachableTiles, selectedUnit) {
-    if (!selectedUnit) {
+  getTerrainCache(world) {
+    const key = `${world.seed}:${this.config.tileWidth}:${this.config.tileHeight}`;
+
+    if (!this.terrainCache || this.terrainCache.key !== key) {
+      this.terrainCache = this.renderTerrainToCache(world);
+    }
+
+    return this.terrainCache;
+  }
+
+  paintHover(ctx, hoveredTile) {
+    if (!hoveredTile) {
       return;
     }
 
+    const corners = this.getTileCorners(hoveredTile);
+
     ctx.save();
-
-    for (const node of reachableTiles) {
-      if (node.distance === 0) {
-        continue;
-      }
-
-      const tile = world.getTile(node.column, node.row);
-      const corners = this.getTileCorners(tile);
-      const intensity = 1 - node.distance / (selectedUnit.moveRange + 1);
-
-      ctx.fillStyle = `rgba(73, 215, 194, ${0.12 + intensity * 0.12})`;
-      ctx.strokeStyle = `rgba(169, 255, 241, ${0.32 + intensity * 0.28})`;
-      ctx.lineWidth = 1.4;
-      drawDiamond(ctx, corners);
-      ctx.fill();
-      ctx.stroke();
-    }
-
+    ctx.fillStyle = "rgba(73, 215, 194, 0.16)";
+    ctx.strokeStyle = "rgba(169, 255, 241, 0.88)";
+    ctx.lineWidth = 1.6;
+    drawDiamond(ctx, corners);
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   }
 
-  paintMovementPath(ctx, world, movementPath) {
-    if (!movementPath || movementPath.length < 2) {
+  paintCamp(ctx, campTile, elapsed) {
+    if (!campTile) {
       return;
     }
 
-    const points = movementPath.map((step) => this.getTileCenter(world.getTile(step.column, step.row)));
+    const point = this.getTileCenter(campTile);
+    const flame = 1 + Math.sin(elapsed * 0.01) * 0.16;
 
     ctx.save();
-    ctx.strokeStyle = "rgba(120, 255, 235, 0.95)";
+    ctx.fillStyle = "rgba(33, 21, 12, 0.32)";
+    ctx.beginPath();
+    ctx.ellipse(point.x, point.y + 8, 28, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#6c442d";
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.shadowColor = "rgba(73, 215, 194, 0.7)";
-    ctx.shadowBlur = 7;
     ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-
-    for (const point of points.slice(1)) {
-      ctx.lineTo(point.x, point.y);
-    }
-
+    ctx.moveTo(point.x - 18, point.y + 7);
+    ctx.lineTo(point.x + 18, point.y - 2);
+    ctx.moveTo(point.x - 15, point.y - 3);
+    ctx.lineTo(point.x + 16, point.y + 8);
     ctx.stroke();
-    this.paintArrowHead(ctx, points.at(-2), points.at(-1));
+
+    ctx.fillStyle = "#f3d35f";
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y - 29 * flame);
+    ctx.bezierCurveTo(point.x - 16, point.y - 12, point.x - 8, point.y + 5, point.x, point.y + 3);
+    ctx.bezierCurveTo(point.x + 13, point.y - 8, point.x + 11, point.y - 20, point.x, point.y - 29 * flame);
+    ctx.fill();
+
+    ctx.fillStyle = "#e76537";
+    ctx.beginPath();
+    ctx.moveTo(point.x + 1, point.y - 21 * flame);
+    ctx.bezierCurveTo(point.x - 8, point.y - 8, point.x - 4, point.y + 3, point.x + 1, point.y + 1);
+    ctx.bezierCurveTo(point.x + 9, point.y - 8, point.x + 7, point.y - 16, point.x + 1, point.y - 21 * flame);
+    ctx.fill();
     ctx.restore();
   }
 
-  paintArrowHead(ctx, from, to) {
-    const angle = Math.atan2(to.y - from.y, to.x - from.x);
-    const size = 13;
+  paintOrderMarkers(ctx, world, orderMarkers, elapsed) {
+    if (!orderMarkers || orderMarkers.length === 0) {
+      return;
+    }
 
-    ctx.fillStyle = "rgba(120, 255, 235, 0.98)";
-    ctx.beginPath();
-    ctx.moveTo(to.x, to.y);
-    ctx.lineTo(
-      to.x - Math.cos(angle - 0.62) * size,
-      to.y - Math.sin(angle - 0.62) * size,
-    );
-    ctx.lineTo(
-      to.x - Math.cos(angle + 0.62) * size,
-      to.y - Math.sin(angle + 0.62) * size,
-    );
-    ctx.closePath();
-    ctx.fill();
+    ctx.save();
+
+    for (const marker of orderMarkers) {
+      const tile = world.getTile(marker.column, marker.row);
+      const point = this.getTileCenter(tile);
+      const bob = Math.sin(elapsed * 0.006 + marker.column) * 2;
+
+      this.paintMarkerIcon(ctx, marker.type, point.x, point.y - 28 + bob);
+    }
+
+    ctx.restore();
   }
 
-  paintUnits(ctx, world, units, selectedUnit, elapsed) {
+  paintMarkerIcon(ctx, type, x, y) {
+    ctx.save();
+    ctx.fillStyle = type === "eye" ? "rgba(42, 60, 66, 0.9)" : "rgba(74, 48, 20, 0.92)";
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.75)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x - 15, y - 13, 30, 26, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    if (type === "eye") {
+      ctx.fillStyle = "#d7fff6";
+      ctx.beginPath();
+      ctx.ellipse(x, y, 10, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#173e42";
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = "#f3d35f";
+      ctx.fillRect(x - 8, y - 5, 16, 10);
+      ctx.fillStyle = "#7b4828";
+      ctx.fillRect(x - 9, y - 2, 18, 5);
+      ctx.fillStyle = "#fff0a6";
+      ctx.fillRect(x - 1, y - 7, 3, 14);
+    }
+
+    ctx.restore();
+  }
+
+  paintUnits(ctx, world, units, elapsed) {
     const sortedUnits = [...units].sort(
       (a, b) => a.visualColumn + a.visualRow - (b.visualColumn + b.visualRow),
     );
@@ -211,13 +279,16 @@ export class CanvasRenderer {
         x: point.x,
         y: point.y + this.config.tileHeight * 0.5,
         elapsed,
-        isSelected: selectedUnit?.id === unit.id,
       });
     }
   }
 
   paintTreasures(ctx, world, treasures, elapsed) {
     for (const treasure of treasures) {
+      if (treasure.status === "carried") {
+        continue;
+      }
+
       const tile = world.getTile(treasure.column, treasure.row);
       const point = this.getTileCenter(tile);
 
@@ -234,7 +305,27 @@ export class CanvasRenderer {
       return;
     }
 
-    ctx.save();
+    const cache = this.getFogCache(world, fogOfWar);
+
+    ctx.drawImage(cache.canvas, cache.bounds.x, cache.bounds.y);
+  }
+
+  getFogCache(world, fogOfWar) {
+    const terrainCache = this.getTerrainCache(world);
+    const key = `${terrainCache.key}:${fogOfWar.version}`;
+
+    if (this.fogCache && this.fogCache.key === key) {
+      return this.fogCache;
+    }
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = terrainCache.bounds.width;
+    canvas.height = terrainCache.bounds.height;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.translate(-terrainCache.bounds.x, -terrainCache.bounds.y);
 
     for (const tile of world.tilesByDrawOrder) {
       if (fogOfWar.isRevealed(tile)) {
@@ -251,7 +342,13 @@ export class CanvasRenderer {
       ctx.stroke();
     }
 
-    ctx.restore();
+    this.fogCache = {
+      canvas,
+      bounds: terrainCache.bounds,
+      key,
+    };
+
+    return this.fogCache;
   }
 
   getTileCorners(tile) {
@@ -327,4 +424,19 @@ function drawDiamond(ctx, corners) {
   ctx.lineTo(corners.bottom.x, corners.bottom.y);
   ctx.lineTo(corners.left.x, corners.left.y);
   ctx.closePath();
+}
+
+function getWorldBounds(world, config) {
+  const halfWidth = config.tileWidth / 2;
+  const minX = -world.rows * halfWidth - config.tileWidth;
+  const maxX = world.columns * halfWidth + config.tileWidth;
+  const minY = -config.tileHeight;
+  const maxY = (world.columns + world.rows) * (config.tileHeight / 2) + config.tileHeight * 2;
+
+  return {
+    x: Math.floor(minX),
+    y: Math.floor(minY),
+    width: Math.ceil(maxX - minX),
+    height: Math.ceil(maxY - minY),
+  };
 }

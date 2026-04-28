@@ -8,21 +8,66 @@ export class TreasureManager {
     this.treasures = createTreasures({ world, count, reservedKeys });
   }
 
-  collectAt(column, row) {
-    const treasure = this.treasures.find(
-      (candidate) => candidate.column === column && candidate.row === row && !candidate.collected,
+  getTreasureAt(column, row) {
+    return this.treasures.find(
+      (treasure) =>
+        treasure.column === column &&
+        treasure.row === row &&
+        treasure.status !== "collected" &&
+        treasure.status !== "carried",
     );
+  }
 
-    if (!treasure) {
+  reserve(treasureId) {
+    const treasure = this.getById(treasureId);
+
+    if (!treasure || treasure.status !== "available") {
+      return false;
+    }
+
+    treasure.status = "reserved";
+    return true;
+  }
+
+  pickUp(treasureId, unitId) {
+    const treasure = this.getById(treasureId);
+
+    if (!treasure || treasure.status === "collected") {
+      return false;
+    }
+
+    treasure.status = "carried";
+    treasure.carriedBy = unitId;
+    return true;
+  }
+
+  deposit(treasureId) {
+    const treasure = this.getById(treasureId);
+
+    if (!treasure || treasure.status !== "carried") {
       return 0;
     }
 
-    treasure.collected = true;
+    treasure.status = "collected";
+    treasure.carriedBy = null;
     return treasure.value;
   }
 
+  release(treasureId) {
+    const treasure = this.getById(treasureId);
+
+    if (treasure && treasure.status !== "collected") {
+      treasure.status = "available";
+      treasure.carriedBy = null;
+    }
+  }
+
+  getById(treasureId) {
+    return this.treasures.find((treasure) => treasure.id === treasureId) || null;
+  }
+
   getVisibleTreasures() {
-    return this.treasures.filter((treasure) => !treasure.collected);
+    return this.treasures.filter((treasure) => treasure.status !== "collected");
   }
 }
 
@@ -46,7 +91,8 @@ function createTreasures({ world, count, reservedKeys }) {
       column: tile.column,
       row: tile.row,
       value: DEFAULT_TREASURE_VALUE,
-      collected: false,
+      status: "available",
+      carriedBy: null,
     });
   }
 

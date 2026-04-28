@@ -1,10 +1,11 @@
 export class InputController {
-  constructor({ canvas, camera, renderer, world, units }) {
+  constructor({ canvas, camera, renderer, world, units, onTileClick }) {
     this.canvas = canvas;
     this.camera = camera;
     this.renderer = renderer;
     this.world = world;
     this.units = units;
+    this.onTileClickCommand = onTileClick;
     this.dragState = null;
     this.hoveredTile = null;
 
@@ -87,7 +88,6 @@ export class InputController {
     const gridPoint = this.renderer.worldToGrid(worldPoint.x, worldPoint.y);
 
     this.hoveredTile = this.world.getTile(gridPoint.column, gridPoint.row);
-    this.units.setPreviewTile(this.hoveredTile);
   }
 
   onTileClick(tile) {
@@ -95,14 +95,6 @@ export class InputController {
       return;
     }
 
-    const unit = this.units.getUnitAt(tile.column, tile.row);
-
-    if (unit?.faction === "player") {
-      this.units.selectUnit(unit.id);
-      this.units.setPreviewTile(tile);
-      return;
-    }
-
-    this.units.tryMoveSelectedTo(tile);
+    this.onTileClickCommand(tile);
   }
 }

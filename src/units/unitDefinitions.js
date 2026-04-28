@@ -3,7 +3,8 @@ export const UNIT_DEFINITIONS = {
     label: "Dune Vanguard",
     faction: "player",
     role: "Warrior",
-    moveRange: 5,
+    speed: 1.7,
+    patrolRadius: 5,
     colors: {
       primary: "#2b746f",
       secondary: "#f2cf79",
@@ -15,7 +16,8 @@ export const UNIT_DEFINITIONS = {
     label: "Ember Maw",
     faction: "monster",
     role: "Monster",
-    moveRange: 3,
+    speed: 1.25,
+    patrolRadius: 6,
     colors: {
       primary: "#9e5035",
       secondary: "#e59a49",
@@ -27,7 +29,8 @@ export const UNIT_DEFINITIONS = {
     label: "Glass Stalker",
     faction: "monster",
     role: "Monster",
-    moveRange: 4,
+    speed: 1.45,
+    patrolRadius: 7,
     colors: {
       primary: "#665e8f",
       secondary: "#b9c2dc",
@@ -39,7 +42,8 @@ export const UNIT_DEFINITIONS = {
     label: "Thornback",
     faction: "monster",
     role: "Monster",
-    moveRange: 2,
+    speed: 1.05,
+    patrolRadius: 5,
     colors: {
       primary: "#6f854d",
       secondary: "#c2a75c",
@@ -49,69 +53,70 @@ export const UNIT_DEFINITIONS = {
   },
 };
 
-export function createStartingUnits(world) {
-  const occupied = new Set();
+export function findCampTile(world) {
+  return findNearestOpenTile(world, Math.floor(world.columns / 2), Math.floor(world.rows / 2), new Set());
+}
+
+export function createStartingUnits(world, campTile) {
+  const occupied = new Set([campTile.id]);
   const reserve = (column, row) => {
-    occupied.add(`${column}:${row}`);
-    return { column, row };
+    const tile = findNearestOpenTile(world, column, row, occupied);
+
+    occupied.add(tile.id);
+    return tile;
   };
-  const warrior = reserve(...findNearestOpenTile(world, 14, 15, occupied));
-  const ember = reserve(...findNearestOpenTile(world, 9, 18, occupied));
-  const glass = reserve(...findNearestOpenTile(world, 20, 11, occupied));
-  const thorn = reserve(...findNearestOpenTile(world, 22, 20, occupied));
+  const playerSpawns = [
+    reserve(campTile.column - 1, campTile.row),
+    reserve(campTile.column + 1, campTile.row),
+    reserve(campTile.column, campTile.row + 1),
+  ];
+  const monsterSpawns = [
+    reserve(8, 20),
+    reserve(22, 9),
+    reserve(23, 21),
+  ];
 
   return [
     createUnit({
-      id: "warrior-01",
+      id: "warrior-asha",
       definition: "duneVanguard",
       name: "Asha",
-      column: warrior.column,
-      row: warrior.row,
+      tile: playerSpawns[0],
+    }),
+    createUnit({
+      id: "warrior-tor",
+      definition: "duneVanguard",
+      name: "Tor",
+      tile: playerSpawns[1],
+    }),
+    createUnit({
+      id: "warrior-vale",
+      definition: "duneVanguard",
+      name: "Vale",
+      tile: playerSpawns[2],
     }),
     createUnit({
       id: "monster-ember-01",
       definition: "emberMaw",
       name: "Ember Maw",
-      column: ember.column,
-      row: ember.row,
+      tile: monsterSpawns[0],
     }),
     createUnit({
       id: "monster-glass-01",
       definition: "glassStalker",
       name: "Glass Stalker",
-      column: glass.column,
-      row: glass.row,
+      tile: monsterSpawns[1],
     }),
     createUnit({
       id: "monster-thorn-01",
       definition: "thornback",
       name: "Thornback",
-      column: thorn.column,
-      row: thorn.row,
+      tile: monsterSpawns[2],
     }),
   ];
 }
 
-function findNearestOpenTile(world, originColumn, originRow, occupied) {
-  for (let radius = 0; radius < Math.max(world.columns, world.rows); radius += 1) {
-    for (let row = originRow - radius; row <= originRow + radius; row += 1) {
-      for (let column = originColumn - radius; column <= originColumn + radius; column += 1) {
-        const tile = world.getTile(column, row);
-        const key = `${column}:${row}`;
-
-        if (!tile || occupied.has(key) || tile.type === "rock") {
-          continue;
-        }
-
-        return [column, row];
-      }
-    }
-  }
-
-  return [originColumn, originRow];
-}
-
-function createUnit({ id, definition, name, column, row }) {
+function createUnit({ id, definition, name, tile }) {
   const template = UNIT_DEFINITIONS[definition];
 
   return {
@@ -119,11 +124,36 @@ function createUnit({ id, definition, name, column, row }) {
     id,
     definition,
     name,
-    column,
-    row,
-    visualColumn: column,
-    visualRow: row,
+    column: tile.column,
+    row: tile.row,
+    visualColumn: tile.column,
+    visualRow: tile.row,
     movementQueue: [],
     movementSegment: null,
+    order: template.faction === "player" ? "patrol" : "monsterPatrol",
+    orderIcon: null,
+    speech: null,
+    pauseMs: Math.random() * 900,
+    carryingTreasureId: null,
+    escortTargetId: null,
+    home: null,
   };
+}
+
+function findNearestOpenTile(world, originColumn, originRow, occupied) {
+  for (let radius = 0; radius < Math.max(world.columns, world.rows); radius += 1) {
+    for (let row = originRow - radius; row <= originRow + radius; row += 1) {
+      for (let column = originColumn - radius; column <= originColumn + radius; column += 1) {
+        const tile = world.getTile(column, row);
+
+        if (!tile || occupied.has(tile.id) || tile.type === "rock") {
+          continue;
+        }
+
+        return tile;
+      }
+    }
+  }
+
+  return world.getTile(originColumn, originRow);
 }

@@ -11,9 +11,6 @@ export const GAME_CONFIG = {
     defaultZoomPadding: 0.86,
   },
   resources: {
-    turn: 1,
-    water: 48,
-    supplies: 132,
     gold: 0,
   },
 };

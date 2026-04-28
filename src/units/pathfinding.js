@@ -7,7 +7,20 @@ const DIRECTIONS = [
   { column: 0, row: -1 },
 ];
 
-export function findReachableTiles({ world, start, maxDistance, blockedKeys }) {
+export function findPath({ world, start, destination, blockedKeys = new Set() }) {
+  const destinationKey = toKey(destination.column, destination.row);
+  const reachable = findReachableTiles({
+    world,
+    start,
+    maxDistance: Infinity,
+    blockedKeys,
+    stopKey: destinationKey,
+  });
+
+  return buildPath(reachable, destination);
+}
+
+export function findReachableTiles({ world, start, maxDistance, blockedKeys, stopKey = null }) {
   const startKey = toKey(start.column, start.row);
   const frontier = [{ column: start.column, row: start.row, distance: 0 }];
   const visited = new Map([
@@ -27,6 +40,10 @@ export function findReachableTiles({ world, start, maxDistance, blockedKeys }) {
     const current = frontier.shift();
     const currentKey = toKey(current.column, current.row);
     const currentNode = visited.get(currentKey);
+
+    if (stopKey && currentKey === stopKey) {
+      break;
+    }
 
     if (current.distance > currentNode.distance || currentNode.distance >= maxDistance) {
       continue;
@@ -90,6 +107,48 @@ export function buildPath(reachableTiles, destination) {
   }
 
   return path.reverse();
+}
+
+export function findNearestPassableTile(world, origin, blockedKeys = new Set()) {
+  const maxRadius = Math.max(world.columns, world.rows);
+
+  for (let radius = 0; radius < maxRadius; radius += 1) {
+    for (let row = origin.row - radius; row <= origin.row + radius; row += 1) {
+      for (let column = origin.column - radius; column <= origin.column + radius; column += 1) {
+        const tile = world.getTile(column, row);
+
+        if (!tile || blockedKeys.has(tile.id) || !isTilePassable(tile)) {
+          continue;
+        }
+
+        return tile;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function getRandomPassableTileNear(world, origin, radius, blockedKeys = new Set()) {
+  const candidates = [];
+
+  for (let row = origin.row - radius; row <= origin.row + radius; row += 1) {
+    for (let column = origin.column - radius; column <= origin.column + radius; column += 1) {
+      const tile = world.getTile(column, row);
+
+      if (!tile || blockedKeys.has(tile.id) || !isTilePassable(tile)) {
+        continue;
+      }
+
+      const distance = Math.abs(column - origin.column) + Math.abs(row - origin.row);
+
+      if (distance > 0 && distance <= radius) {
+        candidates.push(tile);
+      }
+    }
+  }
+
+  return candidates[Math.floor(Math.random() * candidates.length)] || null;
 }
 
 export function toKey(column, row) {

@@ -2,6 +2,7 @@ export class FogOfWar {
   constructor(world) {
     this.world = world;
     this.revealedTiles = new Set();
+    this.version = 0;
   }
 
   revealAround({ column, row }, radius) {
@@ -15,8 +16,9 @@ export class FogOfWar {
 
         const distance = Math.abs(currentColumn - column) + Math.abs(currentRow - row);
 
-        if (distance <= radius) {
+        if (distance <= radius && !this.revealedTiles.has(tile.id)) {
           this.revealedTiles.add(tile.id);
+          this.version += 1;
         }
       }
     }
