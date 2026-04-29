@@ -1,5 +1,4 @@
 import { GameLoop } from "./GameLoop.js";
-import { FpsCounter } from "./FpsCounter.js";
 import { InputController } from "../engine/InputController.js";
 import { Camera2D } from "../rendering/Camera2D.js";
 import { CanvasRenderer } from "../rendering/CanvasRenderer.js";
@@ -9,6 +8,7 @@ import { FogOfWar } from "../world/FogOfWar.js";
 import { HerbManager } from "../world/HerbManager.js";
 import { ResourceNodeManager } from "../world/ResourceNodeManager.js";
 import { Hud } from "../ui/Hud.js";
+import { PerformanceMonitor } from "../ui/PerformanceMonitor.js";
 import { TreasureManager } from "../world/TreasureManager.js";
 import { UnitManager } from "../units/UnitManager.js";
 import { createStartingUnits, findCampTile } from "../units/unitDefinitions.js";
@@ -69,7 +69,10 @@ export class Game {
       camera: this.camera,
       config: config.render,
     });
-    this.fpsCounter = new FpsCounter();
+    this.performanceMonitor = new PerformanceMonitor({
+      canvas: root.querySelector('[data-ui="perf-graph"]'),
+      valueNode: root.querySelector('[data-ui="frame-ms"]'),
+    });
     this.hudRefreshMs = 0;
     this.lastHudTileId = null;
     this.input = new InputController({
@@ -85,6 +88,7 @@ export class Game {
 
   start() {
     this.renderer.resize();
+    this.performanceMonitor.resize();
     this.camera.frameWorld(this.world, this.renderer.viewport);
     this.hud.setResources(this.resources);
     this.hud.setCycle(this.dayNightCycle.getState());
@@ -94,6 +98,7 @@ export class Game {
 
     window.addEventListener("resize", () => {
       this.renderer.resize();
+      this.performanceMonitor.resize();
       this.camera.frameWorld(this.world, this.renderer.viewport);
     });
 
@@ -101,11 +106,7 @@ export class Game {
   }
 
   update(frame) {
-    const fps = this.fpsCounter.record(frame.delta);
-
-    if (fps !== null) {
-      this.hud.setFps(fps);
-    }
+    const frameStart = performance.now();
 
     this.units.update(frame.delta);
     this.dayNightCycle.update(frame.delta);
@@ -139,6 +140,8 @@ export class Game {
       dayNight,
       elapsed: frame.elapsed,
     });
+
+    this.performanceMonitor.record(performance.now() - frameStart);
   }
 
   handleTileClick(tile) {

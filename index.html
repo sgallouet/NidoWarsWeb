@@ -13,14 +13,6 @@
 
       <header class="hud hud-top" aria-label="Game status">
         <dl class="resource-strip">
-          <div class="cycle-item">
-            <dt class="sr-only">Day and night cycle</dt>
-            <dd class="cycle-meter" data-ui="cycle" data-phase="day" aria-label="Day">
-              <span class="cycle-clock" aria-hidden="true">
-                <span class="cycle-hand" data-ui="cycle-hand"></span>
-              </span>
-            </dd>
-          </div>
           <div class="resource-item">
             <dt class="sr-only">Gold</dt>
             <dd class="resource-value">
@@ -33,6 +25,14 @@
             <dd class="resource-value">
               <img src="./assets/herbs.svg" alt="" />
               <span data-ui="herbs">0</span>
+            </dd>
+          </div>
+          <div class="cycle-item">
+            <dt class="sr-only">Day and night cycle</dt>
+            <dd class="cycle-meter" data-ui="cycle" data-phase="day" aria-label="Day">
+              <span class="cycle-clock" aria-hidden="true">
+                <span class="cycle-hand" data-ui="cycle-hand"></span>
+              </span>
             </dd>
           </div>
           <div class="resource-item">
@@ -56,12 +56,13 @@
               <span data-ui="wood">0</span>
             </dd>
           </div>
-          <div class="fps-item">
-            <dt>FPS</dt>
-            <dd data-ui="fps">--</dd>
-          </div>
         </dl>
       </header>
+
+      <section class="perf-monitor" aria-label="Frame generation time">
+        <span class="perf-value"><span data-ui="frame-ms">--</span> ms</span>
+        <canvas data-ui="perf-graph" aria-hidden="true"></canvas>
+      </section>
 
       <button class="fullscreen-button" type="button" data-ui="fullscreen" aria-label="Enter fullscreen">
         <span aria-hidden="true"></span>

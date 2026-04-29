@@ -8,7 +8,6 @@ export class Hud {
       wood: root.querySelector('[data-ui="wood"]'),
       cycle: root.querySelector('[data-ui="cycle"]'),
       cycleHand: root.querySelector('[data-ui="cycle-hand"]'),
-      fps: root.querySelector('[data-ui="fps"]'),
     };
   }
 
@@ -18,10 +17,6 @@ export class Hud {
     this.nodes.fish.textContent = String(fish);
     this.nodes.berries.textContent = String(berries);
     this.nodes.wood.textContent = String(wood);
-  }
-
-  setFps(fps) {
-    this.nodes.fps.textContent = String(fps);
   }
 
   setCycle(dayNight) {

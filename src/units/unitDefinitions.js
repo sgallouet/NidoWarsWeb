@@ -1,5 +1,7 @@
 import { isTilePassable } from "../world/tileTypes.js";
 
+const MONSTER_START_EXCLUSION_RADIUS = 12;
+
 export const UNIT_DEFINITIONS = {
   duneVanguard: {
     label: "Dune Vanguard",
@@ -174,6 +176,10 @@ export function findCampTile(world) {
 
 export function createStartingUnits(world, campTile) {
   const occupied = new Set([campTile.id]);
+  const monsterSpawnOptions = {
+    minDistanceFrom: campTile,
+    minDistance: MONSTER_START_EXCLUSION_RADIUS,
+  };
   const reserve = (column, row) => {
     const tile = findNearestOpenTile(world, column, row, occupied);
 
@@ -186,11 +192,11 @@ export function createStartingUnits(world, campTile) {
     reserve(campTile.column, campTile.row + 1),
   ];
   const monsterSpawns = {
-    snow: reserveBiome(world, "snow", occupied, 10, 10),
-    desert: reserveBiome(world, "desert", occupied, 48, 14),
-    temperate: reserveBiome(world, "temperate", occupied, 30, 34),
-    volcanic: reserveBiome(world, "volcanic", occupied, 12, 49),
-    paradise: reserveBiome(world, "paradise", occupied, 50, 50),
+    snow: reserveBiome(world, "snow", occupied, 10, 10, monsterSpawnOptions),
+    desert: reserveBiome(world, "desert", occupied, 48, 14, monsterSpawnOptions),
+    temperate: reserveBiome(world, "temperate", occupied, 30, 34, monsterSpawnOptions),
+    volcanic: reserveBiome(world, "volcanic", occupied, 12, 49, monsterSpawnOptions),
+    paradise: reserveBiome(world, "paradise", occupied, 50, 50, monsterSpawnOptions),
   };
   const critterSpawns = [
     reserveBiome(world, "desert", occupied, 45, 18),
@@ -252,7 +258,7 @@ export function createStartingUnits(world, campTile) {
       id: "monster-thorn-01",
       definition: "thornback",
       name: "Thornback",
-      tile: reserveBiome(world, "temperate", occupied, 33, 27),
+      tile: reserveBiome(world, "temperate", occupied, 33, 27, monsterSpawnOptions),
     }),
     createUnit({
       id: "critter-bloom-01",
@@ -325,13 +331,18 @@ function createUnit({ id, definition, name, tile }) {
   };
 }
 
-function findNearestOpenTile(world, originColumn, originRow, occupied) {
+function findNearestOpenTile(world, originColumn, originRow, occupied, options = {}) {
   for (let radius = 0; radius < Math.max(world.columns, world.rows); radius += 1) {
     for (let row = originRow - radius; row <= originRow + radius; row += 1) {
       for (let column = originColumn - radius; column <= originColumn + radius; column += 1) {
         const tile = world.getTile(column, row);
 
-        if (!tile || occupied.has(tile.id) || !isTilePassable(tile)) {
+        if (
+          !tile ||
+          occupied.has(tile.id) ||
+          !isTilePassable(tile) ||
+          !meetsDistanceRequirement(tile, options)
+        ) {
           continue;
         }
 
@@ -343,19 +354,25 @@ function findNearestOpenTile(world, originColumn, originRow, occupied) {
   return world.getTile(originColumn, originRow);
 }
 
-function reserveBiome(world, biome, occupied, fallbackColumn, fallbackRow) {
-  const nearest = findNearestBiomeTile(world, biome, fallbackColumn, fallbackRow, occupied);
+function reserveBiome(world, biome, occupied, fallbackColumn, fallbackRow, options = {}) {
+  const nearest = findNearestBiomeTile(world, biome, fallbackColumn, fallbackRow, occupied, options);
   occupied.add(nearest.id);
   return nearest;
 }
 
-function findNearestBiomeTile(world, biome, originColumn, originRow, occupied) {
+function findNearestBiomeTile(world, biome, originColumn, originRow, occupied, options = {}) {
   for (let radius = 0; radius < Math.max(world.columns, world.rows); radius += 1) {
     for (let row = originRow - radius; row <= originRow + radius; row += 1) {
       for (let column = originColumn - radius; column <= originColumn + radius; column += 1) {
         const tile = world.getTile(column, row);
 
-        if (!tile || tile.biome !== biome || occupied.has(tile.id) || !isTilePassable(tile)) {
+        if (
+          !tile ||
+          tile.biome !== biome ||
+          occupied.has(tile.id) ||
+          !isTilePassable(tile) ||
+          !meetsDistanceRequirement(tile, options)
+        ) {
           continue;
         }
 
@@ -364,5 +381,20 @@ function findNearestBiomeTile(world, biome, originColumn, originRow, occupied) {
     }
   }
 
-  return findNearestOpenTile(world, originColumn, originRow, occupied);
+  return findNearestOpenTile(world, originColumn, originRow, occupied, options);
+}
+
+function meetsDistanceRequirement(tile, { minDistanceFrom = null, minDistance = 0 } = {}) {
+  if (!minDistanceFrom || minDistance <= 0) {
+    return true;
+  }
+
+  return distanceTo(tile, minDistanceFrom) >= minDistance;
+}
+
+function distanceTo(a, b) {
+  const dx = a.column - b.column;
+  const dy = a.row - b.row;
+
+  return Math.sqrt(dx * dx + dy * dy);
 }

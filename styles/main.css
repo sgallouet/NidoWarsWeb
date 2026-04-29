@@ -81,14 +81,14 @@ body {
   transform: translateX(-50%);
   max-width: calc(100vw - 24px);
   min-height: 0;
-  padding: 5px;
+  padding: 7px 9px;
 }
 
 .resource-strip {
   display: flex;
   align-items: center;
   width: auto;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
 }
 
@@ -97,42 +97,40 @@ body {
 }
 
 .resource-value,
-.fps-item,
 .cycle-meter {
   display: flex;
   align-items: center;
-  height: 32px;
+  height: 42px;
   margin: 0;
 }
 
 .resource-value {
-  gap: 5px;
+  gap: 7px;
   padding: 3px 1px;
   color: #ffffff;
-  font-size: 0.88rem;
+  font-size: 1.14rem;
   font-variant-numeric: tabular-nums;
   font-weight: 820;
   line-height: 1;
 }
 
 .resource-value img {
-  width: 22px;
-  height: 22px;
+  width: 29px;
+  height: 29px;
   object-fit: contain;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
 }
 
 .cycle-meter {
-  display: grid;
-  place-items: center;
-  width: 32px;
+  justify-content: center;
+  width: 40px;
   padding: 0;
 }
 
 .cycle-clock {
   position: relative;
-  width: 22px;
-  height: 22px;
+  width: 34px;
+  height: 34px;
   border: 1px solid rgba(255, 244, 214, 0.38);
   border-radius: 50%;
   background:
@@ -150,7 +148,7 @@ body {
   bottom: 50%;
   left: calc(50% - 1px);
   width: 2px;
-  height: 9px;
+  height: 14px;
   border-radius: 999px;
   background: #fff9e8;
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.55);
@@ -160,34 +158,46 @@ body {
 
 .cycle-clock::after {
   position: absolute;
-  top: calc(50% - 2px);
-  left: calc(50% - 2px);
-  width: 4px;
-  height: 4px;
+  top: calc(50% - 3px);
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #fff9e8;
   content: "";
 }
 
-.fps-item {
-  gap: 4px;
-  padding: 3px 1px;
+.perf-monitor {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  height: 78px;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, transparent, rgba(12, 14, 13, 0.54)),
+    linear-gradient(90deg, rgba(73, 215, 194, 0.06), rgba(216, 173, 97, 0.05));
 }
 
-.fps-item dt {
-  color: rgba(255, 244, 214, 0.54);
-  font-size: 0.55rem;
-  font-weight: 800;
-  line-height: 1;
+.perf-monitor canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.fps-item dd {
-  margin: 0;
-  color: #ffffff;
-  font-size: 0.78rem;
+.perf-value {
+  position: absolute;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(8px, env(safe-area-inset-bottom));
+  z-index: 1;
+  color: rgba(255, 244, 214, 0.82);
+  font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
-  font-weight: 820;
+  font-weight: 850;
   line-height: 1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
 }
 
 .fullscreen-button {
@@ -296,61 +306,51 @@ body {
     top: max(8px, env(safe-area-inset-top));
     left: 50%;
     max-width: calc(100vw - 16px);
-    padding: 4px;
+    padding: 6px 7px;
   }
 
   .fullscreen-button {
     top: auto;
     right: max(8px, env(safe-area-inset-right));
-    bottom: max(8px, env(safe-area-inset-bottom));
+    bottom: max(86px, calc(env(safe-area-inset-bottom) + 86px));
     display: grid;
   }
 
   .resource-strip {
-    gap: 6px;
+    gap: 8px;
   }
 
   .resource-value,
-  .fps-item,
   .cycle-meter {
-    height: 28px;
+    height: 36px;
   }
 
   .resource-value {
-    gap: 4px;
+    gap: 5px;
     padding: 3px 0;
-    font-size: 0.78rem;
+    font-size: 0.98rem;
   }
 
   .resource-value img {
-    width: 19px;
-    height: 19px;
+    width: 25px;
+    height: 25px;
   }
 
   .cycle-meter {
-    width: 28px;
+    width: 32px;
   }
 
   .cycle-clock {
-    width: 20px;
-    height: 20px;
+    width: 28px;
+    height: 28px;
   }
 
   .cycle-hand {
-    height: 8px;
+    height: 12px;
   }
 
-  .fps-item {
-    gap: 3px;
-    padding: 3px 0;
-  }
-
-  .fps-item dt {
-    font-size: 0.5rem;
-  }
-
-  .fps-item dd {
-    font-size: 0.72rem;
+  .perf-monitor {
+    height: 72px;
   }
 }
 
