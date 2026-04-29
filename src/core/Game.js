@@ -22,33 +22,29 @@ export class Game {
     this.fogOfWar = new FogOfWar(this.world);
     this.campTile = findCampTile(this.world);
     const startingUnits = createStartingUnits(this.world, this.campTile);
+    const reservedSpawnKeys = new Set([
+      this.campTile.id,
+      ...startingUnits.map((unit) => `${unit.column}:${unit.row}`),
+    ]);
     this.treasures = new TreasureManager({
       world: this.world,
-      count: 12,
-      reservedKeys: new Set([
-        this.campTile.id,
-        ...startingUnits.map((unit) => `${unit.column}:${unit.row}`),
-      ]),
+      count: 36,
+      reservedKeys: reservedSpawnKeys,
     });
     this.herbs = new HerbManager({
       world: this.world,
-      count: 30,
-      reservedKeys: new Set([
-        this.campTile.id,
-        ...startingUnits.map((unit) => `${unit.column}:${unit.row}`),
-      ]),
+      count: 90,
+      reservedKeys: reservedSpawnKeys,
     });
     this.resourceNodes = new ResourceNodeManager({
       world: this.world,
       counts: {
-        fish: 18,
-        berries: 24,
-        wood: 20,
+        fish: 54,
+        berries: 72,
+        wood: 60,
+        rock: 60,
       },
-      reservedKeys: new Set([
-        this.campTile.id,
-        ...startingUnits.map((unit) => `${unit.column}:${unit.row}`),
-      ]),
+      reservedKeys: reservedSpawnKeys,
     });
     this.units = new UnitManager({
       world: this.world,
@@ -73,6 +69,14 @@ export class Game {
       canvas: root.querySelector('[data-ui="perf-graph"]'),
       valueNode: root.querySelector('[data-ui="frame-ms"]'),
     });
+    this.helpButton = root.querySelector('[data-ui="help-toggle"]');
+    this.helpPanel = root.querySelector('[data-ui="help-panel"]');
+    this.helpCloseButton = root.querySelector('[data-ui="help-close"]');
+    this.loadingPanel = root.querySelector('[data-ui="loading-panel"]');
+    this.loadingFill = root.querySelector('[data-ui="loading-fill"]');
+    this.loadingValue = root.querySelector('[data-ui="loading-value"]');
+    this.isPaused = false;
+    this.pausedElapsed = 0;
     this.hudRefreshMs = 0;
     this.lastHudTileId = null;
     this.input = new InputController({
@@ -86,7 +90,7 @@ export class Game {
     this.loop = new GameLoop((frame) => this.update(frame));
   }
 
-  start() {
+  async start() {
     this.renderer.resize();
     this.performanceMonitor.resize();
     this.camera.frameWorld(this.world, this.renderer.viewport);
@@ -95,6 +99,15 @@ export class Game {
     this.hud.setTile(this.campTile);
     this.units.revealStartingArea();
     this.hud.setUnitSummary(this.units.units);
+    this.setupHelpOverlay();
+    this.setLoadingProgress(0);
+    this.setLoadingVisible(true);
+
+    await this.renderer.prepareWorld(this.world, this.fogOfWar, (progress) => {
+      this.setLoadingProgress(progress);
+    });
+
+    this.setLoadingVisible(false);
 
     window.addEventListener("resize", () => {
       this.renderer.resize();
@@ -105,11 +118,38 @@ export class Game {
     this.loop.start();
   }
 
+  setLoadingVisible(isVisible) {
+    if (!this.loadingPanel) {
+      return;
+    }
+
+    this.loadingPanel.hidden = !isVisible;
+  }
+
+  setLoadingProgress(progress) {
+    const clamped = Math.max(0, Math.min(1, progress || 0));
+    const percent = Math.round(clamped * 100);
+
+    if (this.loadingFill) {
+      this.loadingFill.style.transform = `scaleX(${clamped})`;
+    }
+
+    if (this.loadingValue) {
+      this.loadingValue.textContent = `${percent}%`;
+    }
+  }
+
   update(frame) {
     const frameStart = performance.now();
 
-    this.units.update(frame.delta);
-    this.dayNightCycle.update(frame.delta);
+    const delta = this.isPaused ? 0 : frame.delta;
+    const elapsed = this.isPaused ? this.pausedElapsed : frame.elapsed;
+
+    if (!this.isPaused) {
+      this.units.update(delta);
+      this.dayNightCycle.update(delta);
+    }
+
     const dayNight = this.dayNightCycle.getState();
 
     const hoveredTile = this.input.getHoveredTile();
@@ -119,7 +159,7 @@ export class Game {
       this.lastHudTileId = hoveredTile.id;
     }
 
-    this.hudRefreshMs += frame.delta;
+    this.hudRefreshMs += delta;
 
     if (this.hudRefreshMs >= 250) {
       this.hudRefreshMs = 0;
@@ -130,6 +170,7 @@ export class Game {
     this.renderer.render({
       world: this.world,
       units: this.units.units,
+      corpses: this.units.getCorpses(),
       treasures: this.treasures.getVisibleTreasures(),
       herbs: this.herbs.getVisibleHerbs(),
       resourceNodes: this.resourceNodes.getVisibleNodes(),
@@ -138,10 +179,42 @@ export class Game {
       orderMarkers: this.units.getOrderMarkers(),
       hoveredTile,
       dayNight,
-      elapsed: frame.elapsed,
+      elapsed,
     });
 
     this.performanceMonitor.record(performance.now() - frameStart);
+  }
+
+  setupHelpOverlay() {
+    if (!this.helpButton || !this.helpPanel || !this.helpCloseButton) {
+      return;
+    }
+
+    this.helpButton.addEventListener("click", () => this.setHelpOpen(true));
+    this.helpCloseButton.addEventListener("click", () => this.setHelpOpen(false));
+    this.helpPanel.addEventListener("click", (event) => {
+      if (event.target === this.helpPanel) {
+        this.setHelpOpen(false);
+      }
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.isPaused) {
+        this.setHelpOpen(false);
+      }
+    });
+  }
+
+  setHelpOpen(isOpen) {
+    this.isPaused = isOpen;
+    this.helpPanel.hidden = !isOpen;
+    this.helpButton.setAttribute("aria-expanded", String(isOpen));
+
+    if (isOpen) {
+      this.pausedElapsed = this.loop.elapsed;
+      this.helpCloseButton.focus();
+    } else {
+      this.helpButton.focus();
+    }
   }
 
   handleTileClick(tile) {

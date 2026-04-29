@@ -58,6 +58,13 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
     }
   }
 
+  repairUnreachableTerrain({
+    tiles,
+    columns,
+    rows,
+    campCenter,
+  });
+
   return {
     seed,
     columns,
@@ -72,6 +79,202 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
       return tiles[row * columns + column];
     },
   };
+}
+
+function repairUnreachableTerrain({ tiles, columns, rows, campCenter }) {
+  const start = findNearestPassableTile({ tiles, columns, rows, origin: campCenter });
+
+  if (!start) {
+    return;
+  }
+
+  let reachable = collectReachableTiles({ tiles, columns, rows, start });
+  const components = collectUnreachableComponents({ tiles, columns, rows, reachable });
+
+  for (const component of components) {
+    const anchor = component.reduce((best, tile) =>
+      distanceTo(tile.column, tile.row, campCenter.column, campCenter.row) <
+      distanceTo(best.column, best.row, campCenter.column, campCenter.row)
+        ? tile
+        : best,
+    );
+
+    carvePathToReachable({
+      tiles,
+      columns,
+      rows,
+      from: anchor,
+      reachable,
+    });
+    reachable = collectReachableTiles({ tiles, columns, rows, start });
+  }
+}
+
+function collectReachableTiles({ tiles, columns, rows, start }) {
+  const reachable = new Set();
+  const queue = [start];
+  reachable.add(start.id);
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+
+    for (const neighbor of getNeighbors({ tiles, columns, rows, tile: current })) {
+      if (reachable.has(neighbor.id) || !isPassableTile(neighbor)) {
+        continue;
+      }
+
+      reachable.add(neighbor.id);
+      queue.push(neighbor);
+    }
+  }
+
+  return reachable;
+}
+
+function collectUnreachableComponents({ tiles, columns, rows, reachable }) {
+  const visited = new Set(reachable);
+  const components = [];
+
+  for (const tile of tiles) {
+    if (visited.has(tile.id) || !isPassableTile(tile)) {
+      continue;
+    }
+
+    const component = [];
+    const queue = [tile];
+    visited.add(tile.id);
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      component.push(current);
+
+      for (const neighbor of getNeighbors({ tiles, columns, rows, tile: current })) {
+        if (visited.has(neighbor.id) || !isPassableTile(neighbor)) {
+          continue;
+        }
+
+        visited.add(neighbor.id);
+        queue.push(neighbor);
+      }
+    }
+
+    components.push(component);
+  }
+
+  return components;
+}
+
+function carvePathToReachable({ tiles, columns, rows, from, reachable }) {
+  let current = from;
+  const target = findClosestReachableTile({ tiles, columns, rows, from, reachable });
+  const visited = new Set();
+
+  if (!target) {
+    return;
+  }
+
+  while (current && current.id !== target.id && !visited.has(current.id)) {
+    visited.add(current.id);
+    makeTilePassable(current);
+
+    const nextColumn =
+      current.column === target.column ? current.column : current.column + Math.sign(target.column - current.column);
+    const nextRow =
+      current.column === target.column && current.row !== target.row
+        ? current.row + Math.sign(target.row - current.row)
+        : current.row;
+
+    current = getTileAt(tiles, columns, rows, nextColumn, nextRow);
+  }
+
+  if (current) {
+    makeTilePassable(current);
+  }
+}
+
+function findClosestReachableTile({ tiles, columns, rows, from, reachable }) {
+  let bestTile = null;
+  let bestDistance = Infinity;
+
+  for (const key of reachable) {
+    const [column, row] = key.split(":").map(Number);
+    const tile = getTileAt(tiles, columns, rows, column, row);
+    const distance = Math.abs(from.column - column) + Math.abs(from.row - row);
+
+    if (tile && distance < bestDistance) {
+      bestTile = tile;
+      bestDistance = distance;
+    }
+
+    if (bestDistance <= 1) {
+      return bestTile;
+    }
+  }
+
+  return bestTile;
+}
+
+function findNearestPassableTile({ tiles, columns, rows, origin }) {
+  for (let radius = 0; radius < Math.max(columns, rows); radius += 1) {
+    for (let row = origin.row - radius; row <= origin.row + radius; row += 1) {
+      for (let column = origin.column - radius; column <= origin.column + radius; column += 1) {
+        const tile = getTileAt(tiles, columns, rows, column, row);
+
+        if (tile && isPassableTile(tile)) {
+          return tile;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function getNeighbors({ tiles, columns, rows, tile }) {
+  return [
+    getTileAt(tiles, columns, rows, tile.column + 1, tile.row),
+    getTileAt(tiles, columns, rows, tile.column - 1, tile.row),
+    getTileAt(tiles, columns, rows, tile.column, tile.row + 1),
+    getTileAt(tiles, columns, rows, tile.column, tile.row - 1),
+  ].filter(Boolean);
+}
+
+function getTileAt(tiles, columns, rows, column, row) {
+  if (column < 0 || row < 0 || column >= columns || row >= rows) {
+    return null;
+  }
+
+  return tiles[row * columns + column];
+}
+
+function isPassableTile(tile) {
+  return TILE_TYPES[tile.type].passable;
+}
+
+function makeTilePassable(tile) {
+  if (isPassableTile(tile)) {
+    return;
+  }
+
+  tile.type = getBridgeType(tile.biome);
+  tile.label = TILE_TYPES[tile.type].label;
+  tile.elevation = 0;
+}
+
+function getBridgeType(biome) {
+  if (biome === "snow") {
+    return "snow";
+  }
+
+  if (biome === "volcanic") {
+    return "ash";
+  }
+
+  if (biome === "temperate" || biome === "paradise") {
+    return "grass";
+  }
+
+  return "scrub";
 }
 
 function chooseBiome({ column, row, columns, rows, seed, campCenter }) {

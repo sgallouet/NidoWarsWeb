@@ -17,4 +17,6 @@ setupFullscreenButton({
   target: root,
 });
 
-game.start();
+game.start().catch((error) => {
+  console.error(error);
+});

@@ -1,12 +1,12 @@
 export const GAME_CONFIG = {
   map: {
-    columns: 60,
-    rows: 60,
+    columns: 180,
+    rows: 180,
   },
   render: {
     tileWidth: 82,
     tileHeight: 42,
-    minZoom: 0.18,
+    minZoom: 0.06,
     maxZoom: 1.28,
     defaultZoomPadding: 0.86,
   },
@@ -21,5 +21,6 @@ export const GAME_CONFIG = {
     fish: 0,
     berries: 0,
     wood: 0,
+    rock: 0,
   },
 };

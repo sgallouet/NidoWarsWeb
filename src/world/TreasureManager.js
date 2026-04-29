@@ -94,6 +94,7 @@ function createTreasures({ world, count, reservedKeys }) {
       status: "available",
       carriedBy: null,
     });
+    reservedKeys.add(tile.id);
   }
 
   return treasures;

@@ -56,6 +56,13 @@
               <span data-ui="wood">0</span>
             </dd>
           </div>
+          <div class="resource-item">
+            <dt class="sr-only">Rock</dt>
+            <dd class="resource-value">
+              <img src="./assets/rock.png" alt="" />
+              <span data-ui="rock">0</span>
+            </dd>
+          </div>
         </dl>
       </header>
 
@@ -64,9 +71,86 @@
         <canvas data-ui="perf-graph" aria-hidden="true"></canvas>
       </section>
 
+      <button
+        class="help-button"
+        type="button"
+        data-ui="help-toggle"
+        aria-controls="help-panel"
+        aria-expanded="false"
+        aria-label="Open action guide"
+      >
+        ?
+      </button>
+
       <button class="fullscreen-button" type="button" data-ui="fullscreen" aria-label="Enter fullscreen">
         <span aria-hidden="true"></span>
       </button>
+
+      <section class="loading-overlay" data-ui="loading-panel" aria-label="Preparing map">
+        <div class="loading-box">
+          <strong>Preparing map</strong>
+          <div class="loading-track" aria-hidden="true">
+            <span data-ui="loading-fill"></span>
+          </div>
+          <span data-ui="loading-value">0%</span>
+        </div>
+      </section>
+
+      <section class="help-overlay" id="help-panel" data-ui="help-panel" aria-label="Action guide" hidden>
+        <div class="help-sheet" role="dialog" aria-modal="true" aria-labelledby="help-title">
+          <div class="help-header">
+            <h2 id="help-title">Action Guide</h2>
+            <button class="help-close" type="button" data-ui="help-close" aria-label="Close action guide">x</button>
+          </div>
+          <div class="help-grid">
+            <article class="help-action">
+              <span class="help-icon help-icon-eye" aria-hidden="true"></span>
+              <h3>Explore</h3>
+              <p>Click hidden fog to send scouts and reveal nearby tiles.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon help-icon-gold" aria-hidden="true"></span>
+              <h3>Collect Gold</h3>
+              <p>Click a chest to haul it back to camp.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon" aria-hidden="true"><img src="./assets/herbs.svg" alt="" /></span>
+              <h3>Gather Herbs</h3>
+              <p>Click wild herbs to collect healing supplies.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon" aria-hidden="true"><img src="./assets/fish.png" alt="" /></span>
+              <h3>Catch Fish</h3>
+              <p>Click fish shoals near water to gather food.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon" aria-hidden="true"><img src="./assets/berries.png" alt="" /></span>
+              <h3>Pick Berries</h3>
+              <p>Click berry bushes in green lands for food.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon" aria-hidden="true"><img src="./assets/wood.png" alt="" /></span>
+              <h3>Chop Wood</h3>
+              <p>Click timber trees to gather building material.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon" aria-hidden="true"><img src="./assets/rock.png" alt="" /></span>
+              <h3>Mine Rock</h3>
+              <p>Click stone deposits to gather rock.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon help-icon-alert" aria-hidden="true"></span>
+              <h3>Fight</h3>
+              <p>Nearby warriors answer danger and protect the camp.</p>
+            </article>
+            <article class="help-action">
+              <span class="help-icon help-icon-rest" aria-hidden="true"></span>
+              <h3>Recover</h3>
+              <p>Wounded warriors return to camp and rest.</p>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
 
     <script type="module" src="./src/main.js"></script>

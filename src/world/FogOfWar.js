@@ -2,6 +2,7 @@ export class FogOfWar {
   constructor(world) {
     this.world = world;
     this.revealedTiles = new Set();
+    this.changedTiles = [];
     this.version = 0;
   }
 
@@ -18,6 +19,7 @@ export class FogOfWar {
 
         if (distance <= radius && !this.revealedTiles.has(tile.id)) {
           this.revealedTiles.add(tile.id);
+          this.changedTiles.push(tile);
           this.version += 1;
         }
       }
@@ -26,5 +28,12 @@ export class FogOfWar {
 
   isRevealed(tile) {
     return this.revealedTiles.has(tile.id);
+  }
+
+  consumeChangedTiles() {
+    const changedTiles = this.changedTiles;
+
+    this.changedTiles = [];
+    return changedTiles;
   }
 }

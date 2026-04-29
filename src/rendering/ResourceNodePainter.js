@@ -1,4 +1,12 @@
 export class ResourceNodePainter {
+  constructor() {
+    this.rockImage = typeof Image === "undefined" ? null : new Image();
+
+    if (this.rockImage) {
+      this.rockImage.src = "./assets/rock.png";
+    }
+  }
+
   paint(ctx, { node, x, y, elapsed }) {
     if (node.type === "fish") {
       this.paintFishShoal(ctx, x, y, elapsed, node);
@@ -7,6 +15,11 @@ export class ResourceNodePainter {
 
     if (node.type === "wood") {
       this.paintTimberTree(ctx, x, y, node);
+      return;
+    }
+
+    if (node.type === "rock") {
+      this.paintRockDeposit(ctx, x, y, node);
       return;
     }
 
@@ -103,6 +116,39 @@ export class ResourceNodePainter {
     ctx.fillStyle = light;
     ctx.beginPath();
     ctx.arc(x - radius * 0.22, y - radius * 0.22, radius * 0.62, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  paintRockDeposit(ctx, x, y, node) {
+    ctx.save();
+    ctx.fillStyle = "rgba(25, 18, 13, 0.25)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 12, 23, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (this.rockImage?.complete && this.rockImage.naturalWidth > 0) {
+      ctx.drawImage(this.rockImage, x - 26, y - 34, 52, 52);
+      ctx.restore();
+      return;
+    }
+
+    const pulse = 0.9 + Math.sin(node.column * 0.7 + node.row) * 0.08;
+
+    this.paintStone(ctx, x - 12, y + 1, 11 * pulse, "#6c7680", "#dfe9dc");
+    this.paintStone(ctx, x + 10, y + 0, 12, "#515765", "#c6d0cc");
+    this.paintStone(ctx, x - 2, y - 11, 13, "#758187", "#eef5e6");
+    this.paintStone(ctx, x - 1, y + 8, 16, "#747d7c", "#e3ecd5");
+    ctx.restore();
+  }
+
+  paintStone(ctx, x, y, radius, shadow, light) {
+    ctx.fillStyle = shadow;
+    ctx.beginPath();
+    ctx.ellipse(x, y, radius, radius * 0.72, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = light;
+    ctx.beginPath();
+    ctx.ellipse(x - radius * 0.24, y - radius * 0.2, radius * 0.42, radius * 0.25, -0.2, 0, Math.PI * 2);
     ctx.fill();
   }
 

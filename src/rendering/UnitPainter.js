@@ -6,8 +6,9 @@ export class UnitPainter {
 
   paint(ctx, { unit, x, y, elapsed }) {
     const scale = unit.scale || 1;
-    const carryingHeavy = unit.carryingTreasureId || unit.carryingResourceNodeId;
-    const strain = unit.carryingTreasureId ? Math.sin(elapsed * 0.014) * 2.4 : 0;
+    const carryingHeavy = hasCarriedLoad(unit);
+    const strain = carryingHeavy ? Math.sin(elapsed * 0.014) * 2.4 : 0;
+    const struggleTilt = carryingHeavy ? -0.08 + Math.sin(elapsed * 0.011) * 0.035 : 0;
     const bob = Math.sin(elapsed * 0.006 + unit.column * 0.4) * (carryingHeavy ? 2.1 : 1.4);
     const drawY = y + bob;
 
@@ -15,9 +16,14 @@ export class UnitPainter {
 
     ctx.save();
     ctx.translate(x + strain, drawY);
+    ctx.rotate(struggleTilt);
     ctx.scale(scale, scale);
     this.paintUnitBody(ctx, unit, 0, 0, elapsed);
     ctx.restore();
+
+    if (carryingHeavy) {
+      this.paintStruggleMarks(ctx, x + 8 + strain, drawY - 42, elapsed);
+    }
 
     if (unit.hitFlashMs > 0) {
       this.paintHitFlash(ctx, x + strain, drawY, unit, scale);
@@ -68,6 +74,39 @@ export class UnitPainter {
     } else {
       this.paintEmberMaw(ctx, x, y, unit);
     }
+  }
+
+  paintCorpse(ctx, { corpse, x, y, elapsed }) {
+    const scale = corpse.scale || 1;
+    const settle = Math.sin(elapsed * 0.001 + corpse.column) * 0.6;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 12, 10, 0.34)";
+    ctx.beginPath();
+    ctx.ellipse(x + 2, y + 10, 25 * scale, 9 * scale, -0.08, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.72;
+    ctx.translate(x + settle, y + 5);
+    ctx.rotate(Math.PI / 2 + 0.12);
+    ctx.scale(scale * 0.78, scale * 0.78);
+    this.paintUnitBody(ctx, corpse, 0, 0, elapsed);
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = "rgba(34, 26, 22, 0.52)";
+    ctx.fillRect(-48, -56, 96, 96);
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.42)";
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y + 1);
+    ctx.lineTo(x - 3, y + 8);
+    ctx.moveTo(x - 3, y + 1);
+    ctx.lineTo(x - 10, y + 8);
+    ctx.stroke();
+    ctx.restore();
   }
 
   paintGroundShadow(ctx, x, y, unit, scale) {
@@ -366,6 +405,22 @@ export class UnitPainter {
       return;
     }
 
+    if (type === "rock") {
+      ctx.save();
+      ctx.fillStyle = "#737d83";
+      ctx.beginPath();
+      ctx.ellipse(x - 4, y + 2, 6, 4.5, -0.25, 0, Math.PI * 2);
+      ctx.ellipse(x + 5, y + 1, 6, 4.8, 0.18, 0, Math.PI * 2);
+      ctx.ellipse(x, y - 4, 5.5, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#dbe4d7";
+      ctx.beginPath();
+      ctx.ellipse(x - 2, y - 5, 2.2, 1.2, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
     ctx.save();
     ctx.fillStyle = "#4e8a4f";
     ctx.beginPath();
@@ -376,6 +431,23 @@ export class UnitPainter {
     ctx.arc(x - 3, y - 2, 2, 0, Math.PI * 2);
     ctx.arc(x + 3, y + 1, 2, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  paintStruggleMarks(ctx, x, y, elapsed) {
+    const pulse = Math.sin(elapsed * 0.018) * 0.5 + 0.5;
+
+    ctx.save();
+    ctx.globalAlpha = 0.48 + pulse * 0.34;
+    ctx.strokeStyle = "#8fe8ef";
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + 4, y - 5, x + 1, y - 10);
+    ctx.moveTo(x + 7, y + 5);
+    ctx.quadraticCurveTo(x + 11, y, x + 8, y - 5);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -471,6 +543,17 @@ export class UnitPainter {
       ctx.moveTo(x - 6, y - 3);
       ctx.lineTo(x + 9, y + 4);
       ctx.stroke();
+    } else if (icon === "rock") {
+      ctx.fillStyle = "#aebbb5";
+      ctx.beginPath();
+      ctx.ellipse(x - 3, y + 2, 5, 3.8, -0.18, 0, Math.PI * 2);
+      ctx.ellipse(x + 4, y + 1, 5, 4, 0.18, 0, Math.PI * 2);
+      ctx.ellipse(x, y - 4, 4.7, 3.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#56606d";
+      ctx.beginPath();
+      ctx.ellipse(x + 1, y + 4, 5.8, 2.8, 0.1, 0, Math.PI * 2);
+      ctx.fill();
     } else {
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, Math.PI * 2);
@@ -559,7 +642,9 @@ export class UnitPainter {
       damage: "#ff705d",
       heavyDamage: "#ff3f32",
       heal: "#a9f06f",
+      resource: "#fff3bd",
     };
+    const hasIcon = Boolean(combatText.resourceType);
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -569,9 +654,38 @@ export class UnitPainter {
     ctx.lineWidth = 3;
     ctx.strokeStyle = "rgba(18, 14, 11, 0.82)";
     ctx.fillStyle = toneColors[combatText.tone] || "#fff3bd";
-    ctx.strokeText(combatText.text, x, y - progress * 13);
-    ctx.fillText(combatText.text, x, y - progress * 13);
+    if (hasIcon) {
+      this.paintResourceTextIcon(ctx, combatText.resourceType, x - 16, y - progress * 13);
+    }
+    ctx.strokeText(combatText.text, hasIcon ? x + 6 : x, y - progress * 13);
+    ctx.fillText(combatText.text, hasIcon ? x + 6 : x, y - progress * 13);
     ctx.restore();
+  }
+
+  paintResourceTextIcon(ctx, type, x, y) {
+    if (type === "gold") {
+      ctx.save();
+      ctx.fillStyle = "#f1c65b";
+      ctx.strokeStyle = "#7b4828";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x, y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fff3bd";
+      ctx.beginPath();
+      ctx.arc(x - 2, y - 2, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    if (type === "herb") {
+      this.paintCarriedHerbs(ctx, x, y + 2);
+      return;
+    }
+
+    this.paintCarriedResource(ctx, x, y + 1, type);
   }
 
   paintDuneHare(ctx, x, y, unit) {
@@ -637,4 +751,8 @@ export class UnitPainter {
     ctx.fill();
     ctx.restore();
   }
+}
+
+function hasCarriedLoad(unit) {
+  return Boolean(unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId);
 }

@@ -38,6 +38,7 @@ export class CanvasRenderer {
   render({
     world,
     units,
+    corpses,
     treasures,
     herbs,
     resourceNodes,
@@ -59,14 +60,17 @@ export class CanvasRenderer {
     ctx.scale(this.camera.zoom, this.camera.zoom);
     ctx.translate(-this.camera.x, -this.camera.y);
 
+    const visibleTiles = this.getVisibleTiles(world);
+
     this.paintWorld(ctx, world);
     this.paintResourceNodes(ctx, world, resourceNodes, elapsed);
     this.paintHerbs(ctx, world, herbs);
     this.paintTreasures(ctx, world, treasures, elapsed);
     this.paintCamp(ctx, campTile, elapsed);
-    this.paintFog(ctx, world, fogOfWar);
+    this.paintFog(ctx, world, fogOfWar, visibleTiles);
     this.paintHover(ctx, hoveredTile);
     this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
+    this.paintCorpses(ctx, world, corpses, elapsed);
     this.paintUnits(ctx, world, units, elapsed);
     this.paintNightLayer(ctx, world, dayNight);
 
@@ -160,10 +164,49 @@ export class CanvasRenderer {
   paintWorld(ctx, world) {
     const cache = this.getTerrainCache(world);
 
-    ctx.drawImage(cache.canvas, cache.bounds.x, cache.bounds.y);
+    this.drawCacheSlice(ctx, cache);
   }
 
-  renderTerrainToCache(world) {
+  async prepareWorld(world, fogOfWar, onProgress = () => {}) {
+    const terrainWeight = 0.78;
+
+    await this.prepareTerrainCache(world, (progress) => onProgress(progress * terrainWeight));
+    await this.prepareFogCache(world, fogOfWar, (progress) =>
+      onProgress(terrainWeight + progress * (1 - terrainWeight)),
+    );
+    onProgress(1);
+  }
+
+  async prepareTerrainCache(world, onProgress) {
+    const key = this.getTerrainCacheKey(world);
+
+    if (this.terrainCache?.key === key) {
+      onProgress(1);
+      return;
+    }
+
+    const surface = this.createTerrainSurface(world);
+    const tiles = world.tilesByDrawOrder;
+    let index = 0;
+
+    await runChunkedWork((deadlineMs) => {
+      while (index < tiles.length && performance.now() < deadlineMs) {
+        this.paintTerrainTile(surface.ctx, tiles[index]);
+        index += 1;
+      }
+
+      onProgress(index / tiles.length);
+      return index >= tiles.length;
+    });
+
+    this.terrainCache = {
+      canvas: surface.canvas,
+      bounds: surface.bounds,
+      key,
+    };
+  }
+
+  createTerrainSurface(world) {
     const bounds = getWorldBounds(world, this.config);
     const canvas = document.createElement("canvas");
 
@@ -174,38 +217,56 @@ export class CanvasRenderer {
 
     ctx.translate(-bounds.x, -bounds.y);
 
-    for (const tile of world.tilesByDrawOrder) {
-      const point = gridToWorld(
-        tile.column,
-        tile.row,
-        this.config.tileWidth,
-        this.config.tileHeight,
-      );
-
-      this.tilePainter.paint(ctx, {
-        tile,
-        x: point.x,
-        y: point.y,
-        elapsed: 0,
-        isHovered: false,
-      });
-    }
-
     return {
       canvas,
       bounds,
-      key: `${world.seed}:${this.config.tileWidth}:${this.config.tileHeight}`,
+      ctx,
     };
   }
 
+  renderTerrainToCache(world) {
+    const surface = this.createTerrainSurface(world);
+
+    for (const tile of world.tilesByDrawOrder) {
+      this.paintTerrainTile(surface.ctx, tile);
+    }
+
+    return {
+      canvas: surface.canvas,
+      bounds: surface.bounds,
+      key: this.getTerrainCacheKey(world),
+    };
+  }
+
+  paintTerrainTile(ctx, tile) {
+    const point = gridToWorld(
+      tile.column,
+      tile.row,
+      this.config.tileWidth,
+      this.config.tileHeight,
+    );
+
+    this.tilePainter.paint(ctx, {
+      tile,
+      x: point.x,
+      y: point.y,
+      elapsed: 0,
+      isHovered: false,
+    });
+  }
+
   getTerrainCache(world) {
-    const key = `${world.seed}:${this.config.tileWidth}:${this.config.tileHeight}`;
+    const key = this.getTerrainCacheKey(world);
 
     if (!this.terrainCache || this.terrainCache.key !== key) {
       this.terrainCache = this.renderTerrainToCache(world);
     }
 
     return this.terrainCache;
+  }
+
+  getTerrainCacheKey(world) {
+    return `${world.seed}:${world.columns}x${world.rows}:${this.config.tileWidth}:${this.config.tileHeight}`;
   }
 
   paintHover(ctx, hoveredTile) {
@@ -346,6 +407,17 @@ export class CanvasRenderer {
       ctx.moveTo(x - 6, y - 3);
       ctx.lineTo(x + 10, y + 4);
       ctx.stroke();
+    } else if (type === "rock") {
+      ctx.fillStyle = "#bac7c0";
+      ctx.beginPath();
+      ctx.ellipse(x - 4, y + 2, 6, 4.6, -0.2, 0, Math.PI * 2);
+      ctx.ellipse(x + 5, y + 1, 6.5, 5, 0.24, 0, Math.PI * 2);
+      ctx.ellipse(x + 1, y - 5, 5.5, 4.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#59616f";
+      ctx.beginPath();
+      ctx.ellipse(x - 1, y + 5, 7, 4, 0.12, 0, Math.PI * 2);
+      ctx.fill();
     } else {
       ctx.fillStyle = "#f3d35f";
       ctx.fillRect(x - 8, y - 5, 16, 10);
@@ -372,6 +444,28 @@ export class CanvasRenderer {
       );
       this.unitPainter.paint(ctx, {
         unit,
+        x: point.x,
+        y: point.y + this.config.tileHeight * 0.5,
+        elapsed,
+      });
+    }
+  }
+
+  paintCorpses(ctx, world, corpses = [], elapsed) {
+    const sortedCorpses = [...corpses].sort(
+      (a, b) => a.visualColumn + a.visualRow - (b.visualColumn + b.visualRow),
+    );
+
+    for (const corpse of sortedCorpses) {
+      const point = gridToWorld(
+        corpse.visualColumn,
+        corpse.visualRow,
+        this.config.tileWidth,
+        this.config.tileHeight,
+      );
+
+      this.unitPainter.paintCorpse(ctx, {
+        corpse,
         x: point.x,
         y: point.y + this.config.tileHeight * 0.5,
         elapsed,
@@ -427,22 +521,23 @@ export class CanvasRenderer {
     }
   }
 
-  paintFog(ctx, world, fogOfWar) {
+  paintFog(ctx, world, fogOfWar, visibleTiles) {
     if (!fogOfWar) {
       return;
     }
 
-    const cache = this.getFogCache(world, fogOfWar);
+    const cache = this.getFogCache(world, fogOfWar, visibleTiles);
 
-    ctx.drawImage(cache.canvas, cache.bounds.x, cache.bounds.y);
+    this.drawCacheSlice(ctx, cache);
   }
 
-  getFogCache(world, fogOfWar) {
+  async prepareFogCache(world, fogOfWar, onProgress) {
     const terrainCache = this.getTerrainCache(world);
     const key = `${terrainCache.key}:${fogOfWar.version}`;
 
-    if (this.fogCache && this.fogCache.key === key) {
-      return this.fogCache;
+    if (this.fogCache?.baseKey === terrainCache.key) {
+      onProgress(1);
+      return;
     }
 
     const canvas = document.createElement("canvas");
@@ -454,31 +549,172 @@ export class CanvasRenderer {
 
     ctx.translate(-terrainCache.bounds.x, -terrainCache.bounds.y);
 
-    for (const tile of world.tilesByDrawOrder) {
-      if (fogOfWar.isRevealed(tile)) {
-        continue;
+    let index = 0;
+    const tiles = world.tilesByDrawOrder;
+
+    await runChunkedWork((deadlineMs) => {
+      while (index < tiles.length && performance.now() < deadlineMs) {
+        const tile = tiles[index];
+
+        if (!fogOfWar.isRevealed(tile)) {
+          this.paintFogTile(ctx, tile);
+        }
+
+        index += 1;
       }
 
-      const corners = this.getTileCorners(tile);
+      onProgress(index / tiles.length);
+      return index >= tiles.length;
+    });
 
-      ctx.fillStyle = "rgba(45, 55, 60, 0.28)";
-      ctx.strokeStyle = "rgba(181, 214, 210, 0.08)";
-      ctx.lineWidth = 1;
-      drawDiamond(ctx, corners);
-      ctx.fill();
-      ctx.stroke();
-    }
-
+    fogOfWar.consumeChangedTiles();
     this.fogCache = {
       canvas,
       bounds: terrainCache.bounds,
       key,
+      baseKey: terrainCache.key,
+      version: fogOfWar.version,
     };
+  }
+
+  getFogCache(world, fogOfWar, visibleTiles) {
+    const terrainCache = this.getTerrainCache(world);
+    const key = `${terrainCache.key}:${fogOfWar.version}`;
+
+    if (!this.fogCache || this.fogCache.baseKey !== terrainCache.key) {
+      const canvas = document.createElement("canvas");
+
+      canvas.width = terrainCache.bounds.width;
+      canvas.height = terrainCache.bounds.height;
+
+      const ctx = canvas.getContext("2d");
+
+      ctx.translate(-terrainCache.bounds.x, -terrainCache.bounds.y);
+
+      for (const tile of world.tilesByDrawOrder) {
+        if (!fogOfWar.isRevealed(tile)) {
+          this.paintFogTile(ctx, tile);
+        }
+      }
+
+      this.fogCache = {
+        canvas,
+        bounds: terrainCache.bounds,
+        key,
+        baseKey: terrainCache.key,
+        version: fogOfWar.version,
+      };
+      fogOfWar.consumeChangedTiles();
+      return this.fogCache;
+    }
+
+    const changedTiles = fogOfWar.consumeChangedTiles();
+
+    if (changedTiles.length > 0) {
+      this.clearRevealedFogTiles(changedTiles);
+    }
+
+    this.fogCache.key = key;
+    this.fogCache.version = fogOfWar.version;
 
     return this.fogCache;
   }
 
-  getTileCorners(tile) {
+  clearRevealedFogTiles(tiles) {
+    const cache = this.fogCache;
+    const ctx = cache.canvas.getContext("2d");
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.translate(-cache.bounds.x, -cache.bounds.y);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = "#000";
+
+    for (const tile of tiles) {
+      drawDiamond(ctx, this.getTileCorners(tile, 1.5));
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  paintFogTile(ctx, tile) {
+    const corners = this.getTileCorners(tile);
+
+    ctx.fillStyle = "rgba(45, 55, 60, 0.28)";
+    ctx.strokeStyle = "rgba(181, 214, 210, 0.08)";
+    ctx.lineWidth = 1;
+    drawDiamond(ctx, corners);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  drawCacheSlice(ctx, cache) {
+    const rect = this.getVisibleWorldRect(this.config.tileWidth * 3);
+    const sourceX = Math.max(0, Math.floor(rect.x - cache.bounds.x));
+    const sourceY = Math.max(0, Math.floor(rect.y - cache.bounds.y));
+    const sourceRight = Math.min(cache.canvas.width, Math.ceil(rect.x + rect.width - cache.bounds.x));
+    const sourceBottom = Math.min(cache.canvas.height, Math.ceil(rect.y + rect.height - cache.bounds.y));
+    const sourceWidth = sourceRight - sourceX;
+    const sourceHeight = sourceBottom - sourceY;
+
+    if (sourceWidth <= 0 || sourceHeight <= 0) {
+      return;
+    }
+
+    ctx.drawImage(
+      cache.canvas,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      cache.bounds.x + sourceX,
+      cache.bounds.y + sourceY,
+      sourceWidth,
+      sourceHeight,
+    );
+  }
+
+  getVisibleWorldRect(padding = 0) {
+    const zoom = Math.max(this.camera.zoom, 0.001);
+    const { width, height } = this.viewport;
+
+    return {
+      x: this.camera.x - width / (2 * zoom) - padding,
+      y: this.camera.y - (height * 0.54) / zoom - padding,
+      width: width / zoom + padding * 2,
+      height: height / zoom + padding * 2,
+    };
+  }
+
+  getVisibleTiles(world) {
+    const rect = this.getVisibleWorldRect(this.config.tileWidth * 2);
+    const corners = [
+      worldToGrid(rect.x, rect.y, this.config.tileWidth, this.config.tileHeight),
+      worldToGrid(rect.x + rect.width, rect.y, this.config.tileWidth, this.config.tileHeight),
+      worldToGrid(rect.x, rect.y + rect.height, this.config.tileWidth, this.config.tileHeight),
+      worldToGrid(rect.x + rect.width, rect.y + rect.height, this.config.tileWidth, this.config.tileHeight),
+    ];
+    const minColumn = clampInt(Math.floor(Math.min(...corners.map((corner) => corner.column))) - 4, 0, world.columns - 1);
+    const maxColumn = clampInt(Math.ceil(Math.max(...corners.map((corner) => corner.column))) + 4, 0, world.columns - 1);
+    const minRow = clampInt(Math.floor(Math.min(...corners.map((corner) => corner.row))) - 4, 0, world.rows - 1);
+    const maxRow = clampInt(Math.ceil(Math.max(...corners.map((corner) => corner.row))) + 4, 0, world.rows - 1);
+    const tiles = [];
+
+    for (let row = minRow; row <= maxRow; row += 1) {
+      for (let column = minColumn; column <= maxColumn; column += 1) {
+        const tile = world.getTile(column, row);
+
+        if (tile) {
+          tiles.push(tile);
+        }
+      }
+    }
+
+    return tiles.sort((a, b) => a.column + a.row - (b.column + b.row));
+  }
+
+  getTileCorners(tile, inflate = 0) {
     const point = gridToWorld(
       tile.column,
       tile.row,
@@ -486,13 +722,13 @@ export class CanvasRenderer {
       this.config.tileHeight,
     );
     const y = point.y;
-    const halfWidth = this.config.tileWidth / 2;
-    const halfHeight = this.config.tileHeight / 2;
+    const halfWidth = this.config.tileWidth / 2 + inflate;
+    const halfHeight = this.config.tileHeight / 2 + inflate;
 
     return {
-      top: { x: point.x, y },
+      top: { x: point.x, y: y - inflate },
       right: { x: point.x + halfWidth, y: y + halfHeight },
-      bottom: { x: point.x, y: y + this.config.tileHeight },
+      bottom: { x: point.x, y: y + this.config.tileHeight + inflate },
       left: { x: point.x - halfWidth, y: y + halfHeight },
     };
   }
@@ -565,6 +801,10 @@ function getMarkerBackground(type) {
     return "rgba(79, 44, 24, 0.92)";
   }
 
+  if (type === "rock") {
+    return "rgba(62, 65, 69, 0.92)";
+  }
+
   return "rgba(74, 48, 20, 0.92)";
 }
 
@@ -609,4 +849,36 @@ function getWorldBounds(world, config) {
     width: Math.ceil(maxX - minX),
     height: Math.ceil(maxY - minY),
   };
+}
+
+function runChunkedWork(work) {
+  return new Promise((resolve) => {
+    const schedule = () => {
+      const run = (deadline) => {
+        const start = performance.now();
+        const idleTime = typeof deadline?.timeRemaining === "function" ? deadline.timeRemaining() : 0;
+        const budget = Math.max(6, Math.min(12, idleTime || 8));
+        const isDone = work(start + budget);
+
+        if (isDone) {
+          resolve();
+          return;
+        }
+
+        requestAnimationFrame(schedule);
+      };
+
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(run, { timeout: 60 });
+      } else {
+        requestAnimationFrame(() => run(null));
+      }
+    };
+
+    schedule();
+  });
+}
+
+function clampInt(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }

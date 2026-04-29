@@ -75,6 +75,7 @@ function createHerbs({ world, count, reservedKeys }) {
       loadsRemaining: DEFAULT_HERB_LOADS,
       reservedBy: null,
     });
+    reservedKeys.add(tile.id);
   }
 
   return herbs;

@@ -44,6 +44,7 @@ export class UnitManager {
     this.onResourceDelivered = onResourceDelivered;
     this.activeMarkers = [];
     this.nextMarkerId = 1;
+    this.corpses = [];
     this.threatPlayerUnits = [];
     this.threatScaryMonsters = [];
 
@@ -89,6 +90,10 @@ export class UnitManager {
 
   getOrderMarkers() {
     return this.activeMarkers;
+  }
+
+  getCorpses() {
+    return this.corpses;
   }
 
   commandExplore(tile) {
@@ -242,7 +247,7 @@ export class UnitManager {
       return false;
     }
 
-    say(gatherer, resourceNode.type === "fish" ? "Fishing!" : "Picking!", resourceNode.type, 1050);
+    say(gatherer, getGatherSpeech(resourceNode.type), resourceNode.type, 1050);
     return true;
   }
 
@@ -389,6 +394,7 @@ export class UnitManager {
 
     if (gold > 0) {
       this.onGoldDelivered(gold);
+      showResourceText(unit, gold, "gold");
       say(unit, "Gold secured!", "smile", 1200);
     }
 
@@ -429,6 +435,7 @@ export class UnitManager {
 
     if (unit.carryingHerbId) {
       this.onHerbsDelivered(1);
+      showResourceText(unit, 1, "herb");
       unit.carryingHerbId = null;
     }
 
@@ -485,12 +492,13 @@ export class UnitManager {
         return;
       }
 
-      say(unit, load.type === "fish" ? "Fresh catch!" : "Basket full!", load.type, 950);
+      say(unit, getResourceLoadSpeech(load.type), load.type, 950);
       return;
     }
 
     if (unit.carryingResourceNodeId && unit.carryingResourceType) {
       this.onResourceDelivered(unit.carryingResourceType, unit.carryingResourceAmount || 1);
+      showResourceText(unit, unit.carryingResourceAmount || 1, unit.carryingResourceType);
       unit.carryingResourceNodeId = null;
       unit.carryingResourceType = null;
       unit.carryingResourceAmount = 0;
@@ -714,7 +722,27 @@ export class UnitManager {
       return;
     }
 
+    this.recordCorpse(target);
     target.defeated = true;
+  }
+
+  recordCorpse(unit) {
+    if (unit.faction !== "monster" || this.corpses.some((corpse) => corpse.id === `corpse-${unit.id}`)) {
+      return;
+    }
+
+    this.corpses.push({
+      id: `corpse-${unit.id}`,
+      definition: unit.definition,
+      body: unit.body,
+      colors: unit.colors,
+      faction: unit.faction,
+      scale: unit.scale || 1,
+      column: unit.column,
+      row: unit.row,
+      visualColumn: unit.visualColumn,
+      visualRow: unit.visualRow,
+    });
   }
 
   sendToRecovery(unit) {
@@ -957,7 +985,7 @@ export class UnitManager {
     }
 
     const destinationTile = this.world.getTile(nextTile.column, nextTile.row);
-    const carryMultiplier = unit.carryingTreasureId ? 2 : unit.carryingResourceNodeId ? 1.25 : 1;
+    const carryMultiplier = hasCarriedLoad(unit) ? 2 : 1;
     const terrainCost = unit.canFly ? 1 : getTileMovementCost(destinationTile);
     const duration = (BASE_STEP_MS * terrainCost * carryMultiplier) / unit.speed;
 
@@ -1077,6 +1105,30 @@ function say(unit, text, icon, duration = 1300) {
   unit.orderIcon = icon || unit.orderIcon;
 }
 
+function getGatherSpeech(type) {
+  if (type === "fish") {
+    return "Fishing!";
+  }
+
+  if (type === "rock") {
+    return "Mining!";
+  }
+
+  return "Picking!";
+}
+
+function getResourceLoadSpeech(type) {
+  if (type === "fish") {
+    return "Fresh catch!";
+  }
+
+  if (type === "rock") {
+    return "Stone ready!";
+  }
+
+  return "Basket full!";
+}
+
 function tickUnitEffects(unit, delta) {
   tickSpeech(unit, delta);
   unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
@@ -1110,6 +1162,20 @@ function showCombatText(unit, text, tone) {
     remainingMs: COMBAT_TEXT_MS,
     durationMs: COMBAT_TEXT_MS,
   };
+}
+
+function showResourceText(unit, amount, type) {
+  unit.combatText = {
+    text: `+${amount}`,
+    tone: "resource",
+    resourceType: type,
+    remainingMs: COMBAT_TEXT_MS + 220,
+    durationMs: COMBAT_TEXT_MS + 220,
+  };
+}
+
+function hasCarriedLoad(unit) {
+  return Boolean(unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId);
 }
 
 function tileDistance(a, b) {

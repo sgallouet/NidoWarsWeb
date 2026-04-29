@@ -19,6 +19,12 @@ const RESOURCE_DEFINITIONS = {
     value: 1,
     tileTypes: new Set(["forest"]),
   },
+  rock: {
+    label: "Rock Deposit",
+    loads: 5,
+    value: 1,
+    tileTypes: new Set(["rock", "obsidian"]),
+  },
 };
 
 export class ResourceNodeManager {
@@ -97,6 +103,7 @@ function createNodes({ world, type, count, reservedKeys }) {
       value: definition.value,
       reservedBy: null,
     });
+    reservedKeys.add(tile.id);
   }
 
   return nodes;
@@ -107,7 +114,7 @@ function isResourceCandidate(tile, definition, reservedKeys) {
     return false;
   }
 
-  if (tile.type === "water") {
+  if (tile.type === "water" || tile.type === "rock" || tile.type === "obsidian") {
     return true;
   }
 

@@ -1,6 +1,8 @@
 import { isTilePassable } from "../world/tileTypes.js";
 
-const MONSTER_START_EXCLUSION_RADIUS = 12;
+const BASE_MAP_COLUMNS = 60;
+const BASE_MAP_ROWS = 60;
+const MONSTER_START_EXCLUSION_RADIUS = 36;
 
 export const UNIT_DEFINITIONS = {
   duneVanguard: {
@@ -192,17 +194,38 @@ export function createStartingUnits(world, campTile) {
     reserve(campTile.column, campTile.row + 1),
   ];
   const monsterSpawns = {
-    snow: reserveBiome(world, "snow", occupied, 10, 10, monsterSpawnOptions),
-    desert: reserveBiome(world, "desert", occupied, 48, 14, monsterSpawnOptions),
-    temperate: reserveBiome(world, "temperate", occupied, 30, 34, monsterSpawnOptions),
-    volcanic: reserveBiome(world, "volcanic", occupied, 12, 49, monsterSpawnOptions),
-    paradise: reserveBiome(world, "paradise", occupied, 50, 50, monsterSpawnOptions),
+    snow: reserveBiome(world, "snow", occupied, scaleColumn(world, 10), scaleRow(world, 10), monsterSpawnOptions),
+    desert: reserveBiome(world, "desert", occupied, scaleColumn(world, 48), scaleRow(world, 14), monsterSpawnOptions),
+    temperate: reserveBiome(
+      world,
+      "temperate",
+      occupied,
+      scaleColumn(world, 30),
+      scaleRow(world, 34),
+      monsterSpawnOptions,
+    ),
+    volcanic: reserveBiome(
+      world,
+      "volcanic",
+      occupied,
+      scaleColumn(world, 12),
+      scaleRow(world, 49),
+      monsterSpawnOptions,
+    ),
+    paradise: reserveBiome(
+      world,
+      "paradise",
+      occupied,
+      scaleColumn(world, 50),
+      scaleRow(world, 50),
+      monsterSpawnOptions,
+    ),
   };
   const critterSpawns = [
-    reserveBiome(world, "desert", occupied, 45, 18),
-    reserveBiome(world, "paradise", occupied, 51, 46),
-    reserveBiome(world, "temperate", occupied, 25, 31),
-    reserveBiome(world, "snow", occupied, 16, 12),
+    reserveBiome(world, "desert", occupied, scaleColumn(world, 45), scaleRow(world, 18)),
+    reserveBiome(world, "paradise", occupied, scaleColumn(world, 51), scaleRow(world, 46)),
+    reserveBiome(world, "temperate", occupied, scaleColumn(world, 25), scaleRow(world, 31)),
+    reserveBiome(world, "snow", occupied, scaleColumn(world, 16), scaleRow(world, 12)),
   ];
 
   return [
@@ -258,13 +281,20 @@ export function createStartingUnits(world, campTile) {
       id: "monster-thorn-01",
       definition: "thornback",
       name: "Thornback",
-      tile: reserveBiome(world, "temperate", occupied, 33, 27, monsterSpawnOptions),
+      tile: reserveBiome(
+        world,
+        "temperate",
+        occupied,
+        scaleColumn(world, 33),
+        scaleRow(world, 27),
+        monsterSpawnOptions,
+      ),
     }),
     createUnit({
       id: "critter-bloom-01",
       definition: "bloomWisp",
       name: "Bloom Wisp",
-      tile: reserveBiome(world, "paradise", occupied, 53, 49),
+      tile: reserveBiome(world, "paradise", occupied, scaleColumn(world, 53), scaleRow(world, 49)),
     }),
     createUnit({
       id: "critter-hare-01",
@@ -291,6 +321,14 @@ export function createStartingUnits(world, campTile) {
       tile: critterSpawns[3],
     }),
   ];
+}
+
+function scaleColumn(world, column) {
+  return Math.min(world.columns - 1, Math.round((column / BASE_MAP_COLUMNS) * world.columns));
+}
+
+function scaleRow(world, row) {
+  return Math.min(world.rows - 1, Math.round((row / BASE_MAP_ROWS) * world.rows));
 }
 
 function createUnit({ id, definition, name, tile }) {
