@@ -1,7 +1,12 @@
 import { findNearestPassableTile, findPath, getRandomPassableTileNear, toKey } from "./pathfinding.js";
 import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
+import { HERB_WORK_MS } from "../world/HerbManager.js";
+import { getResourceDefinition } from "../world/ResourceNodeManager.js";
 
 const BASE_STEP_MS = 520;
+const CLEAN_WORK_MS = 3600;
+const MEAT_WORK_MS = 5000;
+const BUILD_WORK_MS = 2600;
 const REVEAL_RADIUS = 4;
 const CAMP_REVEAL_RADIUS = 6;
 const THREAT_RADIUS = 5;
@@ -32,6 +37,8 @@ export class UnitManager {
     onHerbsDelivered,
     onResourceDelivered,
     onTileCleaned,
+    onConstructionStarted,
+    corpseTtlMs,
   }) {
     this.world = world;
     this.units = units;
@@ -44,6 +51,8 @@ export class UnitManager {
     this.onHerbsDelivered = onHerbsDelivered;
     this.onResourceDelivered = onResourceDelivered;
     this.onTileCleaned = onTileCleaned;
+    this.onConstructionStarted = onConstructionStarted;
+    this.corpseTtlMs = corpseTtlMs;
     this.activeMarkers = [];
     this.nextMarkerId = 1;
     this.corpses = [];
@@ -64,6 +73,7 @@ export class UnitManager {
       this.updateMovement(unit, delta);
     }
 
+    this.updateCorpses(delta);
     this.updateThreats();
 
     for (const unit of this.units) {
@@ -108,7 +118,7 @@ export class UnitManager {
       return false;
     }
 
-    const explorers = this.getAvailablePlayerUnits(targetTile).slice(0, 2);
+    const explorers = this.getAvailableSettlers(targetTile).slice(0, 2);
 
     if (explorers.length === 0) {
       return false;
@@ -130,6 +140,7 @@ export class UnitManager {
 
       if (assigned) {
         assignedCount += 1;
+        this.assignGuardToWorker(unit);
         say(unit, "Sire! yes sir!", "eye");
       }
     });
@@ -148,9 +159,8 @@ export class UnitManager {
     }
 
     const treasureTile = this.world.getTile(treasure.column, treasure.row);
-    const availableUnits = this.getAvailablePlayerUnits(treasureTile);
+    const availableUnits = this.getAvailableSettlers(treasureTile);
     const carrier = availableUnits[0];
-    const escort = availableUnits[1];
 
     if (!carrier) {
       this.treasureManager.release(treasure.id);
@@ -176,46 +186,49 @@ export class UnitManager {
     }
 
     say(carrier, "Sire! yes sir!", "muscle");
-
-    if (escort) {
-      this.assignEscort(escort, carrier, marker.id);
-      say(escort, "On guard!", "smile");
-    }
+    this.assignGuardToWorker(carrier);
 
     return true;
   }
 
   commandGatherHerb(herb) {
     const herbTile = this.world.getTile(herb.column, herb.row);
-    const gatherer = this.getAvailablePlayerUnits(herbTile)[0];
+    const gatherers = this.getAvailableSettlers(herbTile).slice(0, Math.min(4, herb.loadsRemaining));
+    let assignedCount = 0;
 
-    if (!gatherer) {
+    if (gatherers.length === 0) {
       return false;
     }
 
-    if (!this.herbManager.reserve(herb.id, gatherer.id)) {
-      return false;
+    for (const gatherer of gatherers) {
+      if (!this.herbManager.reserve(herb.id, gatherer.id)) {
+        continue;
+      }
+
+      const destination = this.getNearbyWorkTile(herbTile, assignedCount) || herbTile;
+      const marker = this.addMarker("herb", herbTile);
+      gatherer.targetHerbId = herb.id;
+
+      const assigned = this.assignUnitPath(gatherer, destination, {
+        order: "herb",
+        orderIcon: "herb",
+        markerId: marker.id,
+        stage: "toHerb",
+      });
+
+      if (!assigned) {
+        this.removeMarker(marker.id);
+        this.herbManager.release(herb.id, gatherer.id);
+        this.setPatrol(gatherer);
+        continue;
+      }
+
+      assignedCount += 1;
+      this.assignGuardToWorker(gatherer);
+      say(gatherer, "On it!", "herb");
     }
 
-    const marker = this.addMarker("herb", herbTile);
-    gatherer.targetHerbId = herb.id;
-
-    const assigned = this.assignUnitPath(gatherer, herbTile, {
-      order: "herb",
-      orderIcon: "herb",
-      markerId: marker.id,
-      stage: "toHerb",
-    });
-
-    if (!assigned) {
-      this.removeMarker(marker.id);
-      this.herbManager.release(herb.id, gatherer.id);
-      this.setPatrol(gatherer);
-      return false;
-    }
-
-    say(gatherer, "On it!", "herb");
-    return true;
+    return assignedCount > 0;
   }
 
   commandGatherResource(resourceNode) {
@@ -225,35 +238,44 @@ export class UnitManager {
       return false;
     }
 
-    const gatherer = this.getAvailablePlayerUnits(gatherTile)[0];
+    const definition = getResourceDefinition(resourceNode.type);
+    const maxWorkers = Math.min(definition?.maxWorkers || 1, resourceNode.loadsRemaining);
+    const gatherers = this.getAvailableSettlers(gatherTile).slice(0, maxWorkers);
+    let assignedCount = 0;
 
-    if (!gatherer) {
+    if (gatherers.length === 0) {
       return false;
     }
 
-    if (!this.resourceNodeManager.reserve(resourceNode.id, gatherer.id)) {
-      return false;
+    for (const gatherer of gatherers) {
+      if (!this.resourceNodeManager.reserve(resourceNode.id, gatherer.id)) {
+        continue;
+      }
+
+      const marker = this.addMarker(resourceNode.type, this.world.getTile(resourceNode.column, resourceNode.row));
+      const destination = this.getNearbyWorkTile(gatherTile, assignedCount) || gatherTile;
+      gatherer.targetResourceNodeId = resourceNode.id;
+
+      const assigned = this.assignUnitPath(gatherer, destination, {
+        order: "resource",
+        orderIcon: resourceNode.type,
+        markerId: marker.id,
+        stage: "toResource",
+      });
+
+      if (!assigned) {
+        this.removeMarker(marker.id);
+        this.resourceNodeManager.release(resourceNode.id, gatherer.id);
+        this.setPatrol(gatherer);
+        continue;
+      }
+
+      assignedCount += 1;
+      this.assignGuardToWorker(gatherer);
+      say(gatherer, getGatherSpeech(resourceNode.type), resourceNode.type, 1050);
     }
 
-    const marker = this.addMarker(resourceNode.type, this.world.getTile(resourceNode.column, resourceNode.row));
-    gatherer.targetResourceNodeId = resourceNode.id;
-
-    const assigned = this.assignUnitPath(gatherer, gatherTile, {
-      order: "resource",
-      orderIcon: resourceNode.type,
-      markerId: marker.id,
-      stage: "toResource",
-    });
-
-    if (!assigned) {
-      this.removeMarker(marker.id);
-      this.resourceNodeManager.release(resourceNode.id, gatherer.id);
-      this.setPatrol(gatherer);
-      return false;
-    }
-
-    say(gatherer, getGatherSpeech(resourceNode.type), resourceNode.type, 1050);
-    return true;
+    return assignedCount > 0;
   }
 
   commandCleanTile(tile) {
@@ -267,7 +289,7 @@ export class UnitManager {
       return false;
     }
 
-    const worker = this.getAvailablePlayerUnits(cleanTile)[0];
+    const worker = this.getAvailableSettlers(cleanTile)[0];
 
     if (!worker) {
       return false;
@@ -294,12 +316,112 @@ export class UnitManager {
     }
 
     say(worker, "Clearing!", "clean", 1000);
+    this.assignGuardToWorker(worker);
+    return true;
+  }
+
+  commandHarvestCorpse(corpse) {
+    if (!corpse || corpse.harvested || corpse.reservedBy) {
+      return false;
+    }
+
+    const corpseTile = this.world.getTile(corpse.column, corpse.row);
+    const worker = this.getAvailableSettlers(corpseTile)[0];
+
+    if (!worker) {
+      return false;
+    }
+
+    const marker = this.addMarker("meat", corpseTile);
+
+    corpse.reservedBy = worker.id;
+    worker.targetCorpseId = corpse.id;
+
+    const assigned = this.assignUnitPath(worker, corpseTile, {
+      order: "meat",
+      orderIcon: "meat",
+      markerId: marker.id,
+      stage: "toCorpse",
+    });
+
+    if (!assigned) {
+      this.removeMarker(marker.id);
+      corpse.reservedBy = null;
+      worker.targetCorpseId = null;
+      this.setPatrol(worker);
+      return false;
+    }
+
+    this.assignGuardToWorker(worker);
+    say(worker, "Harvesting!", "meat", 1000);
+    return true;
+  }
+
+  commandBuildTile(tile, buildingId) {
+    if (tile.buildReservedBy || tile.construction || tile.building) {
+      return false;
+    }
+
+    const builder = this.getAvailableSettlers(tile)[0];
+
+    if (!builder) {
+      return false;
+    }
+
+    const marker = this.addMarker("build", tile);
+
+    tile.buildReservedBy = builder.id;
+    builder.targetBuildTileId = tile.id;
+    builder.targetBuildingId = buildingId;
+
+    const assigned = this.assignUnitPath(builder, tile, {
+      order: "build",
+      orderIcon: "build",
+      markerId: marker.id,
+      stage: "toBuild",
+    });
+
+    if (!assigned) {
+      this.removeMarker(marker.id);
+      tile.buildReservedBy = null;
+      builder.targetBuildTileId = null;
+      builder.targetBuildingId = null;
+      this.setPatrol(builder);
+      return false;
+    }
+
+    this.assignGuardToWorker(builder);
+    say(builder, "Building!", "build", 1000);
     return true;
   }
 
   getAvailablePlayerUnits(targetTile) {
     return this.units
       .filter((unit) => unit.faction === "player" && unit.order === "patrol" && unit.health >= unit.maxHealth)
+      .sort((a, b) => tileDistance(a, targetTile) - tileDistance(b, targetTile));
+  }
+
+  getAvailableSettlers(targetTile) {
+    return this.units
+      .filter(
+        (unit) =>
+          unit.faction === "player" &&
+          unit.role === "Settler" &&
+          unit.order === "patrol" &&
+          unit.health >= unit.maxHealth,
+      )
+      .sort((a, b) => tileDistance(a, targetTile) - tileDistance(b, targetTile));
+  }
+
+  getAvailableWarriors(targetTile) {
+    return this.units
+      .filter(
+        (unit) =>
+          unit.faction === "player" &&
+          unit.role === "Warrior" &&
+          unit.order === "patrol" &&
+          unit.health >= unit.maxHealth,
+      )
       .sort((a, b) => tileDistance(a, targetTile) - tileDistance(b, targetTile));
   }
 
@@ -365,17 +487,32 @@ export class UnitManager {
     }
 
     if (unit.order === "herb") {
-      this.updateHerb(unit);
+      this.updateHerb(unit, delta);
       return;
     }
 
     if (unit.order === "resource") {
-      this.updateResource(unit);
+      this.updateResource(unit, delta);
       return;
     }
 
     if (unit.order === "clean") {
-      this.updateClean(unit);
+      this.updateClean(unit, delta);
+      return;
+    }
+
+    if (unit.order === "meat") {
+      this.updateMeat(unit, delta);
+      return;
+    }
+
+    if (unit.order === "build") {
+      this.updateBuild(unit, delta);
+      return;
+    }
+
+    if (unit.order === "guard") {
+      this.updateGuard(unit);
       return;
     }
 
@@ -455,8 +592,23 @@ export class UnitManager {
     this.setPatrol(unit);
   }
 
-  updateHerb(unit) {
+  updateHerb(unit, delta) {
     if (unit.stage === "toHerb") {
+      unit.stage = "harvesting";
+      unit.workMs = HERB_WORK_MS;
+      unit.pauseMs = 160;
+      say(unit, "Gathering...", "herb", 900);
+      return;
+    }
+
+    if (unit.stage === "harvesting") {
+      unit.workMs -= delta;
+      unit.pauseMs = 160;
+
+      if (unit.workMs > 0) {
+        return;
+      }
+
       if (!this.herbManager.pickLoad(unit.targetHerbId, unit.id)) {
         this.removeMarker(unit.markerId);
         this.herbManager.release(unit.targetHerbId, unit.id);
@@ -494,26 +646,52 @@ export class UnitManager {
 
     if (herb && herb.loadsRemaining > 0) {
       const herbTile = this.world.getTile(herb.column, herb.row);
-      const assignedNextTrip = this.assignUnitPath(unit, herbTile, {
-        order: "herb",
-        orderIcon: "herb",
-        markerId: unit.markerId,
-        stage: "toHerb",
-      });
+      const didReserve = this.herbManager.reserve(herb.id, unit.id);
+      const assignedNextTrip =
+        didReserve &&
+        this.assignUnitPath(unit, this.getNearbyWorkTile(herbTile, 0) || herbTile, {
+          order: "herb",
+          orderIcon: "herb",
+          markerId: unit.markerId,
+          stage: "toHerb",
+        });
 
       if (assignedNextTrip) {
         return;
+      }
+
+      if (didReserve) {
+        this.herbManager.release(herb.id, unit.id);
       }
     }
 
     this.removeMarker(unit.markerId);
     this.herbManager.release(unit.targetHerbId, unit.id);
     unit.targetHerbId = null;
+    unit.workMs = 0;
     this.setPatrol(unit);
   }
 
-  updateResource(unit) {
+  updateResource(unit, delta) {
     if (unit.stage === "toResource") {
+      const node = this.resourceNodeManager.getById(unit.targetResourceNodeId);
+      const workMs = getResourceWorkMs(node);
+
+      unit.stage = "harvesting";
+      unit.workMs = workMs;
+      unit.pauseMs = 160;
+      say(unit, getWorkSpeech(node?.type), node?.type || "pick", 900);
+      return;
+    }
+
+    if (unit.stage === "harvesting") {
+      unit.workMs -= delta;
+      unit.pauseMs = 160;
+
+      if (unit.workMs > 0) {
+        return;
+      }
+
       const load = this.resourceNodeManager.pickLoad(unit.targetResourceNodeId, unit.id);
 
       if (!load) {
@@ -559,9 +737,11 @@ export class UnitManager {
 
     if (node && node.loadsRemaining > 0) {
       const gatherTile = this.getResourceGatherTile(node);
+      const didReserve = this.resourceNodeManager.reserve(node.id, unit.id);
       const assignedNextTrip =
+        didReserve &&
         gatherTile &&
-        this.assignUnitPath(unit, gatherTile, {
+        this.assignUnitPath(unit, this.getNearbyWorkTile(gatherTile, 0) || gatherTile, {
           order: "resource",
           orderIcon: node.type,
           markerId: unit.markerId,
@@ -571,16 +751,36 @@ export class UnitManager {
       if (assignedNextTrip) {
         return;
       }
+
+      if (didReserve) {
+        this.resourceNodeManager.release(node.id, unit.id);
+      }
     }
 
     this.removeMarker(unit.markerId);
     this.resourceNodeManager.release(unit.targetResourceNodeId, unit.id);
     unit.targetResourceNodeId = null;
+    unit.workMs = 0;
     this.setPatrol(unit);
   }
 
-  updateClean(unit) {
+  updateClean(unit, delta) {
     const tile = this.getTileById(unit.targetCleanTileId);
+
+    if (unit.stage === "toClean") {
+      unit.stage = "cleaning";
+      unit.workMs = CLEAN_WORK_MS;
+      unit.pauseMs = 160;
+      say(unit, "Clearing...", "clean", 900);
+      return;
+    }
+
+    unit.workMs -= delta;
+    unit.pauseMs = 160;
+
+    if (unit.workMs > 0) {
+      return;
+    }
 
     if (tile) {
       this.onTileCleaned?.(tile);
@@ -590,6 +790,101 @@ export class UnitManager {
 
     this.removeMarker(unit.markerId);
     unit.targetCleanTileId = null;
+    unit.workMs = 0;
+    this.setPatrol(unit);
+  }
+
+  updateMeat(unit, delta) {
+    const corpse = this.getCorpseById(unit.targetCorpseId);
+
+    if (unit.stage === "toCorpse") {
+      unit.stage = "harvesting";
+      unit.workMs = MEAT_WORK_MS;
+      unit.pauseMs = 160;
+      say(unit, "Butchering...", "meat", 900);
+      return;
+    }
+
+    if (unit.stage === "harvesting") {
+      unit.workMs -= delta;
+      unit.pauseMs = 160;
+
+      if (unit.workMs > 0) {
+        return;
+      }
+
+      if (!corpse || corpse.harvested) {
+        this.removeMarker(unit.markerId);
+        this.setPatrol(unit);
+        return;
+      }
+
+      corpse.harvested = true;
+      unit.carryingMeatCorpseId = corpse.id;
+      unit.carryingResourceType = "meat";
+      unit.carryingResourceAmount = corpse.meatValue || 1;
+      unit.stage = "returning";
+
+      const assignedReturn = this.assignUnitPath(unit, this.campTile, {
+        order: "meat",
+        orderIcon: "meat",
+        markerId: unit.markerId,
+        stage: "returning",
+      });
+
+      if (!assignedReturn) {
+        unit.carryingMeatCorpseId = null;
+        unit.carryingResourceType = null;
+        unit.carryingResourceAmount = 0;
+        this.setPatrol(unit);
+      }
+      return;
+    }
+
+    if (unit.carryingMeatCorpseId) {
+      this.onResourceDelivered("meat", unit.carryingResourceAmount || 1);
+      showResourceText(unit, unit.carryingResourceAmount || 1, "meat");
+      this.removeCorpse(unit.carryingMeatCorpseId);
+      say(unit, "Meat stored!", "meat", 1000);
+    }
+
+    this.removeMarker(unit.markerId);
+    unit.carryingMeatCorpseId = null;
+    unit.targetCorpseId = null;
+    unit.carryingResourceType = null;
+    unit.carryingResourceAmount = 0;
+    unit.workMs = 0;
+    this.setPatrol(unit);
+  }
+
+  updateBuild(unit, delta) {
+    const tile = this.getTileById(unit.targetBuildTileId);
+
+    if (unit.stage === "toBuild") {
+      unit.stage = "working";
+      unit.workMs = BUILD_WORK_MS;
+      unit.pauseMs = 160;
+      say(unit, "Raising frame!", "build", 900);
+      return;
+    }
+
+    unit.workMs -= delta;
+    unit.pauseMs = 160;
+
+    if (unit.workMs > 0) {
+      return;
+    }
+
+    if (tile) {
+      this.onConstructionStarted?.(tile, unit.targetBuildingId);
+      tile.buildReservedBy = null;
+      say(unit, "Frame set!", "build", 950);
+    }
+
+    this.removeMarker(unit.markerId);
+    unit.targetBuildTileId = null;
+    unit.targetBuildingId = null;
+    unit.workMs = 0;
     this.setPatrol(unit);
   }
 
@@ -615,6 +910,60 @@ export class UnitManager {
       stage: "follow",
     });
     unit.escortTargetId = carrier.id;
+  }
+
+  updateGuard(unit) {
+    const worker = this.units.find((candidate) => candidate.id === unit.guardTargetId);
+
+    if (
+      !worker ||
+      worker.defeated ||
+      worker.order === "patrol" ||
+      worker.order === "recover" ||
+      tileDistance(worker, this.campTile) <= 1
+    ) {
+      this.setPatrol(unit);
+      return;
+    }
+
+    if (tileDistance(unit, worker) <= 1) {
+      unit.pauseMs = 180;
+      return;
+    }
+
+    const guardTile = this.getNearbyPassableTile(worker, 1) || this.world.getTile(worker.column, worker.row);
+
+    this.assignUnitPath(unit, guardTile, {
+      order: "guard",
+      orderIcon: "shield",
+      stage: "follow",
+    });
+    unit.guardTargetId = worker.id;
+  }
+
+  assignGuardToWorker(worker) {
+    if (!worker || worker.role !== "Settler") {
+      return false;
+    }
+
+    if (this.units.some((unit) => unit.order === "guard" && unit.guardTargetId === worker.id)) {
+      return true;
+    }
+
+    const guard = this.getAvailableWarriors(worker)[0];
+
+    if (!guard) {
+      return false;
+    }
+
+    guard.order = "guard";
+    guard.orderIcon = "shield";
+    guard.guardTargetId = worker.id;
+    guard.movementQueue = [];
+    guard.movementSegment = null;
+    say(guard, "On guard!", "shield", 1000);
+    this.updateGuard(guard);
+    return true;
   }
 
   updateThreats() {
@@ -648,6 +997,7 @@ export class UnitManager {
       for (const player of playerUnits) {
         if (
           tileDistance(player, monster) <= RESPONSE_RADIUS &&
+          player.role === "Warrior" &&
           !player.carryingTreasureId &&
           !player.carryingHerbId &&
           !player.carryingResourceNodeId
@@ -671,6 +1021,10 @@ export class UnitManager {
   }
 
   alertPlayer(unit, monster) {
+    if (unit.role !== "Warrior") {
+      return;
+    }
+
     if (unit.health < unit.maxHealth) {
       this.sendToRecovery(unit);
       return;
@@ -816,7 +1170,50 @@ export class UnitManager {
       row: unit.row,
       visualColumn: unit.visualColumn,
       visualRow: unit.visualRow,
+      ageMs: 0,
+      meatValue: unit.decorative ? 1 : 2,
+      harvested: false,
+      reservedBy: null,
     });
+  }
+
+  updateCorpses(delta) {
+    if (!this.corpseTtlMs) {
+      return;
+    }
+
+    let writeIndex = 0;
+
+    for (let readIndex = 0; readIndex < this.corpses.length; readIndex += 1) {
+      const corpse = this.corpses[readIndex];
+
+      corpse.ageMs += delta;
+
+      if (corpse.ageMs >= this.corpseTtlMs || corpse.harvested) {
+        continue;
+      }
+
+      this.corpses[writeIndex] = corpse;
+      writeIndex += 1;
+    }
+
+    this.corpses.length = writeIndex;
+  }
+
+  getCorpseAt(column, row) {
+    return (
+      this.corpses.find(
+        (corpse) => corpse.column === column && corpse.row === row && !corpse.harvested && !corpse.reservedBy,
+      ) || null
+    );
+  }
+
+  getCorpseById(corpseId) {
+    return this.corpses.find((corpse) => corpse.id === corpseId) || null;
+  }
+
+  removeCorpse(corpseId) {
+    this.corpses = this.corpses.filter((corpse) => corpse.id !== corpseId);
   }
 
   sendToRecovery(unit) {
@@ -964,6 +1361,22 @@ export class UnitManager {
       }
     }
 
+    if (unit.targetBuildTileId) {
+      const tile = this.getTileById(unit.targetBuildTileId);
+
+      if (tile) {
+        tile.buildReservedBy = null;
+      }
+    }
+
+    if (unit.targetCorpseId) {
+      const corpse = this.getCorpseById(unit.targetCorpseId);
+
+      if (corpse && corpse.reservedBy === unit.id && !corpse.harvested) {
+        corpse.reservedBy = null;
+      }
+    }
+
     if (unit.targetTreasureId && !unit.carryingTreasureId) {
       this.treasureManager.release(unit.targetTreasureId);
     }
@@ -980,6 +1393,12 @@ export class UnitManager {
     unit.carryingResourceType = null;
     unit.carryingResourceAmount = 0;
     unit.targetCleanTileId = null;
+    unit.targetBuildTileId = null;
+    unit.targetBuildingId = null;
+    unit.targetCorpseId = null;
+    unit.carryingMeatCorpseId = null;
+    unit.guardTargetId = null;
+    unit.workMs = 0;
     unit.targetMonsterId = null;
     unit.targetUnitId = null;
     unit.recoverMs = 0;
@@ -1028,6 +1447,22 @@ export class UnitManager {
       }
     }
 
+    if (unit.targetBuildTileId) {
+      const tile = this.getTileById(unit.targetBuildTileId);
+
+      if (tile) {
+        tile.buildReservedBy = null;
+      }
+    }
+
+    if (unit.targetCorpseId) {
+      const corpse = this.getCorpseById(unit.targetCorpseId);
+
+      if (corpse && corpse.reservedBy === unit.id && !corpse.harvested) {
+        corpse.reservedBy = null;
+      }
+    }
+
     unit.carryingTreasureId = null;
     unit.targetTreasureId = null;
     unit.carryingHerbId = null;
@@ -1037,6 +1472,12 @@ export class UnitManager {
     unit.carryingResourceType = null;
     unit.carryingResourceAmount = 0;
     unit.targetCleanTileId = null;
+    unit.targetBuildTileId = null;
+    unit.targetBuildingId = null;
+    unit.targetCorpseId = null;
+    unit.carryingMeatCorpseId = null;
+    unit.guardTargetId = null;
+    unit.workMs = 0;
   }
 
   updateMovement(unit, delta) {
@@ -1095,6 +1536,35 @@ export class UnitManager {
 
   getNearbyPassableTile(origin, radius) {
     return getRandomPassableTileNear(this.world, origin, radius, this.getUnitTileKeys());
+  }
+
+  getNearbyWorkTile(origin, index) {
+    if (index === 0 && isTilePassable(origin) && !this.getBlockedKeys(null).has(origin.id)) {
+      return origin;
+    }
+
+    const offsets = [
+      { column: 1, row: 0 },
+      { column: -1, row: 0 },
+      { column: 0, row: 1 },
+      { column: 0, row: -1 },
+      { column: 1, row: 1 },
+      { column: -1, row: -1 },
+      { column: 1, row: -1 },
+      { column: -1, row: 1 },
+    ];
+    const blockedKeys = this.getUnitTileKeys();
+
+    for (let i = 0; i < offsets.length; i += 1) {
+      const offset = offsets[(index + i) % offsets.length];
+      const tile = this.world.getTile(origin.column + offset.column, origin.row + offset.row);
+
+      if (tile && isTilePassable(tile) && !blockedKeys.has(tile.id)) {
+        return tile;
+      }
+    }
+
+    return findNearestPassableTile(this.world, origin, blockedKeys);
   }
 
   getResourceGatherTile(resourceNode) {
@@ -1232,6 +1702,32 @@ function getResourceLoadSpeech(type) {
   return "Basket full!";
 }
 
+function getResourceWorkMs(node) {
+  const workMs = getResourceDefinition(node?.type)?.workMs || 6000;
+
+  if (typeof workMs === "number") {
+    return workMs;
+  }
+
+  return workMs.min + Math.random() * (workMs.max - workMs.min);
+}
+
+function getWorkSpeech(type) {
+  if (type === "fish") {
+    return "Fishing...";
+  }
+
+  if (type === "wood") {
+    return "Chopping...";
+  }
+
+  if (type === "rock") {
+    return "Mining...";
+  }
+
+  return "Gathering...";
+}
+
 function tickUnitEffects(unit, delta) {
   tickSpeech(unit, delta);
   unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
@@ -1278,7 +1774,9 @@ function showResourceText(unit, amount, type) {
 }
 
 function hasCarriedLoad(unit) {
-  return Boolean(unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId);
+  return Boolean(
+    unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId || unit.carryingMeatCorpseId,
+  );
 }
 
 function tileDistance(a, b) {

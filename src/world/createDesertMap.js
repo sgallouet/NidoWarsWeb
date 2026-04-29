@@ -31,7 +31,7 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
       const lakeDistance = normalizedDistance(column, row, lakeCenter.column, lakeCenter.row, 8.4, 5.8);
       const campDistance = distanceTo(column, row, campCenter.column, campCenter.row);
       const forceOpenCamp = campDistance <= 6.2;
-      const type = chooseType({
+      let type = chooseType({
         biome: biome.id,
         duneBand,
         ridge,
@@ -41,6 +41,11 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
         lakeDistance,
         forceOpenCamp,
       });
+      const isStartingPlain = campDistance <= 4.2;
+
+      if (isStartingPlain) {
+        type = "grass";
+      }
 
       tiles.push({
         id: `${column}:${row}`,
@@ -52,12 +57,13 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
         label: TILE_TYPES[type].label,
         seed: tileSeed,
         texture: tileSeed,
-        elevation: getElevation(type, duneBand, ridge, roughness),
+        elevation: isStartingPlain ? 0 : getElevation(type, duneBand, ridge, roughness),
         lightness: (tileSeed - 0.5) * 0.055,
-        isEmpty: false,
+        isEmpty: isStartingPlain,
         hasRoad: false,
         canBuild: false,
         building: null,
+        construction: null,
       });
     }
   }

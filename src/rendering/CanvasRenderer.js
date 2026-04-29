@@ -63,6 +63,7 @@ export class CanvasRenderer {
     const visibleTiles = this.getVisibleTiles(world);
 
     this.paintWorld(ctx, world);
+    this.paintConstructions(ctx, visibleTiles, elapsed);
     this.paintResourceNodes(ctx, world, resourceNodes, elapsed);
     this.paintHerbs(ctx, world, herbs);
     this.paintTreasures(ctx, world, treasures, elapsed);
@@ -208,6 +209,65 @@ export class CanvasRenderer {
     const cache = this.getTerrainCache(world);
 
     this.drawCacheSlice(ctx, cache);
+  }
+
+  paintConstructions(ctx, visibleTiles, elapsed) {
+    for (const tile of visibleTiles) {
+      if (!tile.construction) {
+        continue;
+      }
+
+      const point = this.getTileCenter(tile);
+      const progress = 1 - tile.construction.remainingMs / tile.construction.durationMs;
+      const hammer = Math.sin(elapsed * 0.014 + tile.seed) * 3;
+
+      ctx.save();
+      ctx.fillStyle = "rgba(24, 15, 10, 0.34)";
+      ctx.beginPath();
+      ctx.ellipse(point.x + 2, point.y + 10, 30, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#8c6740";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(point.x - 18, point.y + 7);
+      ctx.lineTo(point.x - 18, point.y - 8 - progress * 22);
+      ctx.moveTo(point.x + 18, point.y + 7);
+      ctx.lineTo(point.x + 18, point.y - 8 - progress * 22);
+      ctx.moveTo(point.x - 24, point.y - 6 - progress * 14);
+      ctx.lineTo(point.x + 24, point.y - 6 - progress * 14);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#ffe28e";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(point.x - 20, point.y + 13);
+      ctx.lineTo(point.x - 20 + progress * 40, point.y + 13);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#d9ad78";
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(point.x + 8, point.y - 18 + hammer);
+      ctx.lineTo(point.x + 19, point.y - 27 + hammer);
+      ctx.moveTo(point.x + 14, point.y - 30 + hammer);
+      ctx.lineTo(point.x + 24, point.y - 20 + hammer);
+      ctx.stroke();
+
+      for (let i = 0; i < 3; i += 1) {
+        const smokeAge = (elapsed * 0.00045 + i * 0.33 + tile.seed) % 1;
+        const smokeY = point.y - 16 - smokeAge * 42;
+        const smokeX = point.x - 10 + i * 10 + Math.sin(elapsed * 0.002 + i) * 5;
+
+        ctx.fillStyle = `rgba(219, 210, 190, ${(1 - smokeAge) * 0.32})`;
+        ctx.beginPath();
+        ctx.arc(smokeX, smokeY, 5 + smokeAge * 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
   }
 
   async prepareWorld(world, fogOfWar, onProgress = () => {}) {
@@ -461,6 +521,29 @@ export class CanvasRenderer {
       ctx.beginPath();
       ctx.ellipse(x - 1, y + 5, 7, 4, 0.12, 0, Math.PI * 2);
       ctx.fill();
+    } else if (type === "meat") {
+      ctx.fillStyle = "#d94e3f";
+      ctx.beginPath();
+      ctx.ellipse(x - 2, y + 2, 8, 6, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff0c6";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y - 2);
+      ctx.lineTo(x + 12, y - 9);
+      ctx.stroke();
+    } else if (type === "build") {
+      ctx.strokeStyle = "#f4db9a";
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 7);
+      ctx.lineTo(x, y - 7);
+      ctx.lineTo(x + 9, y + 7);
+      ctx.moveTo(x - 5, y + 7);
+      ctx.lineTo(x + 5, y + 7);
+      ctx.stroke();
     } else if (type === "clean") {
       ctx.strokeStyle = "#f4db9a";
       ctx.lineWidth = 2.4;

@@ -1,7 +1,7 @@
 export const GAME_CONFIG = {
   map: {
-    columns: 180,
-    rows: 180,
+    columns: 72,
+    rows: 72,
   },
   render: {
     tileWidth: 82,
@@ -19,6 +19,7 @@ export const GAME_CONFIG = {
     gold: 0,
     herbs: 0,
     fish: 0,
+    meat: 0,
     berries: 0,
     wood: 0,
     rock: 0,

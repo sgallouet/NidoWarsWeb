@@ -45,6 +45,10 @@ export class UnitPainter {
       this.paintCarriedResource(ctx, x - 17 + strain, drawY - 17, unit.carryingResourceType);
     }
 
+    if (unit.carryingMeatCorpseId) {
+      this.paintCarriedResource(ctx, x - 17 + strain, drawY - 17, "meat");
+    }
+
     if (unit.orderIcon) {
       this.paintOrderIcon(ctx, unit.orderIcon, x + 18, y - 50);
     }
@@ -67,6 +71,8 @@ export class UnitPainter {
 
     if (body === "duneVanguard") {
       this.paintWarrior(ctx, x, y, unit);
+    } else if (body === "duneSettler") {
+      this.paintSettler(ctx, x, y, unit);
     } else if (body === "glassStalker") {
       this.paintGlassStalker(ctx, x, y, unit, elapsed);
     } else if (body === "thornback") {
@@ -227,6 +233,68 @@ export class UnitPainter {
     ctx.bezierCurveTo(x, y - 10, x + 3, y - 5, x + 6, y - 6);
     ctx.bezierCurveTo(x + 10, y - 9, x + 8, y - 13, x + 5, y - 15 * flame);
     ctx.fill();
+    ctx.restore();
+  }
+
+  paintSettler(ctx, x, y, unit) {
+    const { colors } = unit;
+
+    ctx.save();
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    ctx.fillStyle = colors.shadow;
+    ctx.beginPath();
+    ctx.moveTo(x - 12, y - 11);
+    ctx.lineTo(x - 3, y + 7);
+    ctx.lineTo(x + 12, y - 8);
+    ctx.lineTo(x + 2, y - 24);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = colors.primary;
+    ctx.beginPath();
+    ctx.roundRect(x - 8, y - 27, 16, 22, 7);
+    ctx.fill();
+
+    ctx.fillStyle = colors.secondary;
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y - 22);
+    ctx.lineTo(x + 8, y - 21);
+    ctx.lineTo(x + 5, y - 14);
+    ctx.lineTo(x - 5, y - 14);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#e4a86b";
+    ctx.beginPath();
+    ctx.arc(x, y - 34, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = colors.accent;
+    ctx.beginPath();
+    ctx.moveTo(x - 9, y - 37);
+    ctx.lineTo(x + 4, y - 43);
+    ctx.lineTo(x + 9, y - 34);
+    ctx.lineTo(x - 3, y - 30);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "#3c2b1e";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y - 7);
+    ctx.lineTo(x - 10, y + 6);
+    ctx.moveTo(x + 4, y - 7);
+    ctx.lineTo(x + 10, y + 5);
+    ctx.moveTo(x - 11, y - 18);
+    ctx.lineTo(x - 20, y - 9);
+    ctx.moveTo(x + 10, y - 17);
+    ctx.lineTo(x + 18, y - 9);
+    ctx.stroke();
+
+    ctx.fillStyle = "#182624";
+    ctx.fillRect(x + 2, y - 35, 2, 2);
     ctx.restore();
   }
 
@@ -423,6 +491,23 @@ export class UnitPainter {
       return;
     }
 
+    if (type === "meat") {
+      ctx.save();
+      ctx.fillStyle = "#d94e3f";
+      ctx.beginPath();
+      ctx.ellipse(x - 2, y + 1, 8, 6, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff0c6";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y - 2);
+      ctx.lineTo(x + 12, y - 9);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
     if (type === "wood") {
       ctx.save();
       ctx.strokeStyle = "#d79a50";
@@ -587,6 +672,29 @@ export class UnitPainter {
       ctx.beginPath();
       ctx.ellipse(x + 1, y + 4, 5.8, 2.8, 0.1, 0, Math.PI * 2);
       ctx.fill();
+    } else if (icon === "meat") {
+      ctx.fillStyle = "#d94e3f";
+      ctx.beginPath();
+      ctx.ellipse(x - 2, y + 2, 7, 5, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff0c6";
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y - 2);
+      ctx.lineTo(x + 10, y - 8);
+      ctx.stroke();
+    } else if (icon === "build") {
+      ctx.strokeStyle = "#f4db9a";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y + 6);
+      ctx.lineTo(x, y - 6);
+      ctx.lineTo(x + 7, y + 6);
+      ctx.moveTo(x - 4, y + 6);
+      ctx.lineTo(x + 4, y + 6);
+      ctx.stroke();
     } else if (icon === "clean") {
       ctx.strokeStyle = "#f4db9a";
       ctx.lineWidth = 2;
@@ -799,5 +907,7 @@ export class UnitPainter {
 }
 
 function hasCarriedLoad(unit) {
-  return Boolean(unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId);
+  return Boolean(
+    unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId || unit.carryingMeatCorpseId,
+  );
 }

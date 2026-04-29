@@ -1,4 +1,4 @@
-const RESOURCE_KEYS = ["gold", "herbs", "fish", "berries", "wood", "rock"];
+const RESOURCE_KEYS = ["gold", "herbs", "fish", "meat", "berries", "wood", "rock"];
 const RESOURCE_ROLL_MS = 780;
 
 export class Hud {
@@ -28,8 +28,8 @@ export class Hud {
     }
   }
 
-  setResources({ gold, herbs, fish, berries, wood, rock }) {
-    const resources = { gold, herbs, fish, berries, wood, rock };
+  setResources({ gold, herbs, fish, meat, berries, wood, rock }) {
+    const resources = { gold, herbs, fish, meat, berries, wood, rock };
 
     for (const key of RESOURCE_KEYS) {
       this.setResourceValue(key, resources[key]);

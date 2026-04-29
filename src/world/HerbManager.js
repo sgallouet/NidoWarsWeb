@@ -1,6 +1,8 @@
 import { isTilePassable } from "./tileTypes.js";
 
 const DEFAULT_HERB_LOADS = 5;
+export const HERB_WORK_MS = 6000;
+const MAX_HERB_WORKERS = 4;
 
 export class HerbManager {
   constructor({ world, count, reservedKeys = new Set() }) {
@@ -10,7 +12,17 @@ export class HerbManager {
 
   getHerbAt(column, row) {
     return this.herbs.find(
-      (herb) => herb.column === column && herb.row === row && herb.loadsRemaining > 0 && !herb.reservedBy,
+      (herb) =>
+        herb.column === column &&
+        herb.row === row &&
+        herb.loadsRemaining > 0 &&
+        getReservationCount(herb) < getMaxHerbWorkers(herb),
+    );
+  }
+
+  getActiveHerbAt(column, row) {
+    return this.herbs.find(
+      (herb) => herb.column === column && herb.row === row && herb.loadsRemaining > 0 && !herb.cleaned,
     );
   }
 
@@ -23,30 +35,33 @@ export class HerbManager {
   reserve(herbId, unitId) {
     const herb = this.getById(herbId);
 
-    if (!herb || herb.loadsRemaining <= 0 || herb.reservedBy) {
+    if (!herb || herb.loadsRemaining <= 0 || getReservationCount(herb) >= getMaxHerbWorkers(herb)) {
       return false;
     }
 
-    herb.reservedBy = unitId;
+    herb.reservedBy.add(unitId);
     return true;
   }
 
   pickLoad(herbId, unitId) {
     const herb = this.getById(herbId);
 
-    if (!herb || herb.loadsRemaining <= 0 || herb.reservedBy !== unitId) {
+    if (!herb || herb.loadsRemaining <= 0 || !herb.reservedBy.has(unitId)) {
       return false;
     }
 
     herb.loadsRemaining -= 1;
+    herb.reservedBy.delete(unitId);
     return true;
   }
 
   release(herbId, unitId) {
     const herb = this.getById(herbId);
 
-    if (herb && (!unitId || herb.reservedBy === unitId)) {
-      herb.reservedBy = null;
+    if (herb && !unitId) {
+      herb.reservedBy.clear();
+    } else if (herb) {
+      herb.reservedBy.delete(unitId);
     }
   }
 
@@ -66,7 +81,7 @@ export class HerbManager {
     }
 
     herb.cleaned = true;
-    herb.reservedBy = null;
+    herb.reservedBy.clear();
     return true;
   }
 }
@@ -91,11 +106,19 @@ function createHerbs({ world, count, reservedKeys }) {
       column: tile.column,
       row: tile.row,
       loadsRemaining: DEFAULT_HERB_LOADS,
-      reservedBy: null,
+      reservedBy: new Set(),
       cleaned: false,
     });
     reservedKeys.add(tile.id);
   }
 
   return herbs;
+}
+
+function getReservationCount(herb) {
+  return herb.reservedBy?.size || 0;
+}
+
+function getMaxHerbWorkers(herb) {
+  return Math.min(MAX_HERB_WORKERS, herb.loadsRemaining);
 }

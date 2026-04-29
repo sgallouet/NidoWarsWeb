@@ -5,27 +5,39 @@ const RESOURCE_DEFINITIONS = {
     label: "Fish Shoal",
     loads: 4,
     value: 1,
+    maxWorkers: 1,
+    workMs: { min: 3000, max: 30000 },
     tileTypes: new Set(["water"]),
   },
   berries: {
     label: "Berry Bush",
     loads: 5,
     value: 1,
+    maxWorkers: 4,
+    workMs: 6000,
     tileTypes: new Set(["forest", "flower", "grass"]),
   },
   wood: {
     label: "Timber Tree",
     loads: 4,
     value: 1,
+    maxWorkers: 4,
+    workMs: 15000,
     tileTypes: new Set(["forest"]),
   },
   rock: {
     label: "Rock Deposit",
     loads: 5,
     value: 1,
+    maxWorkers: 2,
+    workMs: 12000,
     tileTypes: new Set(["rock", "obsidian"]),
   },
 };
+
+export function getResourceDefinition(type) {
+  return RESOURCE_DEFINITIONS[type] || null;
+}
 
 export class ResourceNodeManager {
   constructor({ world, counts, reservedKeys = new Set() }) {
@@ -37,7 +49,17 @@ export class ResourceNodeManager {
 
   getNodeAt(column, row) {
     return this.nodes.find(
-      (node) => node.column === column && node.row === row && node.loadsRemaining > 0 && !node.reservedBy,
+      (node) =>
+        node.column === column &&
+        node.row === row &&
+        node.loadsRemaining > 0 &&
+        getReservationCount(node) < getMaxWorkers(node),
+    );
+  }
+
+  getActiveNodeAt(column, row) {
+    return this.nodes.find(
+      (node) => node.column === column && node.row === row && node.loadsRemaining > 0 && !node.cleaned,
     );
   }
 
@@ -55,22 +77,23 @@ export class ResourceNodeManager {
   reserve(nodeId, unitId) {
     const node = this.getById(nodeId);
 
-    if (!node || node.loadsRemaining <= 0 || node.reservedBy) {
+    if (!node || node.loadsRemaining <= 0 || getReservationCount(node) >= getMaxWorkers(node)) {
       return false;
     }
 
-    node.reservedBy = unitId;
+    node.reservedBy.add(unitId);
     return true;
   }
 
   pickLoad(nodeId, unitId) {
     const node = this.getById(nodeId);
 
-    if (!node || node.loadsRemaining <= 0 || node.reservedBy !== unitId) {
+    if (!node || node.loadsRemaining <= 0 || !node.reservedBy.has(unitId)) {
       return null;
     }
 
     node.loadsRemaining -= 1;
+    node.reservedBy.delete(unitId);
     return {
       type: node.type,
       value: node.value,
@@ -80,8 +103,10 @@ export class ResourceNodeManager {
   release(nodeId, unitId) {
     const node = this.getById(nodeId);
 
-    if (node && (!unitId || node.reservedBy === unitId)) {
-      node.reservedBy = null;
+    if (node && !unitId) {
+      node.reservedBy.clear();
+    } else if (node) {
+      node.reservedBy.delete(unitId);
     }
   }
 
@@ -101,7 +126,7 @@ export class ResourceNodeManager {
     }
 
     node.cleaned = true;
-    node.reservedBy = null;
+    node.reservedBy.clear();
     return true;
   }
 }
@@ -124,7 +149,7 @@ function createNodes({ world, type, count, reservedKeys }) {
       row: tile.row,
       loadsRemaining: definition.loads,
       value: definition.value,
-      reservedBy: null,
+      reservedBy: new Set(),
       cleaned: false,
     });
     reservedKeys.add(tile.id);
@@ -134,7 +159,15 @@ function createNodes({ world, type, count, reservedKeys }) {
 }
 
 function isCleanableNode(node) {
-  return node.type === "wood" || node.type === "berries";
+  return node.type === "wood" || node.type === "berries" || node.type === "fish" || node.type === "rock";
+}
+
+function getMaxWorkers(node) {
+  return Math.min(getResourceDefinition(node.type)?.maxWorkers || 1, node.loadsRemaining);
+}
+
+function getReservationCount(node) {
+  return node.reservedBy?.size || 0;
 }
 
 function isResourceCandidate(tile, definition, reservedKeys) {

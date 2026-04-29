@@ -15,6 +15,9 @@ import { createStartingUnits, findCampTile } from "../units/unitDefinitions.js";
 import { BUILDINGS, getBuildingById } from "../world/buildings.js";
 import { TILE_TYPES } from "../world/tileTypes.js";
 
+const CONSTRUCTION_MS = 2 * 60 * 1000;
+const START_CLEAR_RADIUS = 5;
+
 export class Game {
   constructor({ canvas, root, config }) {
     this.config = config;
@@ -24,10 +27,7 @@ export class Game {
     this.fogOfWar = new FogOfWar(this.world);
     this.campTile = findCampTile(this.world);
     const startingUnits = createStartingUnits(this.world, this.campTile);
-    const reservedSpawnKeys = new Set([
-      this.campTile.id,
-      ...startingUnits.map((unit) => `${unit.column}:${unit.row}`),
-    ]);
+    const reservedSpawnKeys = this.getStartingReservedKeys(startingUnits);
     this.treasures = new TreasureManager({
       world: this.world,
       count: 36,
@@ -60,6 +60,8 @@ export class Game {
       onHerbsDelivered: (herbs) => this.addHerbs(herbs),
       onResourceDelivered: (type, amount) => this.addResource(type, amount),
       onTileCleaned: (tile) => this.cleanTile(tile),
+      onConstructionStarted: (tile, buildingId) => this.startConstruction(tile, buildingId),
+      corpseTtlMs: this.dayNightCycle.totalMs,
     });
     this.camera = new Camera2D(config.render);
     this.hud = new Hud(root);
@@ -108,6 +110,7 @@ export class Game {
     this.hud.setCycle(this.dayNightCycle.getState());
     this.hud.setTile(this.campTile);
     this.units.revealStartingArea();
+    this.refreshBuildSitesAndRoads();
     this.hud.setUnitSummary(this.units.units);
     this.setupHelpOverlay();
     this.setupBuildMenu();
@@ -164,6 +167,7 @@ export class Game {
 
     if (!this.isPaused) {
       this.units.update(delta, dayNight);
+      this.updateConstructions(delta);
     }
 
     const hoveredTile = this.input.getHoveredTile();
@@ -278,7 +282,14 @@ export class Game {
       return;
     }
 
-    if (tile.canBuild && !tile.building) {
+    const corpse = this.units.getCorpseAt(tile.column, tile.row);
+
+    if (corpse) {
+      this.units.commandHarvestCorpse(corpse);
+      return;
+    }
+
+    if (tile.canBuild && !tile.building && !tile.construction) {
       this.setBuildMenuOpen(true, tile);
       return;
     }
@@ -358,7 +369,21 @@ export class Game {
     const tile = this.selectedBuildTile;
     const building = getBuildingById(buildingId);
 
-    if (!tile || !building || tile.building || !tile.canBuild || !this.canAfford(building.cost)) {
+    if (
+      !tile ||
+      !building ||
+      tile.building ||
+      tile.construction ||
+      !tile.canBuild ||
+      !this.canAfford(building.cost)
+    ) {
+      return;
+    }
+
+    const assigned = this.units.commandBuildTile(tile, building.id);
+
+    if (!assigned) {
+      this.setBuildMenuOpen(false);
       return;
     }
 
@@ -366,12 +391,9 @@ export class Game {
       this.resources[resource] -= amount;
     }
 
-    tile.building = building.id;
-    tile.isEmpty = false;
     tile.canBuild = false;
-    tile.hasRoad = false;
-    this.refreshBuildSitesAndRoads();
     this.world.touchTile(tile);
+    this.refreshBuildSitesAndRoads();
     this.hud.setResources(this.resources);
     this.setBuildMenuOpen(false);
   }
@@ -381,17 +403,25 @@ export class Game {
   }
 
   isCleanableTile(tile) {
+    if (this.herbs.getActiveHerbAt(tile.column, tile.row) || this.resourceNodes.getActiveNodeAt(tile.column, tile.row)) {
+      return false;
+    }
+
     return Boolean(
       this.herbs.getDepletedHerbAt(tile.column, tile.row) ||
-        this.resourceNodes.getDepletedCleanableNodeAt(tile.column, tile.row),
+        this.resourceNodes.getDepletedCleanableNodeAt(tile.column, tile.row) ||
+        tile.type === "rock" ||
+        tile.type === "obsidian" ||
+        tile.type === "water",
     );
   }
 
   cleanTile(tile) {
     const didCleanHerb = this.herbs.cleanAt(tile.column, tile.row);
     const didCleanNode = this.resourceNodes.cleanAt(tile.column, tile.row);
+    const didCleanTerrain = tile.type === "rock" || tile.type === "obsidian" || tile.type === "water";
 
-    if (!didCleanHerb && !didCleanNode) {
+    if (!didCleanHerb && !didCleanNode && !didCleanTerrain) {
       return false;
     }
 
@@ -404,6 +434,51 @@ export class Game {
     this.refreshBuildSitesAndRoads();
     this.world.touchTile(tile);
     return true;
+  }
+
+  startConstruction(tile, buildingId) {
+    if (!tile || tile.construction || tile.building) {
+      return false;
+    }
+
+    tile.construction = {
+      buildingId,
+      remainingMs: CONSTRUCTION_MS,
+      durationMs: CONSTRUCTION_MS,
+    };
+    tile.canBuild = false;
+    tile.hasRoad = false;
+    this.refreshBuildSitesAndRoads();
+    this.world.touchTile(tile);
+    return true;
+  }
+
+  updateConstructions(delta) {
+    let changed = false;
+
+    for (const tile of this.world.tiles) {
+      if (!tile.construction) {
+        continue;
+      }
+
+      tile.construction.remainingMs -= delta;
+
+      if (tile.construction.remainingMs > 0) {
+        continue;
+      }
+
+      tile.building = tile.construction.buildingId;
+      tile.construction = null;
+      tile.isEmpty = false;
+      tile.canBuild = false;
+      tile.hasRoad = false;
+      changed = true;
+    }
+
+    if (changed) {
+      this.refreshBuildSitesAndRoads();
+      this.world.touchTile();
+    }
   }
 
   refreshBuildSitesAndRoads() {
@@ -426,7 +501,7 @@ export class Game {
   }
 
   isBuildSiteCenter(tile) {
-    if (!tile?.isEmpty || tile.building) {
+    if (!tile?.isEmpty || tile.building || tile.construction || !this.canConnectToRoadNetwork(tile)) {
       return false;
     }
 
@@ -434,7 +509,7 @@ export class Game {
       for (let column = tile.column - 1; column <= tile.column + 1; column += 1) {
         const neighbor = this.world.getTile(column, row);
 
-        if (!neighbor?.isEmpty || neighbor.building || neighbor.hasRoad) {
+        if (!neighbor?.isEmpty || neighbor.building || neighbor.construction || neighbor.hasRoad) {
           return false;
         }
       }
@@ -443,8 +518,28 @@ export class Game {
     return true;
   }
 
+  canConnectToRoadNetwork(tile) {
+    const offsets = [
+      { column: 1, row: 0 },
+      { column: -1, row: 0 },
+      { column: 0, row: 1 },
+      { column: 0, row: -1 },
+    ];
+
+    for (const offset of offsets) {
+      const neighbor = this.world.getTile(tile.column + offset.column, tile.row + offset.row);
+      const anchor = this.world.getTile(tile.column + offset.column * 2, tile.row + offset.row * 2);
+
+      if (neighbor?.hasRoad || (neighbor?.isEmpty && anchor && this.isRoadAnchor(anchor.column, anchor.row))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   isRoadTile(tile) {
-    if (!tile?.isEmpty || tile.building || tile.id === this.campTile.id) {
+    if (!tile?.isEmpty || tile.building || tile.construction || tile.id === this.campTile.id) {
       return false;
     }
 
@@ -457,7 +552,7 @@ export class Game {
   isRoadAnchor(column, row) {
     const tile = this.world.getTile(column, row);
 
-    return Boolean(tile && (tile.building || tile.id === this.campTile.id));
+    return Boolean(tile && (tile.building || tile.construction || tile.id === this.campTile.id));
   }
 
   addGold(gold) {
@@ -473,6 +568,26 @@ export class Game {
   addResource(type, amount) {
     this.resources[type] += amount;
     this.hud.setResources(this.resources);
+  }
+
+  getStartingReservedKeys(startingUnits) {
+    const keys = new Set([this.campTile.id, ...startingUnits.map((unit) => `${unit.column}:${unit.row}`)]);
+
+    for (let row = this.campTile.row - START_CLEAR_RADIUS; row <= this.campTile.row + START_CLEAR_RADIUS; row += 1) {
+      for (
+        let column = this.campTile.column - START_CLEAR_RADIUS;
+        column <= this.campTile.column + START_CLEAR_RADIUS;
+        column += 1
+      ) {
+        const tile = this.world.getTile(column, row);
+
+        if (tile) {
+          keys.add(tile.id);
+        }
+      }
+    }
+
+    return keys;
   }
 }
 
