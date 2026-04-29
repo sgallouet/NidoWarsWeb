@@ -30,6 +30,7 @@ The project currently uses no runtime dependencies. It is plain browser JavaScri
 - Biome-specific scary monsters and friendly decorative critters patrol around the island.
 - Tiny birds can fly over any terrain; rabbits are small ambient decoration.
 - Scary monsters raise an alert when they close on player units; nearby player units answer the alert and attack.
+- Monsters now damage warriors; wounded warriors retreat to the fire camp and sleep until healed.
 - Click fogged terrain to place an exploration order; nearby idle units investigate and return to camp patrol.
 - Click treasure to assign a carrier and protector; the carrier hauls treasure back to the fire camp.
 - Click herbs to assign a gatherer; each herb supports 5 round trips back to the fire camp.
@@ -41,8 +42,8 @@ The project currently uses no runtime dependencies. It is plain browser JavaScri
 - Cached terrain and fog rendering for 60 FPS-oriented realtime performance.
 - Responsive canvas with high-DPI rendering.
 - Desktop pointer drag, wheel zoom, touch drag, and two-finger pinch zoom.
-- Hovered sector readout.
-- Sampled FPS counter in the HUD.
+- Compact HUD with resources, FPS, and a clock-style day/night indicator.
+- Small mobile fullscreen button for phone play.
 
 ## AI Guidance
 

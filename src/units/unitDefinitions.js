@@ -7,6 +7,8 @@ export const UNIT_DEFINITIONS = {
     role: "Warrior",
     speed: 1.7,
     patrolRadius: 5,
+    health: 5,
+    attackDamage: 1,
     colors: {
       primary: "#2b746f",
       secondary: "#f2cf79",
@@ -22,6 +24,7 @@ export const UNIT_DEFINITIONS = {
     speed: 1.25,
     patrolRadius: 6,
     health: 4,
+    attackDamage: 1,
     colors: {
       primary: "#9e5035",
       secondary: "#e59a49",
@@ -37,6 +40,7 @@ export const UNIT_DEFINITIONS = {
     speed: 1.1,
     patrolRadius: 7,
     health: 5,
+    attackDamage: 2,
     body: "thornback",
     colors: {
       primary: "#b8d4de",
@@ -53,6 +57,7 @@ export const UNIT_DEFINITIONS = {
     speed: 1.35,
     patrolRadius: 7,
     health: 4,
+    attackDamage: 1,
     body: "thornback",
     colors: {
       primary: "#476d44",
@@ -69,6 +74,7 @@ export const UNIT_DEFINITIONS = {
     speed: 1.25,
     patrolRadius: 7,
     health: 5,
+    attackDamage: 2,
     body: "emberMaw",
     colors: {
       primary: "#6c2425",
@@ -101,6 +107,7 @@ export const UNIT_DEFINITIONS = {
     speed: 1.45,
     patrolRadius: 7,
     health: 3,
+    attackDamage: 1,
     colors: {
       primary: "#665e8f",
       secondary: "#b9c2dc",
@@ -116,6 +123,7 @@ export const UNIT_DEFINITIONS = {
     speed: 1.05,
     patrolRadius: 5,
     health: 5,
+    attackDamage: 2,
     colors: {
       primary: "#6f854d",
       secondary: "#c2a75c",
@@ -307,7 +315,12 @@ function createUnit({ id, definition, name, tile }) {
     targetMonsterId: null,
     targetUnitId: null,
     attackCooldownMs: 0,
+    attackDamage: template.attackDamage || 1,
+    maxHealth: template.health || 3,
     health: template.health || 3,
+    recoverMs: 0,
+    hitFlashMs: 0,
+    combatText: null,
     home: null,
   };
 }

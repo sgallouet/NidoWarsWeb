@@ -7,6 +7,17 @@ const CAMP_REVEAL_RADIUS = 6;
 const THREAT_RADIUS = 5;
 const RESPONSE_RADIUS = 6;
 const ATTACK_INTERVAL_MS = 650;
+const HIT_FLASH_MS = 180;
+const COMBAT_TEXT_MS = 720;
+const RECOVERY_RADIUS = 2;
+const RECOVERY_TICK_MS = 1800;
+const RECOVERY_PAUSE_MS = 260;
+const ATTACK_OFFSETS = [
+  { column: 1, row: 0 },
+  { column: -1, row: 0 },
+  { column: 0, row: 1 },
+  { column: 0, row: -1 },
+];
 
 export class UnitManager {
   constructor({
@@ -33,6 +44,8 @@ export class UnitManager {
     this.onResourceDelivered = onResourceDelivered;
     this.activeMarkers = [];
     this.nextMarkerId = 1;
+    this.threatPlayerUnits = [];
+    this.threatScaryMonsters = [];
 
     for (const unit of this.units) {
       unit.home = { column: campTile.column, row: campTile.row };
@@ -41,8 +54,7 @@ export class UnitManager {
 
   update(delta) {
     for (const unit of this.units) {
-      tickSpeech(unit, delta);
-      unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
+      tickUnitEffects(unit, delta);
       this.updateMovement(unit, delta);
     }
 
@@ -56,7 +68,7 @@ export class UnitManager {
       this.updateBehavior(unit, delta);
     }
 
-    this.units = this.units.filter((unit) => !unit.defeated);
+    this.removeDefeatedUnits();
   }
 
   revealStartingArea() {
@@ -236,7 +248,7 @@ export class UnitManager {
 
   getAvailablePlayerUnits(targetTile) {
     return this.units
-      .filter((unit) => unit.faction === "player" && unit.order === "patrol")
+      .filter((unit) => unit.faction === "player" && unit.order === "patrol" && unit.health >= unit.maxHealth)
       .sort((a, b) => tileDistance(a, targetTile) - tileDistance(b, targetTile));
   }
 
@@ -276,6 +288,16 @@ export class UnitManager {
   }
 
   updateBehavior(unit, delta) {
+    if (unit.faction === "player" && unit.health < unit.maxHealth && unit.order !== "recover") {
+      this.sendToRecovery(unit);
+      return;
+    }
+
+    if (unit.order === "recover") {
+      this.updateRecovery(unit, delta);
+      return;
+    }
+
     if (unit.order === "attack") {
       this.updateAttack(unit);
       return;
@@ -523,10 +545,23 @@ export class UnitManager {
   }
 
   updateThreats() {
-    const playerUnits = this.units.filter((unit) => unit.faction === "player" && !unit.defeated);
-    const scaryMonsters = this.units.filter(
-      (unit) => unit.faction === "monster" && unit.temperament === "scary" && !unit.defeated,
-    );
+    const playerUnits = this.threatPlayerUnits;
+    const scaryMonsters = this.threatScaryMonsters;
+
+    playerUnits.length = 0;
+    scaryMonsters.length = 0;
+
+    for (const unit of this.units) {
+      if (unit.defeated) {
+        continue;
+      }
+
+      if (unit.faction === "player" && unit.order !== "recover") {
+        playerUnits.push(unit);
+      } else if (unit.faction === "monster" && unit.temperament === "scary") {
+        scaryMonsters.push(unit);
+      }
+    }
 
     for (const monster of scaryMonsters) {
       const nearestPlayer = findNearestUnit(monster, playerUnits);
@@ -563,6 +598,11 @@ export class UnitManager {
   }
 
   alertPlayer(unit, monster) {
+    if (unit.health < unit.maxHealth) {
+      this.sendToRecovery(unit);
+      return;
+    }
+
     if (unit.order === "attack" && unit.targetMonsterId === monster.id) {
       return;
     }
@@ -640,8 +680,7 @@ export class UnitManager {
     unit.attackCooldownMs = ATTACK_INTERVAL_MS;
 
     if (unit.faction === "player") {
-      target.health -= 1;
-      say(unit, "Strike!", "alert", 650);
+      this.applyDamage(target, unit.attackDamage || 1);
 
       if (target.health <= 0) {
         target.defeated = true;
@@ -651,22 +690,115 @@ export class UnitManager {
       return;
     }
 
-    say(unit, "!", "alert", 650);
+    this.applyDamage(target, unit.attackDamage || 1, { keepPlayerAlive: true });
+
+    if (!target.defeated) {
+      this.sendToRecovery(target);
+      this.setPatrol(unit);
+    }
+  }
+
+  applyDamage(target, amount, options = {}) {
+    target.health = Math.max(0, target.health - amount);
+    target.hitFlashMs = HIT_FLASH_MS;
+    showCombatText(target, `-${amount}`, "damage");
+
+    if (target.health > 0) {
+      return;
+    }
+
+    if (target.faction === "player" && options.keepPlayerAlive) {
+      target.health = 1;
+      target.recoverMs = Math.min(target.recoverMs || 0, -RECOVERY_TICK_MS);
+      showCombatText(target, `-${amount}`, "heavyDamage");
+      return;
+    }
+
+    target.defeated = true;
+  }
+
+  sendToRecovery(unit) {
+    if (unit.faction !== "player" || unit.defeated) {
+      return;
+    }
+
+    this.abandonAssignments(unit);
+
+    unit.order = "recover";
+    unit.orderIcon = "rest";
+    unit.targetMonsterId = null;
+    unit.targetUnitId = null;
+    unit.escortTargetId = null;
+    unit.markerId = null;
+    unit.recoverMs = Math.min(unit.recoverMs || 0, 0);
+
+    const recoveryTile = this.getRecoveryTile(unit);
+    const needsToMove =
+      recoveryTile && (unit.column !== recoveryTile.column || unit.row !== recoveryTile.row);
+
+    if (needsToMove) {
+      const assigned = this.assignUnitPath(unit, recoveryTile, {
+        order: "recover",
+        orderIcon: "rest",
+        stage: "toCamp",
+      });
+
+      if (assigned) {
+        return;
+      }
+    }
+
+    unit.movementQueue = [];
+    unit.movementSegment = null;
+    unit.stage = "resting";
+    unit.pauseMs = RECOVERY_PAUSE_MS;
+  }
+
+  updateRecovery(unit, delta) {
+    unit.orderIcon = "rest";
+    unit.pauseMs = RECOVERY_PAUSE_MS;
+
+    if (unit.stage === "toCamp") {
+      unit.stage = "resting";
+      unit.recoverMs = Math.min(unit.recoverMs || 0, 0);
+    }
+
+    unit.recoverMs = (unit.recoverMs || 0) + delta;
+
+    if (unit.recoverMs < RECOVERY_TICK_MS) {
+      return;
+    }
+
+    unit.recoverMs = 0;
+    unit.health = Math.min(unit.maxHealth, unit.health + 1);
+    showCombatText(unit, "+1", "heal");
+
+    if (unit.health >= unit.maxHealth) {
+      this.setPatrol(unit);
+    }
   }
 
   getAdjacentAttackTile(unit, target) {
-    const candidates = [
-      { column: target.column + 1, row: target.row },
-      { column: target.column - 1, row: target.row },
-      { column: target.column, row: target.row + 1 },
-      { column: target.column, row: target.row - 1 },
-    ]
-      .map((tile) => this.world.getTile(tile.column, tile.row))
-      .filter((tile) => tile && isTilePassable(tile) && !this.getUnitTileKeys().has(tile.id));
+    const occupiedKeys = this.getUnitTileKeys();
+    let bestTile = null;
+    let bestDistance = Infinity;
 
-    candidates.sort((a, b) => tileDistance(unit, a) - tileDistance(unit, b));
+    for (const offset of ATTACK_OFFSETS) {
+      const tile = this.world.getTile(target.column + offset.column, target.row + offset.row);
 
-    return candidates[0] || null;
+      if (!tile || !isTilePassable(tile) || occupiedKeys.has(tile.id)) {
+        continue;
+      }
+
+      const distance = tileDistance(unit, tile);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestTile = tile;
+      }
+    }
+
+    return bestTile;
   }
 
   patrolPlayer(unit) {
@@ -739,9 +871,52 @@ export class UnitManager {
     unit.carryingResourceAmount = 0;
     unit.targetMonsterId = null;
     unit.targetUnitId = null;
+    unit.recoverMs = 0;
     unit.movementQueue = [];
     unit.movementSegment = null;
     unit.pauseMs = 250 + Math.random() * 600;
+  }
+
+  removeDefeatedUnits() {
+    let writeIndex = 0;
+
+    for (let readIndex = 0; readIndex < this.units.length; readIndex += 1) {
+      const unit = this.units[readIndex];
+
+      if (unit.defeated) {
+        continue;
+      }
+
+      this.units[writeIndex] = unit;
+      writeIndex += 1;
+    }
+
+    this.units.length = writeIndex;
+  }
+
+  abandonAssignments(unit) {
+    this.removeMarker(unit.markerId);
+
+    if (unit.targetHerbId) {
+      this.herbManager.release(unit.targetHerbId, unit.id);
+    }
+
+    if (unit.targetResourceNodeId) {
+      this.resourceNodeManager.release(unit.targetResourceNodeId, unit.id);
+    }
+
+    if (unit.carryingTreasureId || unit.targetTreasureId) {
+      this.treasureManager.release(unit.carryingTreasureId || unit.targetTreasureId);
+    }
+
+    unit.carryingTreasureId = null;
+    unit.targetTreasureId = null;
+    unit.carryingHerbId = null;
+    unit.targetHerbId = null;
+    unit.carryingResourceNodeId = null;
+    unit.targetResourceNodeId = null;
+    unit.carryingResourceType = null;
+    unit.carryingResourceAmount = 0;
   }
 
   updateMovement(unit, delta) {
@@ -829,6 +1004,36 @@ export class UnitManager {
     return candidates[Math.floor(Math.random() * candidates.length)] || null;
   }
 
+  getRecoveryTile(unit) {
+    const blockedKeys = this.getBlockedKeys(unit.id);
+    const candidates = [];
+
+    for (let row = this.campTile.row - RECOVERY_RADIUS; row <= this.campTile.row + RECOVERY_RADIUS; row += 1) {
+      for (
+        let column = this.campTile.column - RECOVERY_RADIUS;
+        column <= this.campTile.column + RECOVERY_RADIUS;
+        column += 1
+      ) {
+        const tile = this.world.getTile(column, row);
+
+        if (!tile || blockedKeys.has(tile.id) || !isTilePassable(tile)) {
+          continue;
+        }
+
+        candidates.push(tile);
+      }
+    }
+
+    candidates.sort((a, b) => {
+      const campPenaltyA = a.id === this.campTile.id ? 1 : 0;
+      const campPenaltyB = b.id === this.campTile.id ? 1 : 0;
+
+      return campPenaltyA - campPenaltyB || tileDistance(unit, a) - tileDistance(unit, b);
+    });
+
+    return candidates[0] || this.campTile;
+  }
+
   addMarker(type, tile) {
     const marker = {
       id: `marker-${this.nextMarkerId}`,
@@ -872,6 +1077,20 @@ function say(unit, text, icon, duration = 1300) {
   unit.orderIcon = icon || unit.orderIcon;
 }
 
+function tickUnitEffects(unit, delta) {
+  tickSpeech(unit, delta);
+  unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
+  unit.hitFlashMs = Math.max(0, (unit.hitFlashMs || 0) - delta);
+
+  if (unit.combatText) {
+    unit.combatText.remainingMs -= delta;
+
+    if (unit.combatText.remainingMs <= 0) {
+      unit.combatText = null;
+    }
+  }
+}
+
 function tickSpeech(unit, delta) {
   if (!unit.speech) {
     return;
@@ -882,6 +1101,15 @@ function tickSpeech(unit, delta) {
   if (unit.speech.remainingMs <= 0) {
     unit.speech = null;
   }
+}
+
+function showCombatText(unit, text, tone) {
+  unit.combatText = {
+    text,
+    tone,
+    remainingMs: COMBAT_TEXT_MS,
+    durationMs: COMBAT_TEXT_MS,
+  };
 }
 
 function tileDistance(a, b) {

@@ -19,6 +19,10 @@ export class UnitPainter {
     this.paintUnitBody(ctx, unit, 0, 0, elapsed);
     ctx.restore();
 
+    if (unit.hitFlashMs > 0) {
+      this.paintHitFlash(ctx, x + strain, drawY, unit, scale);
+    }
+
     if (unit.carryingTreasureId) {
       this.paintCarriedTreasure(ctx, x - 19 + strain, drawY - 17);
     }
@@ -37,6 +41,14 @@ export class UnitPainter {
 
     if (unit.speech) {
       this.paintSpeech(ctx, unit.speech.text, x, y - 70);
+    }
+
+    if (this.shouldPaintHealth(unit)) {
+      this.paintHealthBar(ctx, unit, x, y - 58);
+    }
+
+    if (unit.combatText) {
+      this.paintCombatText(ctx, unit.combatText, x, unit.speech ? y - 92 : y - 76);
     }
   }
 
@@ -409,6 +421,13 @@ export class UnitPainter {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("!", x, y + 1);
+    } else if (icon === "rest") {
+      ctx.font = "900 13px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Z", x - 2, y - 2);
+      ctx.font = "900 9px Inter, system-ui, sans-serif";
+      ctx.fillText("z", x + 5, y + 5);
     } else if (icon === "herb") {
       ctx.strokeStyle = "#cce68a";
       ctx.lineWidth = 1.8;
@@ -484,6 +503,74 @@ export class UnitPainter {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, x, y - 4);
+    ctx.restore();
+  }
+
+  paintHitFlash(ctx, x, y, unit, scale) {
+    const alpha = Math.min(0.78, (unit.hitFlashMs || 0) / 180);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = unit.faction === "player" ? "#ff705d" : "#fff0a6";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 20 * scale, 21 * scale, 18 * scale, -0.08, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  shouldPaintHealth(unit) {
+    return (
+      !unit.decorative &&
+      unit.maxHealth > 1 &&
+      (unit.health < unit.maxHealth || unit.order === "attack" || unit.order === "recover")
+    );
+  }
+
+  paintHealthBar(ctx, unit, x, y) {
+    const width = unit.faction === "player" ? 28 : 31;
+    const height = 4;
+    const ratio = Math.max(0, Math.min(1, unit.health / unit.maxHealth));
+    const fillColor = ratio > 0.55 ? "#83e05f" : ratio > 0.28 ? "#f1c65b" : "#ff705d";
+
+    ctx.save();
+    ctx.fillStyle = "rgba(15, 14, 12, 0.72)";
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y, width, height, 3);
+    ctx.fill();
+
+    ctx.fillStyle = fillColor;
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y, width * ratio, height, 3);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.55)";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y, width, height, 3);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  paintCombatText(ctx, combatText, x, y) {
+    const progress = 1 - combatText.remainingMs / combatText.durationMs;
+    const alpha = Math.max(0, Math.min(1, combatText.remainingMs / combatText.durationMs));
+    const toneColors = {
+      damage: "#ff705d",
+      heavyDamage: "#ff3f32",
+      heal: "#a9f06f",
+    };
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = "900 12px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(18, 14, 11, 0.82)";
+    ctx.fillStyle = toneColors[combatText.tone] || "#fff3bd";
+    ctx.strokeText(combatText.text, x, y - progress * 13);
+    ctx.fillText(combatText.text, x, y - progress * 13);
     ctx.restore();
   }
 
