@@ -12,6 +12,8 @@ import { PerformanceMonitor } from "../ui/PerformanceMonitor.js";
 import { TreasureManager } from "../world/TreasureManager.js";
 import { UnitManager } from "../units/UnitManager.js";
 import { createStartingUnits, findCampTile } from "../units/unitDefinitions.js";
+import { BUILDINGS, getBuildingById } from "../world/buildings.js";
+import { TILE_TYPES } from "../world/tileTypes.js";
 
 export class Game {
   constructor({ canvas, root, config }) {
@@ -57,6 +59,7 @@ export class Game {
       onGoldDelivered: (gold) => this.addGold(gold),
       onHerbsDelivered: (herbs) => this.addHerbs(herbs),
       onResourceDelivered: (type, amount) => this.addResource(type, amount),
+      onTileCleaned: (tile) => this.cleanTile(tile),
     });
     this.camera = new Camera2D(config.render);
     this.hud = new Hud(root);
@@ -72,10 +75,17 @@ export class Game {
     this.helpButton = root.querySelector('[data-ui="help-toggle"]');
     this.helpPanel = root.querySelector('[data-ui="help-panel"]');
     this.helpCloseButton = root.querySelector('[data-ui="help-close"]');
+    this.buildMenu = root.querySelector('[data-ui="build-menu"]');
+    this.buildGrid = root.querySelector('[data-ui="build-grid"]');
+    this.buildCloseButton = root.querySelector('[data-ui="build-close"]');
+    this.buildTileLabel = root.querySelector('[data-ui="build-tile"]');
     this.loadingPanel = root.querySelector('[data-ui="loading-panel"]');
     this.loadingFill = root.querySelector('[data-ui="loading-fill"]');
     this.loadingValue = root.querySelector('[data-ui="loading-value"]');
     this.isPaused = false;
+    this.isHelpOpen = false;
+    this.isBuildMenuOpen = false;
+    this.selectedBuildTile = null;
     this.pausedElapsed = 0;
     this.hudRefreshMs = 0;
     this.lastHudTileId = null;
@@ -100,6 +110,7 @@ export class Game {
     this.units.revealStartingArea();
     this.hud.setUnitSummary(this.units.units);
     this.setupHelpOverlay();
+    this.setupBuildMenu();
     this.setLoadingProgress(0);
     this.setLoadingVisible(true);
 
@@ -146,11 +157,14 @@ export class Game {
     const elapsed = this.isPaused ? this.pausedElapsed : frame.elapsed;
 
     if (!this.isPaused) {
-      this.units.update(delta);
       this.dayNightCycle.update(delta);
     }
 
     const dayNight = this.dayNightCycle.getState();
+
+    if (!this.isPaused) {
+      this.units.update(delta, dayNight);
+    }
 
     const hoveredTile = this.input.getHoveredTile();
 
@@ -198,14 +212,15 @@ export class Game {
       }
     });
     window.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.isPaused) {
+      if (event.key === "Escape" && this.isHelpOpen) {
         this.setHelpOpen(false);
       }
     });
   }
 
   setHelpOpen(isOpen) {
-    this.isPaused = isOpen;
+    this.isHelpOpen = isOpen;
+    this.syncPauseState();
     this.helpPanel.hidden = !isOpen;
     this.helpButton.setAttribute("aria-expanded", String(isOpen));
 
@@ -217,8 +232,54 @@ export class Game {
     }
   }
 
+  setupBuildMenu() {
+    if (!this.buildMenu || !this.buildGrid || !this.buildCloseButton) {
+      return;
+    }
+
+    this.buildCloseButton.addEventListener("click", () => this.setBuildMenuOpen(false));
+    this.buildMenu.addEventListener("click", (event) => {
+      if (event.target === this.buildMenu) {
+        this.setBuildMenuOpen(false);
+      }
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.isBuildMenuOpen) {
+        this.setBuildMenuOpen(false);
+      }
+    });
+  }
+
+  setBuildMenuOpen(isOpen, tile = null) {
+    if (!this.buildMenu) {
+      return;
+    }
+
+    this.isBuildMenuOpen = isOpen;
+    this.selectedBuildTile = isOpen ? tile : null;
+    if (isOpen) {
+      this.pausedElapsed = this.loop.elapsed;
+    }
+    this.syncPauseState();
+    this.buildMenu.hidden = !isOpen;
+
+    if (isOpen) {
+      this.renderBuildCards(tile);
+      this.buildCloseButton?.focus();
+    }
+  }
+
+  syncPauseState() {
+    this.isPaused = this.isHelpOpen || this.isBuildMenuOpen;
+  }
+
   handleTileClick(tile) {
     if (!tile) {
+      return;
+    }
+
+    if (tile.canBuild && !tile.building) {
+      this.setBuildMenuOpen(true, tile);
       return;
     }
 
@@ -243,9 +304,160 @@ export class Game {
       return;
     }
 
+    if (this.isCleanableTile(tile)) {
+      this.units.commandCleanTile(tile);
+      return;
+    }
+
     if (!this.fogOfWar.isRevealed(tile)) {
       this.units.commandExplore(tile);
     }
+  }
+
+  renderBuildCards(tile) {
+    if (!this.buildGrid) {
+      return;
+    }
+
+    this.buildGrid.innerHTML = "";
+
+    if (this.buildTileLabel) {
+      this.buildTileLabel.textContent = tile ? `${tile.column}, ${tile.row}` : "";
+    }
+
+    for (const building of BUILDINGS) {
+      const card = document.createElement("article");
+      card.className = `build-card build-card-${building.tone}`;
+
+      const canAfford = this.canAfford(building.cost);
+      const cost = formatResourceList(building.cost);
+      const maintenance = formatResourceList(building.maintenance, "/day");
+
+      card.innerHTML = `
+        <div class="build-card-art" aria-hidden="true"><span></span></div>
+        <div class="build-card-body">
+          <h3>${building.name}</h3>
+          <p>${building.effect}</p>
+          <dl>
+            <div><dt>Build</dt><dd>${cost}</dd></div>
+            <div><dt>Keep</dt><dd>${maintenance}</dd></div>
+          </dl>
+          <button type="button" ${canAfford ? "" : "disabled"} data-building-id="${building.id}">
+            ${canAfford ? "Build" : "Need materials"}
+          </button>
+        </div>
+      `;
+
+      const button = card.querySelector("button");
+      button.addEventListener("click", () => this.buildOnSelectedTile(building.id));
+      this.buildGrid.append(card);
+    }
+  }
+
+  buildOnSelectedTile(buildingId) {
+    const tile = this.selectedBuildTile;
+    const building = getBuildingById(buildingId);
+
+    if (!tile || !building || tile.building || !tile.canBuild || !this.canAfford(building.cost)) {
+      return;
+    }
+
+    for (const [resource, amount] of Object.entries(building.cost)) {
+      this.resources[resource] -= amount;
+    }
+
+    tile.building = building.id;
+    tile.isEmpty = false;
+    tile.canBuild = false;
+    tile.hasRoad = false;
+    this.refreshBuildSitesAndRoads();
+    this.world.touchTile(tile);
+    this.hud.setResources(this.resources);
+    this.setBuildMenuOpen(false);
+  }
+
+  canAfford(cost) {
+    return Object.entries(cost).every(([resource, amount]) => (this.resources[resource] || 0) >= amount);
+  }
+
+  isCleanableTile(tile) {
+    return Boolean(
+      this.herbs.getDepletedHerbAt(tile.column, tile.row) ||
+        this.resourceNodes.getDepletedCleanableNodeAt(tile.column, tile.row),
+    );
+  }
+
+  cleanTile(tile) {
+    const didCleanHerb = this.herbs.cleanAt(tile.column, tile.row);
+    const didCleanNode = this.resourceNodes.cleanAt(tile.column, tile.row);
+
+    if (!didCleanHerb && !didCleanNode) {
+      return false;
+    }
+
+    tile.type = getEmptyTileType(tile);
+    tile.label = TILE_TYPES[tile.type].label;
+    tile.elevation = 0;
+    tile.isEmpty = true;
+    tile.building = null;
+    tile.cleanReservedBy = null;
+    this.refreshBuildSitesAndRoads();
+    this.world.touchTile(tile);
+    return true;
+  }
+
+  refreshBuildSitesAndRoads() {
+    for (const tile of this.world.tiles) {
+      tile.canBuild = false;
+      tile.hasRoad = false;
+    }
+
+    for (const tile of this.world.tiles) {
+      if (this.isRoadTile(tile)) {
+        tile.hasRoad = true;
+      }
+    }
+
+    for (const tile of this.world.tiles) {
+      if (this.isBuildSiteCenter(tile)) {
+        tile.canBuild = true;
+      }
+    }
+  }
+
+  isBuildSiteCenter(tile) {
+    if (!tile?.isEmpty || tile.building) {
+      return false;
+    }
+
+    for (let row = tile.row - 1; row <= tile.row + 1; row += 1) {
+      for (let column = tile.column - 1; column <= tile.column + 1; column += 1) {
+        const neighbor = this.world.getTile(column, row);
+
+        if (!neighbor?.isEmpty || neighbor.building || neighbor.hasRoad) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  isRoadTile(tile) {
+    if (!tile?.isEmpty || tile.building || tile.id === this.campTile.id) {
+      return false;
+    }
+
+    return (
+      (this.isRoadAnchor(tile.column - 1, tile.row) && this.isRoadAnchor(tile.column + 1, tile.row)) ||
+      (this.isRoadAnchor(tile.column, tile.row - 1) && this.isRoadAnchor(tile.column, tile.row + 1))
+    );
+  }
+
+  isRoadAnchor(column, row) {
+    const tile = this.world.getTile(column, row);
+
+    return Boolean(tile && (tile.building || tile.id === this.campTile.id));
   }
 
   addGold(gold) {
@@ -262,4 +474,30 @@ export class Game {
     this.resources[type] += amount;
     this.hud.setResources(this.resources);
   }
+}
+
+function getEmptyTileType(tile) {
+  if (tile.biome === "snow") {
+    return "snow";
+  }
+
+  if (tile.biome === "volcanic") {
+    return "ash";
+  }
+
+  if (tile.biome === "desert") {
+    return "sand";
+  }
+
+  return "grass";
+}
+
+function formatResourceList(resources, suffix = "") {
+  return Object.entries(resources)
+    .map(([resource, amount]) => `${capitalize(resource)} ${amount}${suffix}`)
+    .join(", ");
+}
+
+function capitalize(value) {
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }

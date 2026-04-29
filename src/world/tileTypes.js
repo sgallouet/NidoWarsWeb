@@ -152,7 +152,13 @@ export const TILE_TYPES = {
 };
 
 export function getTileMovementCost(tile) {
-  return TILE_TYPES[tile.type].movementCost;
+  const baseCost = TILE_TYPES[tile.type].movementCost;
+
+  if (!Number.isFinite(baseCost)) {
+    return baseCost;
+  }
+
+  return tile.hasRoad ? baseCost * 0.8 : baseCost;
 }
 
 export function isTilePassable(tile) {

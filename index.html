@@ -11,6 +11,14 @@
     <main class="game-shell" data-app-root>
       <canvas id="game-canvas" aria-label="Nido Wars realtime desert island map"></canvas>
 
+      <section class="cycle-hud" aria-label="Day and night cycle">
+        <div class="cycle-meter" data-ui="cycle" data-phase="day" aria-label="Day">
+          <span class="cycle-clock" aria-hidden="true">
+            <span class="cycle-hand" data-ui="cycle-hand"></span>
+          </span>
+        </div>
+      </section>
+
       <header class="hud hud-top" aria-label="Game status">
         <dl class="resource-strip">
           <div class="resource-item">
@@ -25,14 +33,6 @@
             <dd class="resource-value">
               <img src="./assets/herbs.svg" alt="" />
               <span data-ui="herbs">0</span>
-            </dd>
-          </div>
-          <div class="cycle-item">
-            <dt class="sr-only">Day and night cycle</dt>
-            <dd class="cycle-meter" data-ui="cycle" data-phase="day" aria-label="Day">
-              <span class="cycle-clock" aria-hidden="true">
-                <span class="cycle-hand" data-ui="cycle-hand"></span>
-              </span>
             </dd>
           </div>
           <div class="resource-item">
@@ -149,6 +149,19 @@
               <p>Wounded warriors return to camp and rest.</p>
             </article>
           </div>
+        </div>
+      </section>
+
+      <section class="build-overlay" data-ui="build-menu" aria-label="Build menu" hidden>
+        <div class="build-sheet" role="dialog" aria-modal="true" aria-labelledby="build-title">
+          <div class="build-header">
+            <div>
+              <h2 id="build-title">Build Site</h2>
+              <span>Tile <span data-ui="build-tile"></span></span>
+            </div>
+            <button class="build-close" type="button" data-ui="build-close" aria-label="Close build menu">x</button>
+          </div>
+          <div class="build-grid" data-ui="build-grid"></div>
         </div>
       </section>
     </main>

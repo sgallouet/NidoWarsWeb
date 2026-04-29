@@ -41,6 +41,17 @@ export class ResourceNodeManager {
     );
   }
 
+  getDepletedCleanableNodeAt(column, row) {
+    return this.nodes.find(
+      (node) =>
+        node.column === column &&
+        node.row === row &&
+        node.loadsRemaining <= 0 &&
+        !node.cleaned &&
+        isCleanableNode(node),
+    );
+  }
+
   reserve(nodeId, unitId) {
     const node = this.getById(nodeId);
 
@@ -79,7 +90,19 @@ export class ResourceNodeManager {
   }
 
   getVisibleNodes() {
-    return this.nodes.filter((node) => node.loadsRemaining > 0);
+    return this.nodes.filter((node) => node.loadsRemaining > 0 && !node.cleaned);
+  }
+
+  cleanAt(column, row) {
+    const node = this.getDepletedCleanableNodeAt(column, row);
+
+    if (!node) {
+      return false;
+    }
+
+    node.cleaned = true;
+    node.reservedBy = null;
+    return true;
   }
 }
 
@@ -102,11 +125,16 @@ function createNodes({ world, type, count, reservedKeys }) {
       loadsRemaining: definition.loads,
       value: definition.value,
       reservedBy: null,
+      cleaned: false,
     });
     reservedKeys.add(tile.id);
   }
 
   return nodes;
+}
+
+function isCleanableNode(node) {
+  return node.type === "wood" || node.type === "berries";
 }
 
 function isResourceCandidate(tile, definition, reservedKeys) {

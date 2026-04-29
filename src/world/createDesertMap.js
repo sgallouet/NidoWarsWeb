@@ -54,21 +54,19 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
         texture: tileSeed,
         elevation: getElevation(type, duneBand, ridge, roughness),
         lightness: (tileSeed - 0.5) * 0.055,
+        isEmpty: false,
+        hasRoad: false,
+        canBuild: false,
+        building: null,
       });
     }
   }
 
-  repairUnreachableTerrain({
-    tiles,
-    columns,
-    rows,
-    campCenter,
-  });
-
-  return {
+  const world = {
     seed,
     columns,
     rows,
+    version: 0,
     tiles,
     tilesByDrawOrder: [...tiles].sort((a, b) => a.column + a.row - (b.column + b.row)),
     getTile(column, row) {
@@ -78,7 +76,19 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
 
       return tiles[row * columns + column];
     },
+    touchTile() {
+      this.version += 1;
+    },
   };
+
+  repairUnreachableTerrain({
+    tiles,
+    columns,
+    rows,
+    campCenter,
+  });
+
+  return world;
 }
 
 function repairUnreachableTerrain({ tiles, columns, rows, campCenter }) {

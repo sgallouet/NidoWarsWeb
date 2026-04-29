@@ -12,7 +12,16 @@ export class TilePainter {
     this.paintShadow(ctx, corners, tile);
     this.paintTop(ctx, corners, tile);
     this.paintTexture(ctx, corners, tile);
+    if (tile.hasRoad) {
+      this.paintRoad(ctx, corners, tile);
+    }
     this.paintFeature(ctx, corners, tile, elapsed);
+    if (tile.canBuild) {
+      this.paintBuildSite(ctx, corners, tile, elapsed);
+    }
+    if (tile.building) {
+      this.paintBuilding(ctx, corners, tile, elapsed);
+    }
 
     if (isHovered) {
       this.paintHover(ctx, corners);
@@ -195,6 +204,87 @@ export class TilePainter {
     if (tile.type === "oasis") {
       this.paintOasis(ctx, corners, tile, elapsed);
     }
+  }
+
+  paintRoad(ctx, corners, tile) {
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
+
+    ctx.save();
+    ctx.strokeStyle = tile.biome === "snow" ? "rgba(115, 104, 82, 0.64)" : "rgba(91, 62, 35, 0.58)";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(corners.left.x + 18, corners.left.y);
+    ctx.lineTo(corners.right.x - 18, corners.right.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(238, 214, 153, 0.34)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 18, cy + 2);
+    ctx.lineTo(cx + 18, cy - 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  paintBuildSite(ctx, corners, tile, elapsed) {
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
+    const pulse = Math.sin(elapsed * 0.005 + tile.seed) * 0.5 + 0.5;
+
+    ctx.save();
+    ctx.globalAlpha = 0.72 + pulse * 0.2;
+    ctx.fillStyle = "rgba(255, 226, 142, 0.18)";
+    ctx.strokeStyle = "rgba(255, 235, 174, 0.72)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.roundRect(cx - 18, cy - 13, 36, 25, 5);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "#ffe28e";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, cy + 4);
+    ctx.lineTo(cx, cy - 7);
+    ctx.lineTo(cx + 10, cy + 4);
+    ctx.moveTo(cx - 6, cy + 4);
+    ctx.lineTo(cx + 6, cy + 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  paintBuilding(ctx, corners, tile) {
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
+    const tone = getBuildingTone(tile.building);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(24, 15, 10, 0.34)";
+    ctx.beginPath();
+    ctx.ellipse(cx + 2, cy + 10, 28, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = tone.wall;
+    ctx.beginPath();
+    ctx.roundRect(cx - 18, cy - 16, 36, 26, 5);
+    ctx.fill();
+
+    ctx.fillStyle = tone.roof;
+    ctx.beginPath();
+    ctx.moveTo(cx - 23, cy - 14);
+    ctx.lineTo(cx, cy - 32);
+    ctx.lineTo(cx + 23, cy - 14);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(33, 22, 14, 0.78)";
+    ctx.fillRect(cx - 5, cy - 3, 10, 13);
+    ctx.fillStyle = tone.light;
+    ctx.fillRect(cx + 8, cy - 8, 6, 5);
+    ctx.restore();
   }
 
   paintRock(ctx, corners, tile) {
@@ -387,6 +477,22 @@ function shade(hex, amount) {
   const b = clamp((number & 255) + amount * 255);
 
   return `rgb(${r}, ${g}, ${b})`;
+}
+
+function getBuildingTone(buildingId) {
+  if (buildingId === "stone-yard") {
+    return { wall: "#8f918b", roof: "#5d5f66", light: "#dbe4d7" };
+  }
+
+  if (buildingId === "torch-watch") {
+    return { wall: "#785438", roof: "#c46d39", light: "#ffd66e" };
+  }
+
+  if (buildingId === "smoke-rack") {
+    return { wall: "#8c6740", roof: "#4d3a26", light: "#f3d35f" };
+  }
+
+  return { wall: "#9a7045", roof: "#6f3f2b", light: "#ffe28e" };
 }
 
 function clamp(value) {

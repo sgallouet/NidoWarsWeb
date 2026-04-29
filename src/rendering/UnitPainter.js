@@ -4,8 +4,9 @@ export class UnitPainter {
     this.tileHeight = tileHeight;
   }
 
-  paint(ctx, { unit, x, y, elapsed }) {
+  paint(ctx, { unit, x, y, elapsed, dayNight }) {
     const scale = unit.scale || 1;
+    const nightAmount = dayNight?.nightAmount || 0;
     const carryingHeavy = hasCarriedLoad(unit);
     const strain = carryingHeavy ? Math.sin(elapsed * 0.014) * 2.4 : 0;
     const struggleTilt = carryingHeavy ? -0.08 + Math.sin(elapsed * 0.011) * 0.035 : 0;
@@ -19,6 +20,9 @@ export class UnitPainter {
     ctx.rotate(struggleTilt);
     ctx.scale(scale, scale);
     this.paintUnitBody(ctx, unit, 0, 0, elapsed);
+    if (unit.faction === "player" && nightAmount > 0.08) {
+      this.paintTorch(ctx, 18, -31, elapsed, nightAmount);
+    }
     ctx.restore();
 
     if (carryingHeavy) {
@@ -194,6 +198,35 @@ export class UnitPainter {
     ctx.moveTo(x + 5, y - 7);
     ctx.lineTo(x + 13, y + 5);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  paintTorch(ctx, x, y, elapsed, nightAmount) {
+    const flame = 1 + Math.sin(elapsed * 0.022) * 0.12;
+
+    ctx.save();
+    ctx.strokeStyle = "#5f3a22";
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y + 12);
+    ctx.lineTo(x + 4, y - 8);
+    ctx.stroke();
+
+    ctx.globalAlpha = Math.min(1, 0.42 + nightAmount * 0.5);
+    ctx.fillStyle = "#ffd66e";
+    ctx.beginPath();
+    ctx.moveTo(x + 5, y - 20 * flame);
+    ctx.bezierCurveTo(x - 5, y - 12, x + 1, y - 4, x + 5, y - 5);
+    ctx.bezierCurveTo(x + 13, y - 10, x + 10, y - 16, x + 5, y - 20 * flame);
+    ctx.fill();
+
+    ctx.fillStyle = "#ff783e";
+    ctx.beginPath();
+    ctx.moveTo(x + 5, y - 15 * flame);
+    ctx.bezierCurveTo(x, y - 10, x + 3, y - 5, x + 6, y - 6);
+    ctx.bezierCurveTo(x + 10, y - 9, x + 8, y - 13, x + 5, y - 15 * flame);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -554,6 +587,18 @@ export class UnitPainter {
       ctx.beginPath();
       ctx.ellipse(x + 1, y + 4, 5.8, 2.8, 0.1, 0, Math.PI * 2);
       ctx.fill();
+    } else if (icon === "clean") {
+      ctx.strokeStyle = "#f4db9a";
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 6, y + 6);
+      ctx.lineTo(x + 5, y - 6);
+      ctx.moveTo(x + 2, y - 7);
+      ctx.lineTo(x + 8, y - 1);
+      ctx.moveTo(x - 8, y + 6);
+      ctx.lineTo(x - 3, y + 10);
+      ctx.stroke();
     } else {
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, Math.PI * 2);

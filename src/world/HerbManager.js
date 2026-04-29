@@ -14,6 +14,12 @@ export class HerbManager {
     );
   }
 
+  getDepletedHerbAt(column, row) {
+    return this.herbs.find(
+      (herb) => herb.column === column && herb.row === row && herb.loadsRemaining <= 0 && !herb.cleaned,
+    );
+  }
+
   reserve(herbId, unitId) {
     const herb = this.getById(herbId);
 
@@ -49,7 +55,19 @@ export class HerbManager {
   }
 
   getVisibleHerbs() {
-    return this.herbs.filter((herb) => herb.loadsRemaining > 0);
+    return this.herbs.filter((herb) => herb.loadsRemaining > 0 && !herb.cleaned);
+  }
+
+  cleanAt(column, row) {
+    const herb = this.getDepletedHerbAt(column, row);
+
+    if (!herb) {
+      return false;
+    }
+
+    herb.cleaned = true;
+    herb.reservedBy = null;
+    return true;
   }
 }
 
@@ -74,6 +92,7 @@ function createHerbs({ world, count, reservedKeys }) {
       row: tile.row,
       loadsRemaining: DEFAULT_HERB_LOADS,
       reservedBy: null,
+      cleaned: false,
     });
     reservedKeys.add(tile.id);
   }

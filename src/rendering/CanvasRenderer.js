@@ -71,11 +71,12 @@ export class CanvasRenderer {
     this.paintHover(ctx, hoveredTile);
     this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
     this.paintCorpses(ctx, world, corpses, elapsed);
-    this.paintUnits(ctx, world, units, elapsed);
+    this.paintUnits(ctx, world, units, elapsed, dayNight);
     this.paintNightLayer(ctx, world, dayNight);
 
     ctx.restore();
     this.paintScreenNight(ctx, width, height, dayNight);
+    this.paintTorchLights(ctx, units, dayNight, elapsed);
     this.paintVignette(ctx, width, height);
   }
 
@@ -158,6 +159,48 @@ export class CanvasRenderer {
     glow.addColorStop(1, `rgba(4, 10, 26, ${0.28 * night})`);
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  }
+
+  paintTorchLights(ctx, units, dayNight, elapsed) {
+    const night = dayNight?.nightAmount || 0;
+
+    if (night <= 0.04 || !units?.length) {
+      return;
+    }
+
+    const zoom = this.camera.zoom;
+    const radius = Math.max(38, Math.min(180, 160 * zoom));
+    const flicker = 0.9 + Math.sin(elapsed * 0.019) * 0.06;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+
+    for (const unit of units) {
+      if (unit.faction !== "player" || unit.defeated) {
+        continue;
+      }
+
+      const point = gridToWorld(
+        unit.visualColumn,
+        unit.visualRow,
+        this.config.tileWidth,
+        this.config.tileHeight,
+      );
+      const screenX = (point.x - this.camera.x) * zoom + this.viewport.width / 2;
+      const screenY = (point.y + this.config.tileHeight * 0.5 - this.camera.y) * zoom + this.viewport.height * 0.54;
+      const glow = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, radius * flicker);
+
+      glow.addColorStop(0, `rgba(255, 202, 96, ${0.46 * night})`);
+      glow.addColorStop(0.32, `rgba(255, 145, 58, ${0.22 * night})`);
+      glow.addColorStop(1, "rgba(255, 145, 58, 0)");
+
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, radius * flicker, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 
@@ -266,7 +309,7 @@ export class CanvasRenderer {
   }
 
   getTerrainCacheKey(world) {
-    return `${world.seed}:${world.columns}x${world.rows}:${this.config.tileWidth}:${this.config.tileHeight}`;
+    return `${world.seed}:${world.columns}x${world.rows}:${world.version || 0}:${this.config.tileWidth}:${this.config.tileHeight}`;
   }
 
   paintHover(ctx, hoveredTile) {
@@ -418,6 +461,18 @@ export class CanvasRenderer {
       ctx.beginPath();
       ctx.ellipse(x - 1, y + 5, 7, 4, 0.12, 0, Math.PI * 2);
       ctx.fill();
+    } else if (type === "clean") {
+      ctx.strokeStyle = "#f4db9a";
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y + 6);
+      ctx.lineTo(x + 6, y - 7);
+      ctx.moveTo(x + 2, y - 8);
+      ctx.lineTo(x + 9, y - 1);
+      ctx.moveTo(x - 9, y + 6);
+      ctx.lineTo(x - 3, y + 11);
+      ctx.stroke();
     } else {
       ctx.fillStyle = "#f3d35f";
       ctx.fillRect(x - 8, y - 5, 16, 10);
@@ -430,7 +485,7 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintUnits(ctx, world, units, elapsed) {
+  paintUnits(ctx, world, units, elapsed, dayNight) {
     const sortedUnits = [...units].sort(
       (a, b) => a.visualColumn + a.visualRow - (b.visualColumn + b.visualRow),
     );
@@ -447,6 +502,7 @@ export class CanvasRenderer {
         x: point.x,
         y: point.y + this.config.tileHeight * 0.5,
         elapsed,
+        dayNight,
       });
     }
   }

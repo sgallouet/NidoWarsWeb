@@ -31,6 +31,7 @@ export class UnitManager {
     onGoldDelivered,
     onHerbsDelivered,
     onResourceDelivered,
+    onTileCleaned,
   }) {
     this.world = world;
     this.units = units;
@@ -42,18 +43,22 @@ export class UnitManager {
     this.onGoldDelivered = onGoldDelivered;
     this.onHerbsDelivered = onHerbsDelivered;
     this.onResourceDelivered = onResourceDelivered;
+    this.onTileCleaned = onTileCleaned;
     this.activeMarkers = [];
     this.nextMarkerId = 1;
     this.corpses = [];
     this.threatPlayerUnits = [];
     this.threatScaryMonsters = [];
+    this.nightAmount = 0;
 
     for (const unit of this.units) {
       unit.home = { column: campTile.column, row: campTile.row };
     }
   }
 
-  update(delta) {
+  update(delta, dayNight = null) {
+    this.nightAmount = dayNight?.nightAmount || 0;
+
     for (const unit of this.units) {
       tickUnitEffects(unit, delta);
       this.updateMovement(unit, delta);
@@ -251,6 +256,47 @@ export class UnitManager {
     return true;
   }
 
+  commandCleanTile(tile) {
+    if (tile.cleanReservedBy) {
+      return false;
+    }
+
+    const cleanTile = findNearestPassableTile(this.world, tile, this.getUnitTileKeys());
+
+    if (!cleanTile) {
+      return false;
+    }
+
+    const worker = this.getAvailablePlayerUnits(cleanTile)[0];
+
+    if (!worker) {
+      return false;
+    }
+
+    const marker = this.addMarker("clean", tile);
+
+    tile.cleanReservedBy = worker.id;
+    worker.targetCleanTileId = tile.id;
+
+    const assigned = this.assignUnitPath(worker, cleanTile, {
+      order: "clean",
+      orderIcon: "clean",
+      markerId: marker.id,
+      stage: "toClean",
+    });
+
+    if (!assigned) {
+      this.removeMarker(marker.id);
+      tile.cleanReservedBy = null;
+      worker.targetCleanTileId = null;
+      this.setPatrol(worker);
+      return false;
+    }
+
+    say(worker, "Clearing!", "clean", 1000);
+    return true;
+  }
+
   getAvailablePlayerUnits(targetTile) {
     return this.units
       .filter((unit) => unit.faction === "player" && unit.order === "patrol" && unit.health >= unit.maxHealth)
@@ -325,6 +371,11 @@ export class UnitManager {
 
     if (unit.order === "resource") {
       this.updateResource(unit);
+      return;
+    }
+
+    if (unit.order === "clean") {
+      this.updateClean(unit);
       return;
     }
 
@@ -528,6 +579,20 @@ export class UnitManager {
     this.setPatrol(unit);
   }
 
+  updateClean(unit) {
+    const tile = this.getTileById(unit.targetCleanTileId);
+
+    if (tile) {
+      this.onTileCleaned?.(tile);
+      tile.cleanReservedBy = null;
+      say(unit, "Cleared!", "clean", 950);
+    }
+
+    this.removeMarker(unit.markerId);
+    unit.targetCleanTileId = null;
+    this.setPatrol(unit);
+  }
+
   updateEscort(unit) {
     const carrier = this.units.find((candidate) => candidate.id === unit.escortTargetId);
 
@@ -632,6 +697,15 @@ export class UnitManager {
     if (unit.targetResourceNodeId) {
       this.resourceNodeManager.release(unit.targetResourceNodeId, unit.id);
       unit.targetResourceNodeId = null;
+    }
+
+    if (unit.targetCleanTileId) {
+      const tile = this.getTileById(unit.targetCleanTileId);
+
+      if (tile) {
+        tile.cleanReservedBy = null;
+      }
+      unit.targetCleanTileId = null;
     }
 
     unit.order = "attack";
@@ -882,6 +956,14 @@ export class UnitManager {
       this.resourceNodeManager.release(unit.targetResourceNodeId, unit.id);
     }
 
+    if (unit.targetCleanTileId) {
+      const tile = this.getTileById(unit.targetCleanTileId);
+
+      if (tile) {
+        tile.cleanReservedBy = null;
+      }
+    }
+
     if (unit.targetTreasureId && !unit.carryingTreasureId) {
       this.treasureManager.release(unit.targetTreasureId);
     }
@@ -897,6 +979,7 @@ export class UnitManager {
     unit.carryingResourceNodeId = null;
     unit.carryingResourceType = null;
     unit.carryingResourceAmount = 0;
+    unit.targetCleanTileId = null;
     unit.targetMonsterId = null;
     unit.targetUnitId = null;
     unit.recoverMs = 0;
@@ -937,6 +1020,14 @@ export class UnitManager {
       this.treasureManager.release(unit.carryingTreasureId || unit.targetTreasureId);
     }
 
+    if (unit.targetCleanTileId) {
+      const tile = this.getTileById(unit.targetCleanTileId);
+
+      if (tile) {
+        tile.cleanReservedBy = null;
+      }
+    }
+
     unit.carryingTreasureId = null;
     unit.targetTreasureId = null;
     unit.carryingHerbId = null;
@@ -945,6 +1036,7 @@ export class UnitManager {
     unit.targetResourceNodeId = null;
     unit.carryingResourceType = null;
     unit.carryingResourceAmount = 0;
+    unit.targetCleanTileId = null;
   }
 
   updateMovement(unit, delta) {
@@ -986,8 +1078,9 @@ export class UnitManager {
 
     const destinationTile = this.world.getTile(nextTile.column, nextTile.row);
     const carryMultiplier = hasCarriedLoad(unit) ? 2 : 1;
+    const nightMultiplier = unit.faction === "player" ? 1 + this.nightAmount * 0.3 : 1;
     const terrainCost = unit.canFly ? 1 : getTileMovementCost(destinationTile);
-    const duration = (BASE_STEP_MS * terrainCost * carryMultiplier) / unit.speed;
+    const duration = (BASE_STEP_MS * terrainCost * carryMultiplier * nightMultiplier) / unit.speed;
 
     unit.movementSegment = {
       from: {
@@ -1030,6 +1123,16 @@ export class UnitManager {
     }
 
     return candidates[Math.floor(Math.random() * candidates.length)] || null;
+  }
+
+  getTileById(tileId) {
+    if (!tileId) {
+      return null;
+    }
+
+    const [column, row] = tileId.split(":").map(Number);
+
+    return this.world.getTile(column, row);
   }
 
   getRecoveryTile(unit) {
