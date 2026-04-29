@@ -64,10 +64,15 @@ body {
 .hud {
   position: absolute;
   z-index: 2;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 244, 214, 0.2);
   border-radius: 8px;
-  background: rgba(24, 22, 18, 0.82);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
+  background:
+    linear-gradient(135deg, rgba(48, 43, 34, 0.9), rgba(22, 35, 31, 0.84) 54%, rgba(21, 18, 15, 0.9)),
+    radial-gradient(circle at 22% 18%, rgba(216, 173, 97, 0.22), transparent 42%),
+    radial-gradient(circle at 78% 82%, rgba(73, 215, 194, 0.14), transparent 46%);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 244, 214, 0.12);
 }
 
 .hud-top {
@@ -83,7 +88,7 @@ body {
   display: flex;
   align-items: center;
   width: auto;
-  gap: 5px;
+  gap: 8px;
   margin: 0;
 }
 
@@ -98,14 +103,11 @@ body {
   align-items: center;
   height: 32px;
   margin: 0;
-  border: 1px solid rgba(255, 244, 214, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 244, 214, 0.08);
 }
 
 .resource-value {
   gap: 5px;
-  padding: 3px 7px 3px 5px;
+  padding: 3px 1px;
   color: #ffffff;
   font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
@@ -169,7 +171,7 @@ body {
 
 .fps-item {
   gap: 4px;
-  padding: 3px 7px;
+  padding: 3px 1px;
 }
 
 .fps-item dt {
@@ -305,19 +307,18 @@ body {
   }
 
   .resource-strip {
-    gap: 4px;
+    gap: 6px;
   }
 
   .resource-value,
   .fps-item,
   .cycle-meter {
     height: 28px;
-    border-radius: 7px;
   }
 
   .resource-value {
     gap: 4px;
-    padding: 3px 6px 3px 4px;
+    padding: 3px 0;
     font-size: 0.78rem;
   }
 
@@ -341,7 +342,7 @@ body {
 
   .fps-item {
     gap: 3px;
-    padding: 3px 6px;
+    padding: 3px 0;
   }
 
   .fps-item dt {
