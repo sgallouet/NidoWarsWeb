@@ -55,6 +55,8 @@ export class UnitManager {
     this.corpseTtlMs = corpseTtlMs;
     this.activeMarkers = [];
     this.nextMarkerId = 1;
+    this.pendingOrders = [];
+    this.nextPendingOrderId = 1;
     this.corpses = [];
     this.threatPlayerUnits = [];
     this.threatScaryMonsters = [];
@@ -75,6 +77,7 @@ export class UnitManager {
 
     this.updateCorpses(delta);
     this.updateThreats();
+    this.assignPendingOrders();
 
     for (const unit of this.units) {
       if (unit.movementSegment || unit.movementQueue.length > 0) {
@@ -131,7 +134,188 @@ export class UnitManager {
     return this.corpses;
   }
 
-  commandExplore(tile) {
+  queuePendingOrder(kind, markerType, details) {
+    if (this.hasPendingOrder(kind, details)) {
+      return true;
+    }
+
+    const tile = this.getPendingOrderTile(kind, details);
+
+    if (!tile) {
+      return false;
+    }
+
+    const marker = this.addMarker(markerType, tile);
+
+    this.pendingOrders.push({
+      id: `pending-order-${this.nextPendingOrderId}`,
+      kind,
+      markerId: marker.id,
+      markerType,
+      ...details,
+    });
+    this.nextPendingOrderId += 1;
+    return true;
+  }
+
+  assignPendingOrders() {
+    if (this.pendingOrders.length === 0) {
+      return;
+    }
+
+    const waitingOrders = [];
+
+    for (const order of this.pendingOrders) {
+      if (!this.isPendingOrderValid(order)) {
+        this.removeMarker(order.markerId);
+        continue;
+      }
+
+      if (this.executePendingOrder(order)) {
+        this.removeMarker(order.markerId);
+        continue;
+      }
+
+      waitingOrders.push(order);
+    }
+
+    this.pendingOrders = waitingOrders;
+  }
+
+  executePendingOrder(order) {
+    if (order.kind === "explore") {
+      const tile = this.getTileById(order.tileId);
+      return tile ? this.commandExplore(tile, { allowQueue: false }) : false;
+    }
+
+    if (order.kind === "treasure") {
+      const treasure = this.treasureManager.getById(order.targetId);
+      return treasure ? this.commandGatherTreasure(treasure, { allowQueue: false }) : false;
+    }
+
+    if (order.kind === "herb") {
+      const herb = this.herbManager.getById(order.targetId);
+      return herb ? this.commandGatherHerb(herb, { allowQueue: false }) : false;
+    }
+
+    if (order.kind === "resource") {
+      const node = this.resourceNodeManager.getById(order.targetId);
+      return node ? this.commandGatherResource(node, { allowQueue: false }) : false;
+    }
+
+    if (order.kind === "clean") {
+      const tile = this.getTileById(order.tileId);
+      return tile ? this.commandCleanTile(tile, { allowQueue: false }) : false;
+    }
+
+    if (order.kind === "corpse") {
+      const corpse = this.getCorpseById(order.targetId);
+      return corpse ? this.commandHarvestCorpse(corpse, { allowQueue: false }) : false;
+    }
+
+    if (order.kind === "build") {
+      const tile = this.getTileById(order.tileId);
+      return tile ? this.commandBuildTile(tile, order.buildingId, { allowQueue: false }) : false;
+    }
+
+    return false;
+  }
+
+  isPendingOrderValid(order) {
+    if (order.kind === "explore") {
+      const tile = this.getTileById(order.tileId);
+      return Boolean(tile && !this.fogOfWar.isRevealed(tile));
+    }
+
+    if (order.kind === "treasure") {
+      return this.treasureManager.getById(order.targetId)?.status === "available";
+    }
+
+    if (order.kind === "herb") {
+      const herb = this.herbManager.getById(order.targetId);
+      return Boolean(herb && herb.loadsRemaining > 0 && !herb.cleaned);
+    }
+
+    if (order.kind === "resource") {
+      const node = this.resourceNodeManager.getById(order.targetId);
+      return Boolean(node && node.loadsRemaining > 0 && !node.cleaned);
+    }
+
+    if (order.kind === "clean") {
+      const tile = this.getTileById(order.tileId);
+      return Boolean(tile && !tile.cleanReservedBy && this.isCleanOrderTarget(tile));
+    }
+
+    if (order.kind === "corpse") {
+      const corpse = this.getCorpseById(order.targetId);
+      return Boolean(corpse && !corpse.harvested && !corpse.reservedBy);
+    }
+
+    if (order.kind === "build") {
+      const tile = this.getTileById(order.tileId);
+      return Boolean(tile && !tile.buildReservedBy && !tile.construction && !tile.building);
+    }
+
+    return false;
+  }
+
+  isCleanOrderTarget(tile) {
+    if (
+      this.herbManager.getActiveHerbAt(tile.column, tile.row) ||
+      this.resourceNodeManager.getActiveNodeAt(tile.column, tile.row)
+    ) {
+      return false;
+    }
+
+    return Boolean(
+      this.herbManager.getDepletedHerbAt(tile.column, tile.row) ||
+        this.resourceNodeManager.getDepletedCleanableNodeAt(tile.column, tile.row) ||
+        tile.type === "rock" ||
+        tile.type === "obsidian" ||
+        tile.type === "water",
+    );
+  }
+
+  getPendingOrderTile(kind, details) {
+    if (details.tileId) {
+      return this.getTileById(details.tileId);
+    }
+
+    const target =
+      kind === "treasure"
+        ? this.treasureManager.getById(details.targetId)
+        : kind === "herb"
+          ? this.herbManager.getById(details.targetId)
+          : kind === "resource"
+            ? this.resourceNodeManager.getById(details.targetId)
+            : kind === "corpse"
+              ? this.getCorpseById(details.targetId)
+              : null;
+
+    return target ? this.world.getTile(target.column, target.row) : null;
+  }
+
+  getPendingOrderKey(order) {
+    return this.getOrderKey(order.kind, order);
+  }
+
+  hasPendingOrder(kind, details) {
+    const key = this.getOrderKey(kind, details);
+
+    return this.pendingOrders.some((order) => this.getPendingOrderKey(order) === key);
+  }
+
+  getOrderKey(kind, details) {
+    return `${kind}:${details.targetId || details.tileId}:${details.buildingId || ""}`;
+  }
+
+  commandExplore(tile, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("explore", { tileId: tile.id })) {
+      return true;
+    }
+
     const targetTile = findNearestPassableTile(this.world, tile, this.getUnitTileKeys());
 
     if (!targetTile) {
@@ -141,7 +325,7 @@ export class UnitManager {
     const explorers = this.getAvailableSettlers(targetTile).slice(0, 2);
 
     if (explorers.length === 0) {
-      return false;
+      return allowQueue ? this.queuePendingOrder("explore", "eye", { tileId: tile.id }) : false;
     }
 
     const marker = this.addMarker("eye", tile);
@@ -167,13 +351,19 @@ export class UnitManager {
 
     if (assignedCount === 0) {
       this.removeMarker(marker.id);
-      return false;
+      return allowQueue ? this.queuePendingOrder("explore", "eye", { tileId: tile.id }) : false;
     }
 
     return true;
   }
 
-  commandGatherTreasure(treasure) {
+  commandGatherTreasure(treasure, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("treasure", { targetId: treasure.id })) {
+      return true;
+    }
+
     if (!this.treasureManager.reserve(treasure.id)) {
       return false;
     }
@@ -184,7 +374,7 @@ export class UnitManager {
 
     if (!carrier) {
       this.treasureManager.release(treasure.id);
-      return false;
+      return allowQueue ? this.queuePendingOrder("treasure", "pick", { targetId: treasure.id }) : false;
     }
 
     const marker = this.addMarker("pick", treasureTile);
@@ -202,7 +392,7 @@ export class UnitManager {
       this.removeMarker(marker.id);
       this.treasureManager.release(treasure.id);
       this.setPatrol(carrier);
-      return false;
+      return allowQueue ? this.queuePendingOrder("treasure", "pick", { targetId: treasure.id }) : false;
     }
 
     say(carrier, "Sire! yes sir!", "muscle");
@@ -211,13 +401,19 @@ export class UnitManager {
     return true;
   }
 
-  commandGatherHerb(herb) {
+  commandGatherHerb(herb, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("herb", { targetId: herb.id })) {
+      return true;
+    }
+
     const herbTile = this.world.getTile(herb.column, herb.row);
     const gatherers = this.getAvailableSettlers(herbTile).slice(0, Math.min(4, herb.loadsRemaining));
     let assignedCount = 0;
 
     if (gatherers.length === 0) {
-      return false;
+      return allowQueue ? this.queuePendingOrder("herb", "herb", { targetId: herb.id }) : false;
     }
 
     for (const gatherer of gatherers) {
@@ -248,10 +444,20 @@ export class UnitManager {
       say(gatherer, "On it!", "herb");
     }
 
+    if (assignedCount === 0 && allowQueue) {
+      return this.queuePendingOrder("herb", "herb", { targetId: herb.id });
+    }
+
     return assignedCount > 0;
   }
 
-  commandGatherResource(resourceNode) {
+  commandGatherResource(resourceNode, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("resource", { targetId: resourceNode.id })) {
+      return true;
+    }
+
     const gatherTile = this.getResourceGatherTile(resourceNode);
 
     if (!gatherTile) {
@@ -264,7 +470,7 @@ export class UnitManager {
     let assignedCount = 0;
 
     if (gatherers.length === 0) {
-      return false;
+      return allowQueue ? this.queuePendingOrder("resource", resourceNode.type, { targetId: resourceNode.id }) : false;
     }
 
     for (const gatherer of gatherers) {
@@ -295,10 +501,20 @@ export class UnitManager {
       say(gatherer, getGatherSpeech(resourceNode.type), resourceNode.type, 1050);
     }
 
+    if (assignedCount === 0 && allowQueue) {
+      return this.queuePendingOrder("resource", resourceNode.type, { targetId: resourceNode.id });
+    }
+
     return assignedCount > 0;
   }
 
-  commandCleanTile(tile) {
+  commandCleanTile(tile, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("clean", { tileId: tile.id })) {
+      return true;
+    }
+
     if (tile.cleanReservedBy) {
       return false;
     }
@@ -312,7 +528,7 @@ export class UnitManager {
     const worker = this.getAvailableSettlers(cleanTile)[0];
 
     if (!worker) {
-      return false;
+      return allowQueue ? this.queuePendingOrder("clean", "clean", { tileId: tile.id }) : false;
     }
 
     const marker = this.addMarker("clean", tile);
@@ -332,7 +548,7 @@ export class UnitManager {
       tile.cleanReservedBy = null;
       worker.targetCleanTileId = null;
       this.setPatrol(worker);
-      return false;
+      return allowQueue ? this.queuePendingOrder("clean", "clean", { tileId: tile.id }) : false;
     }
 
     say(worker, "Clearing!", "clean", 1000);
@@ -340,7 +556,13 @@ export class UnitManager {
     return true;
   }
 
-  commandHarvestCorpse(corpse) {
+  commandHarvestCorpse(corpse, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("corpse", { targetId: corpse?.id })) {
+      return true;
+    }
+
     if (!corpse || corpse.harvested || corpse.reservedBy) {
       return false;
     }
@@ -349,7 +571,7 @@ export class UnitManager {
     const worker = this.getAvailableSettlers(corpseTile)[0];
 
     if (!worker) {
-      return false;
+      return allowQueue ? this.queuePendingOrder("corpse", "meat", { targetId: corpse.id }) : false;
     }
 
     const marker = this.addMarker("meat", corpseTile);
@@ -369,7 +591,7 @@ export class UnitManager {
       corpse.reservedBy = null;
       worker.targetCorpseId = null;
       this.setPatrol(worker);
-      return false;
+      return allowQueue ? this.queuePendingOrder("corpse", "meat", { targetId: corpse.id }) : false;
     }
 
     this.assignGuardToWorker(worker);
@@ -377,7 +599,13 @@ export class UnitManager {
     return true;
   }
 
-  commandBuildTile(tile, buildingId) {
+  commandBuildTile(tile, buildingId, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("build", { tileId: tile.id, buildingId })) {
+      return true;
+    }
+
     if (tile.buildReservedBy || tile.construction || tile.building) {
       return false;
     }
@@ -385,7 +613,7 @@ export class UnitManager {
     const builder = this.getAvailableSettlers(tile)[0];
 
     if (!builder) {
-      return false;
+      return allowQueue ? this.queuePendingOrder("build", "build", { tileId: tile.id, buildingId }) : false;
     }
 
     const marker = this.addMarker("build", tile);
@@ -407,7 +635,7 @@ export class UnitManager {
       builder.targetBuildTileId = null;
       builder.targetBuildingId = null;
       this.setPatrol(builder);
-      return false;
+      return allowQueue ? this.queuePendingOrder("build", "build", { tileId: tile.id, buildingId }) : false;
     }
 
     this.assignGuardToWorker(builder);
