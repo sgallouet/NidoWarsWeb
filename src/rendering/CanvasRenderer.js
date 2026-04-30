@@ -48,6 +48,7 @@ export class CanvasRenderer {
     hoveredTile,
     dayNight,
     elapsed,
+    intro,
   }) {
     const ctx = this.context;
     const { width, height, dpr } = this.viewport;
@@ -72,8 +73,9 @@ export class CanvasRenderer {
     this.paintHover(ctx, hoveredTile);
     this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
     this.paintCorpses(ctx, world, corpses, elapsed);
-    this.paintUnits(ctx, world, units, elapsed, dayNight);
+    this.paintUnits(ctx, world, units, elapsed, dayNight, intro);
     this.paintNightLayer(ctx, world, dayNight);
+    this.paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed);
 
     ctx.restore();
     this.paintScreenNight(ctx, width, height, dayNight);
@@ -136,6 +138,102 @@ export class CanvasRenderer {
     ctx.globalCompositeOperation = "multiply";
     ctx.fillStyle = `rgba(19, 33, 72, ${0.42 * night})`;
     ctx.fillRect(cache.bounds.x, cache.bounds.y, cache.bounds.width, cache.bounds.height);
+    ctx.restore();
+  }
+
+  paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed) {
+    if (!intro?.active || !campTile) {
+      return;
+    }
+
+    const progress = Math.max(0, Math.min(1, intro.elapsedMs / intro.durationMs));
+    const eased = easeOutCubic(progress);
+    const campCenter = this.getTileCenter(campTile);
+    const maxGridRadius = Math.max(world.columns, world.rows) * 0.78;
+    const revealGridRadius = -0.35 + eased * maxGridRadius;
+    const ringGridRadius = Math.max(0, revealGridRadius);
+
+    this.paintIntroUnrevealedTiles(ctx, visibleTiles, campTile, revealGridRadius);
+    this.paintIntroWaveTiles(ctx, visibleTiles, campTile, ringGridRadius, elapsed, progress);
+    this.paintIntroCampPulse(ctx, campCenter, elapsed, progress);
+  }
+
+  paintIntroUnrevealedTiles(ctx, visibleTiles, campTile, revealGridRadius) {
+    ctx.save();
+    ctx.fillStyle = "#000";
+
+    for (const tile of visibleTiles) {
+      const distance = Math.hypot(tile.column - campTile.column, tile.row - campTile.row);
+
+      if (distance <= revealGridRadius) {
+        continue;
+      }
+
+      drawDiamond(ctx, this.getTileCorners(tile, 3.4));
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  paintIntroWaveTiles(ctx, visibleTiles, campTile, ringGridRadius, elapsed, progress) {
+    const ringWidth = 1.7;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+
+    for (const tile of visibleTiles) {
+      const distance = Math.hypot(tile.column - campTile.column, tile.row - campTile.row);
+      const waveDelta = Math.abs(distance - ringGridRadius);
+
+      if (waveDelta > ringWidth) {
+        continue;
+      }
+
+      const point = gridToWorld(tile.column, tile.row, this.config.tileWidth, this.config.tileHeight);
+      const wave = Math.max(0, 1 - waveDelta / ringWidth);
+      const bob = Math.sin(elapsed * 0.008 + tile.seed) * 4 * wave - 12 * wave;
+      const alpha = (0.16 + wave * 0.58) * (1 - Math.max(0, progress - 0.82) / 0.18);
+      const corners = this.getTileCorners(tile, 1.8);
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      this.tilePainter.paint(ctx, {
+        tile,
+        x: point.x,
+        y: point.y + bob,
+        elapsed,
+        isHovered: false,
+      });
+      ctx.restore();
+
+      ctx.globalAlpha = Math.min(0.9, alpha + 0.14);
+      ctx.strokeStyle = "#8fe8ef";
+      ctx.lineWidth = 1.2 + wave * 1.4;
+      drawDiamond(ctx, corners);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+
+  paintIntroCampPulse(ctx, point, elapsed, progress) {
+    const pulse = Math.sin(elapsed * 0.015) * 0.5 + 0.5;
+    const alpha = Math.max(0, 1 - Math.max(0, progress - 0.88) / 0.12);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = `rgba(255, 226, 142, ${0.52 + pulse * 0.28})`;
+    ctx.lineWidth = 2;
+
+    for (let i = 0; i < 3; i += 1) {
+      const radius = 26 + i * 18 + pulse * 8;
+
+      ctx.beginPath();
+      ctx.ellipse(point.x, point.y, radius, radius * 0.46, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     ctx.restore();
   }
 
@@ -568,7 +666,13 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintUnits(ctx, world, units, elapsed, dayNight) {
+  paintUnits(ctx, world, units, elapsed, dayNight, intro) {
+    const introScale = getIntroUnitScale(intro);
+
+    if (introScale <= 0) {
+      return;
+    }
+
     const sortedUnits = [...units].sort(
       (a, b) => a.visualColumn + a.visualRow - (b.visualColumn + b.visualRow),
     );
@@ -580,10 +684,18 @@ export class CanvasRenderer {
         this.config.tileWidth,
         this.config.tileHeight,
       );
+      const paintUnit =
+        introScale === 1
+          ? unit
+          : {
+              ...unit,
+              scale: (unit.scale || 1) * introScale,
+            };
+
       this.unitPainter.paint(ctx, {
-        unit,
+        unit: paintUnit,
         x: point.x,
-        y: point.y + this.config.tileHeight * 0.5,
+        y: point.y + this.config.tileHeight * 0.5 + (1 - Math.min(1, introScale)) * 18,
         elapsed,
         dayNight,
       });
@@ -953,6 +1065,32 @@ function mixColor(fromHex, toHex, amount) {
   const mix = (start, end) => Math.round(start + (end - start) * amount);
 
   return `rgb(${mix(from.r, to.r)}, ${mix(from.g, to.g)}, ${mix(from.b, to.b)})`;
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
+function easeOutBack(value) {
+  const overshoot = 1.7;
+
+  return 1 + (overshoot + 1) * Math.pow(value - 1, 3) + overshoot * Math.pow(value - 1, 2);
+}
+
+function getIntroUnitScale(intro) {
+  if (!intro?.active) {
+    return 1;
+  }
+
+  const popStartMs = 1000;
+  const popDurationMs = 420;
+  const progress = Math.max(0, Math.min(1, (intro.elapsedMs - popStartMs) / popDurationMs));
+
+  if (progress <= 0) {
+    return 0;
+  }
+
+  return Math.max(0.12, easeOutBack(progress));
 }
 
 function parseHex(hex) {

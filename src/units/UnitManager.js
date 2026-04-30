@@ -81,6 +81,10 @@ export class UnitManager {
         continue;
       }
 
+      if (unit.isAwayOnQuest) {
+        continue;
+      }
+
       this.updateBehavior(unit, delta);
     }
 
@@ -92,6 +96,22 @@ export class UnitManager {
 
     for (const unit of this.units.filter((candidate) => candidate.faction === "player")) {
       this.fogOfWar.revealAround(unit, REVEAL_RADIUS);
+    }
+  }
+
+  playIntroGreeting() {
+    const greetings = ["Welcome, chief!", "Camp is ready!", "Good to see you!", "For Nido!"];
+    let index = 0;
+
+    for (const unit of this.units) {
+      if (unit.faction !== "player" || unit.defeated) {
+        continue;
+      }
+
+      unit.waveMs = 2400 + index * 220;
+      unit.pauseMs = Math.max(unit.pauseMs || 0, 900);
+      say(unit, greetings[index % greetings.length], "smile", 2600);
+      index += 1;
     }
   }
 
@@ -425,6 +445,85 @@ export class UnitManager {
       .sort((a, b) => tileDistance(a, targetTile) - tileDistance(b, targetTile));
   }
 
+  getAvailableHeroes(targetTile) {
+    return this.units
+      .filter(
+        (unit) =>
+          unit.isHero &&
+          !unit.isAwayOnQuest &&
+          unit.order !== "recover" &&
+          unit.order !== "attack" &&
+          unit.health >= unit.maxHealth &&
+          !unit.movementSegment &&
+          unit.movementQueue.length === 0,
+      )
+      .sort((a, b) => tileDistance(a, targetTile) - tileDistance(b, targetTile));
+  }
+
+  getHeroesByIds(heroIds) {
+    const idSet = new Set(heroIds);
+
+    return this.units.filter((unit) => idSet.has(unit.id) && unit.isHero && !unit.isAwayOnQuest);
+  }
+
+  sendHeroesOnQuest(heroIds, guildTile, quest) {
+    const heroes = this.getHeroesByIds(heroIds);
+
+    for (const hero of heroes) {
+      this.abandonAssignments(hero);
+      hero.isAwayOnQuest = true;
+      hero.questTitle = quest.name;
+      hero.questReturnTileId = guildTile.id;
+      hero.order = "questAway";
+      hero.orderIcon = null;
+      hero.markerId = null;
+      hero.stage = null;
+      hero.movementQueue = [];
+      hero.movementSegment = null;
+      hero.targetMonsterId = null;
+      hero.targetUnitId = null;
+      hero.speech = null;
+      hero.pauseMs = 0;
+    }
+
+    return heroes.length === heroIds.length;
+  }
+
+  completeHeroQuest(heroIds, guildTile, result) {
+    const heroIdSet = new Set(heroIds);
+    const returningHeroes = this.units.filter((unit) => heroIdSet.has(unit.id) && unit.isHero);
+
+    returningHeroes.forEach((hero, index) => {
+      const returnTile =
+        this.findHeroRestTile(guildTile, hero.id) ||
+        this.getNearbyPassableTile(guildTile, index + 1) ||
+        this.campTile;
+
+      hero.isAwayOnQuest = false;
+      hero.questTitle = null;
+      hero.questReturnTileId = null;
+      hero.column = returnTile.column;
+      hero.row = returnTile.row;
+      hero.visualColumn = returnTile.column;
+      hero.visualRow = returnTile.row;
+      hero.movementQueue = [];
+      hero.movementSegment = null;
+      hero.order = "patrol";
+      hero.orderIcon = result.succeeded ? "gold" : "rest";
+      hero.health = Math.max(1, hero.health);
+      hero.pauseMs = 900 + index * 160;
+      this.gainHeroExperience(hero, result.xp || 1);
+
+      if (result.reward > 0 && index === 0) {
+        showResourceText(hero, result.reward, "gold");
+      }
+
+      say(hero, result.succeeded ? "Quest complete!" : "We return wiser.", result.succeeded ? "gold" : "rest", 1500);
+    });
+
+    this.cheerQuestReturn(guildTile, result, returningHeroes);
+  }
+
   assignUnitPath(unit, destination, { order, orderIcon, markerId = null, stage = null }) {
     const path = unit.canFly
       ? buildAirPath(unit, destination)
@@ -448,6 +547,37 @@ export class UnitManager {
     unit.pauseMs = 0;
     this.startNextSegment(unit);
     return true;
+  }
+
+  assignReturnPath(unit, options) {
+    const dropOffTile = this.getDropOffTile(unit);
+    const assignedDropOff = this.assignUnitPath(unit, dropOffTile, options);
+
+    if (assignedDropOff || dropOffTile.id === this.campTile.id) {
+      return assignedDropOff;
+    }
+
+    return this.assignUnitPath(unit, this.campTile, options);
+  }
+
+  getDropOffTile(origin = this.campTile) {
+    let nearest = this.campTile;
+    let nearestDistance = tileDistance(origin, this.campTile);
+
+    for (const tile of this.world.tiles) {
+      if (tile.building !== "storage-house") {
+        continue;
+      }
+
+      const distance = tileDistance(origin, tile);
+
+      if (distance < nearestDistance) {
+        nearest = tile;
+        nearestDistance = distance;
+      }
+    }
+
+    return nearest;
   }
 
   assignEscort(unit, carrier, markerId) {
@@ -521,6 +651,11 @@ export class UnitManager {
       return;
     }
 
+    if (unit.isHero) {
+      this.updateHero(unit, delta);
+      return;
+    }
+
     unit.pauseMs -= delta;
 
     if (unit.pauseMs > 0) {
@@ -557,7 +692,7 @@ export class UnitManager {
       if (this.treasureManager.pickUp(unit.targetTreasureId, unit.id)) {
         unit.carryingTreasureId = unit.targetTreasureId;
         unit.orderIcon = "muscle";
-        const assignedReturn = this.assignUnitPath(unit, this.campTile, {
+        const assignedReturn = this.assignReturnPath(unit, {
           order: "haul",
           orderIcon: "muscle",
           markerId: unit.markerId,
@@ -618,7 +753,7 @@ export class UnitManager {
 
       unit.carryingHerbId = unit.targetHerbId;
       unit.orderIcon = "herb";
-      const assignedReturn = this.assignUnitPath(unit, this.campTile, {
+      const assignedReturn = this.assignReturnPath(unit, {
         order: "herb",
         orderIcon: "herb",
         markerId: unit.markerId,
@@ -705,7 +840,7 @@ export class UnitManager {
       unit.carryingResourceType = load.type;
       unit.carryingResourceAmount = load.value;
       unit.orderIcon = load.type;
-      const assignedReturn = this.assignUnitPath(unit, this.campTile, {
+      const assignedReturn = this.assignReturnPath(unit, {
         order: "resource",
         orderIcon: load.type,
         markerId: unit.markerId,
@@ -825,7 +960,7 @@ export class UnitManager {
       unit.carryingResourceAmount = corpse.meatValue || 1;
       unit.stage = "returning";
 
-      const assignedReturn = this.assignUnitPath(unit, this.campTile, {
+      const assignedReturn = this.assignReturnPath(unit, {
         order: "meat",
         orderIcon: "meat",
         markerId: unit.markerId,
@@ -974,7 +1109,7 @@ export class UnitManager {
     scaryMonsters.length = 0;
 
     for (const unit of this.units) {
-      if (unit.defeated) {
+      if (unit.defeated || unit.isAwayOnQuest) {
         continue;
       }
 
@@ -1119,6 +1254,7 @@ export class UnitManager {
       this.applyDamage(target, unit.attackDamage || 1);
 
       if (target.health <= 0) {
+        this.gainHeroExperience(unit, target.decorative ? 1 : 2);
         target.defeated = true;
         say(unit, "Safe!", "smile", 900);
         this.setPatrol(unit);
@@ -1538,6 +1674,35 @@ export class UnitManager {
     return getRandomPassableTileNear(this.world, origin, radius, this.getUnitTileKeys());
   }
 
+  findHeroSpawnTile(origin) {
+    const blockedKeys = this.getUnitTileKeys();
+
+    for (let radius = 1; radius <= 4; radius += 1) {
+      for (let row = origin.row - radius; row <= origin.row + radius; row += 1) {
+        for (let column = origin.column - radius; column <= origin.column + radius; column += 1) {
+          const tile = this.world.getTile(column, row);
+
+          if (!tile || blockedKeys.has(tile.id) || !isTilePassable(tile) || tile.building || tile.construction) {
+            continue;
+          }
+
+          return tile;
+        }
+      }
+    }
+
+    return findNearestPassableTile(this.world, origin, blockedKeys);
+  }
+
+  addHero(hero, spawnTile, homeTile) {
+    const unit = createHeroUnit(hero, spawnTile, homeTile);
+
+    this.units.push(unit);
+    this.fogOfWar.revealAround(unit, REVEAL_RADIUS);
+    say(unit, `${hero.className} hired!`, "smile", 1200);
+    return unit;
+  }
+
   getNearbyWorkTile(origin, index) {
     if (index === 0 && isTilePassable(origin) && !this.getBlockedKeys(null).has(origin.id)) {
       return origin;
@@ -1575,6 +1740,204 @@ export class UnitManager {
     }
 
     return findNearestPassableTile(this.world, resourceNode, this.getUnitTileKeys());
+  }
+
+  updateHero(unit, delta) {
+    if (this.nightAmount > 0.42) {
+      this.updateHeroRest(unit);
+      return;
+    }
+
+    if (unit.order === "heroRest") {
+      this.setPatrol(unit);
+      return;
+    }
+
+    if (unit.order === "heroActivity") {
+      this.updateHeroActivity(unit, delta);
+      return;
+    }
+
+    unit.pauseMs -= delta;
+
+    if (unit.pauseMs > 0) {
+      return;
+    }
+
+    const destination = this.getHeroHobbyTile(unit);
+
+    if (destination) {
+      this.assignUnitPath(unit, destination, {
+        order: "heroActivity",
+        orderIcon: getHeroHobbyIcon(unit.heroHobby),
+        stage: "toActivity",
+      });
+      say(unit, getHeroHobbyTravelSpeech(unit.heroHobby), getHeroHobbyIcon(unit.heroHobby), 1000);
+      return;
+    }
+
+    this.patrolPlayer(unit);
+  }
+
+  updateHeroActivity(unit, delta) {
+    if (unit.stage === "toActivity") {
+      unit.stage = "working";
+      unit.workMs = getHeroHobbyWorkMs(unit.heroHobby);
+      unit.pauseMs = 160;
+      say(unit, getHeroHobbyWorkSpeech(unit.heroHobby), getHeroHobbyIcon(unit.heroHobby), 1000);
+      return;
+    }
+
+    unit.workMs -= delta;
+    unit.pauseMs = 160;
+
+    if (unit.workMs > 0) {
+      return;
+    }
+
+    this.gainHeroExperience(unit, 1);
+    unit.pauseMs = 700 + Math.random() * 1200;
+    this.setPatrol(unit);
+  }
+
+  updateHeroRest(unit) {
+    const homeTile = this.getTileById(unit.heroHomeTileId) || this.campTile;
+
+    if (tileDistance(unit, homeTile) <= 1) {
+      unit.order = "heroRest";
+      unit.orderIcon = "rest";
+      unit.pauseMs = 600;
+      return;
+    }
+
+    const restTile = this.findHeroRestTile(homeTile, unit.id) || homeTile;
+
+    if (tileDistance(unit, restTile) > 0) {
+      this.assignUnitPath(unit, restTile, {
+        order: "heroRest",
+        orderIcon: "rest",
+        stage: "toHome",
+      });
+      say(unit, "Back by nightfall.", "rest", 1000);
+      return;
+    }
+
+    unit.order = "heroRest";
+    unit.orderIcon = "rest";
+    unit.pauseMs = 600;
+  }
+
+  findHeroRestTile(origin, unitId) {
+    const blockedKeys = this.getBlockedKeys(unitId);
+
+    for (let radius = 1; radius <= 3; radius += 1) {
+      for (let row = origin.row - radius; row <= origin.row + radius; row += 1) {
+        for (let column = origin.column - radius; column <= origin.column + radius; column += 1) {
+          const tile = this.world.getTile(column, row);
+
+          if (!tile || blockedKeys.has(tile.id) || !isTilePassable(tile) || tile.building || tile.construction) {
+            continue;
+          }
+
+          return tile;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  getHeroHobbyTile(unit) {
+    if (unit.heroHobby === "fishing") {
+      return this.getNearestResourceWorkTile(unit, "fish");
+    }
+
+    if (unit.heroHobby === "foraging") {
+      return this.getNearestResourceWorkTile(unit, "berries");
+    }
+
+    if (unit.heroHobby === "hunting") {
+      const monsters = this.units.filter(
+        (candidate) => candidate.faction === "monster" && candidate.temperament === "scary" && !candidate.defeated,
+      );
+      const nearest = findNearestUnit(unit, monsters);
+      const attackTile = nearest ? this.getAdjacentAttackTile(unit, nearest) : null;
+
+      return attackTile || getRandomPassableTileNear(this.world, unit, 8, this.getUnitTileKeys());
+    }
+
+    return getRandomPassableTileNear(this.world, unit, 6, this.getUnitTileKeys());
+  }
+
+  getNearestResourceWorkTile(unit, type) {
+    const nodes = this.resourceNodeManager
+      .getVisibleNodes()
+      .filter((node) => node.type === type && node.loadsRemaining > 0);
+    let bestTile = null;
+    let bestDistance = Infinity;
+
+    for (const node of nodes) {
+      const tile = findNearestPassableTile(this.world, node, this.getUnitTileKeys());
+
+      if (!tile) {
+        continue;
+      }
+
+      const distance = tileDistance(unit, tile);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestTile = tile;
+      }
+    }
+
+    return bestTile || getRandomPassableTileNear(this.world, unit, 7, this.getUnitTileKeys());
+  }
+
+  gainHeroExperience(unit, amount) {
+    if (!unit.isHero || amount <= 0) {
+      return;
+    }
+
+    unit.heroXp = (unit.heroXp || 0) + amount;
+
+    while (unit.heroXp >= unit.heroNextLevelXp) {
+      unit.heroXp -= unit.heroNextLevelXp;
+      unit.heroLevel += 1;
+      unit.heroNextLevelXp += 2;
+      unit.maxHealth += 1;
+      unit.health = unit.maxHealth;
+      unit.speed += 0.04;
+
+      if (unit.heroLevel % 2 === 0) {
+        unit.attackDamage += 1;
+      }
+
+      showCombatText(unit, `Lv ${unit.heroLevel}`, "heal");
+      say(unit, "Level up!", "smile", 1200);
+    }
+  }
+
+  cheerQuestReturn(guildTile, result, heroes) {
+    const cheers = result.succeeded
+      ? ["Heroes!", "Gold!", "Huzzah!", "They return!"]
+      : ["Welcome back!", "Rest now.", "Next time!"];
+    let cheerIndex = 0;
+
+    for (const unit of this.units) {
+      if (
+        unit.defeated ||
+        unit.isAwayOnQuest ||
+        unit.faction !== "player" ||
+        heroes.includes(unit) ||
+        tileDistance(unit, guildTile) > 9
+      ) {
+        continue;
+      }
+
+      say(unit, cheers[cheerIndex % cheers.length], result.succeeded ? "smile" : "rest", 1600);
+      cheerIndex += 1;
+    }
   }
 
   getRandomFlyTileNear(origin, radius) {
@@ -1659,13 +2022,13 @@ export class UnitManager {
   getBlockedKeys(exceptUnitId) {
     return new Set(
       this.units
-        .filter((unit) => unit.id !== exceptUnitId)
+        .filter((unit) => unit.id !== exceptUnitId && !unit.isAwayOnQuest)
         .map((unit) => toKey(unit.column, unit.row)),
     );
   }
 
   getUnitTileKeys() {
-    return new Set(this.units.map((unit) => toKey(unit.column, unit.row)));
+    return new Set(this.units.filter((unit) => !unit.isAwayOnQuest).map((unit) => toKey(unit.column, unit.row)));
   }
 }
 
@@ -1730,6 +2093,7 @@ function getWorkSpeech(type) {
 
 function tickUnitEffects(unit, delta) {
   tickSpeech(unit, delta);
+  unit.waveMs = Math.max(0, (unit.waveMs || 0) - delta);
   unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
   unit.hitFlashMs = Math.max(0, (unit.hitFlashMs || 0) - delta);
 
@@ -1771,6 +2135,173 @@ function showResourceText(unit, amount, type) {
     remainingMs: COMBAT_TEXT_MS + 220,
     durationMs: COMBAT_TEXT_MS + 220,
   };
+}
+
+function createHeroUnit(hero, spawnTile, homeTile) {
+  const template = getHeroClassTemplate(hero.classId);
+
+  return {
+    ...template,
+    id: `hero-${hero.id}`,
+    definition: template.body,
+    name: hero.name,
+    faction: "player",
+    role: "Warrior",
+    isHero: true,
+    heroClass: hero.className,
+    heroHobby: hero.hobby,
+    heroLevel: 1,
+    heroXp: 0,
+    heroNextLevelXp: 3,
+    heroHomeTileId: homeTile.id,
+    column: spawnTile.column,
+    row: spawnTile.row,
+    visualColumn: spawnTile.column,
+    visualRow: spawnTile.row,
+    movementQueue: [],
+    movementSegment: null,
+    order: "patrol",
+    orderIcon: null,
+    speech: null,
+    pauseMs: 450 + Math.random() * 900,
+    carryingTreasureId: null,
+    carryingHerbId: null,
+    carryingResourceNodeId: null,
+    carryingResourceType: null,
+    carryingResourceAmount: 0,
+    escortTargetId: null,
+    targetResourceNodeId: null,
+    targetMonsterId: null,
+    targetUnitId: null,
+    attackCooldownMs: 0,
+    maxHealth: template.health,
+    health: template.health,
+    recoverMs: 0,
+    hitFlashMs: 0,
+    combatText: null,
+    home: { column: homeTile.column, row: homeTile.row },
+  };
+}
+
+function getHeroClassTemplate(classId) {
+  const templates = {
+    ranger: {
+      body: "duneVanguard",
+      speed: 1.78,
+      patrolRadius: 8,
+      health: 4,
+      attackDamage: 2,
+      scale: 1.03,
+      colors: {
+        primary: "#396f50",
+        secondary: "#cfe889",
+        accent: "#fff0a6",
+        shadow: "#1d392c",
+      },
+    },
+    guardian: {
+      body: "duneVanguard",
+      speed: 1.48,
+      patrolRadius: 6,
+      health: 6,
+      attackDamage: 2,
+      scale: 1.08,
+      colors: {
+        primary: "#496477",
+        secondary: "#dbe4d7",
+        accent: "#8fe8ef",
+        shadow: "#243442",
+      },
+    },
+    angler: {
+      body: "duneSettler",
+      speed: 1.52,
+      patrolRadius: 7,
+      health: 4,
+      attackDamage: 1,
+      colors: {
+        primary: "#2b746f",
+        secondary: "#8fe8ef",
+        accent: "#fff0a6",
+        shadow: "#173e42",
+      },
+    },
+    herbalist: {
+      body: "duneSettler",
+      speed: 1.58,
+      patrolRadius: 7,
+      health: 4,
+      attackDamage: 1,
+      colors: {
+        primary: "#6c8646",
+        secondary: "#cce68a",
+        accent: "#fff4a3",
+        shadow: "#33452b",
+      },
+    },
+  };
+
+  return templates[classId] || templates.ranger;
+}
+
+function getHeroHobbyIcon(hobby) {
+  if (hobby === "fishing") {
+    return "fish";
+  }
+
+  if (hobby === "foraging") {
+    return "berries";
+  }
+
+  if (hobby === "hunting") {
+    return "alert";
+  }
+
+  return "eye";
+}
+
+function getHeroHobbyTravelSpeech(hobby) {
+  if (hobby === "fishing") {
+    return "To the water.";
+  }
+
+  if (hobby === "hunting") {
+    return "Tracks nearby.";
+  }
+
+  if (hobby === "foraging") {
+    return "Foraging.";
+  }
+
+  return "Wandering.";
+}
+
+function getHeroHobbyWorkSpeech(hobby) {
+  if (hobby === "fishing") {
+    return "Casting line...";
+  }
+
+  if (hobby === "hunting") {
+    return "On the hunt...";
+  }
+
+  if (hobby === "foraging") {
+    return "Gathering wilds...";
+  }
+
+  return "Keeping watch...";
+}
+
+function getHeroHobbyWorkMs(hobby) {
+  if (hobby === "fishing") {
+    return 5000 + Math.random() * 7000;
+  }
+
+  if (hobby === "hunting") {
+    return 4200 + Math.random() * 4200;
+  }
+
+  return 3800 + Math.random() * 4200;
 }
 
 function hasCarriedLoad(unit) {

@@ -61,6 +61,23 @@ body {
   cursor: grabbing;
 }
 
+.game-shell.is-intro-active:not(.is-intro-ui-ready) .hud,
+.game-shell.is-intro-active:not(.is-intro-ui-ready) .cycle-hud,
+.game-shell.is-intro-active:not(.is-intro-ui-ready) .help-button,
+.game-shell.is-intro-active:not(.is-intro-ui-ready) .fullscreen-button,
+.game-shell.is-intro-active:not(.is-intro-ui-ready) .perf-monitor {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hud,
+.cycle-hud,
+.help-button,
+.fullscreen-button,
+.perf-monitor {
+  transition: opacity 520ms ease;
+}
+
 .hud {
   position: absolute;
   z-index: 2;
@@ -505,28 +522,20 @@ body {
   content: "";
 }
 
-.build-card-food .build-card-art {
+.build-card-food .build-card-art,
+.build-card-storage .build-card-art {
   background:
     radial-gradient(circle at 55% 30%, rgba(247, 223, 107, 0.22), transparent 32%),
     linear-gradient(135deg, #40543f, #65402d);
 }
 
-.build-card-food .build-card-art span {
+.build-card-food .build-card-art span,
+.build-card-storage .build-card-art span {
   background: #8c6740;
 }
 
-.build-card-stone .build-card-art {
-  background:
-    radial-gradient(circle at 52% 36%, rgba(219, 228, 215, 0.18), transparent 32%),
-    linear-gradient(135deg, #3d4b54, #6a655b);
-}
-
-.build-card-stone .build-card-art span {
-  background: #8f918b;
-}
-
-.build-card-stone .build-card-art span::before {
-  background: #5d5f66;
+.build-card-storage .build-card-art span::before {
+  background: #3f4d38;
 }
 
 .build-card-watch .build-card-art {
@@ -546,6 +555,92 @@ body {
   left: -14px;
   width: 82px;
   background: #c46d39;
+}
+
+.build-card-tavern .build-card-art,
+.build-card-guild .build-card-art,
+.hero-card-art {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 206, 122, 0.28), transparent 30%),
+    linear-gradient(135deg, #4a2738, #7f4f53 55%, #314541);
+}
+
+.build-card-tavern .build-card-art span,
+.build-card-guild .build-card-art span,
+.hero-card-art span {
+  background: #7f4f53;
+  box-shadow:
+    -34px 12px 0 -19px rgba(255, 206, 122, 0.76),
+    34px 10px 0 -20px rgba(143, 232, 239, 0.46);
+}
+
+.build-card-tavern .build-card-art span::before,
+.build-card-guild .build-card-art span::before,
+.hero-card-art span::before {
+  background: #4a2738;
+}
+
+.build-card-guild .build-card-art,
+.quest-card-art {
+  background:
+    radial-gradient(circle at 52% 28%, rgba(143, 232, 239, 0.24), transparent 30%),
+    linear-gradient(135deg, #2e3f52, #6f5a38 54%, #4a2738);
+}
+
+.build-card-guild .build-card-art span,
+.quest-card-art span {
+  background: #6f5a38;
+}
+
+.build-card-guild .build-card-art span::before,
+.quest-card-art span::before {
+  background: #2e3f52;
+}
+
+.quest-card-hunt .quest-card-art {
+  background:
+    radial-gradient(circle at 52% 28%, rgba(255, 112, 93, 0.24), transparent 30%),
+    linear-gradient(135deg, #4b2b28, #785438 54%, #2e3f52);
+}
+
+.quest-card-rescue .quest-card-art {
+  background:
+    radial-gradient(circle at 52% 28%, rgba(255, 226, 142, 0.24), transparent 30%),
+    linear-gradient(135deg, #394e54, #7a6242 54%, #314541);
+}
+
+.quest-card-raid .quest-card-art {
+  background:
+    radial-gradient(circle at 52% 28%, rgba(255, 122, 54, 0.3), transparent 30%),
+    linear-gradient(135deg, #332f38, #6c2425 54%, #6f5a38);
+}
+
+.quest-card-active {
+  border-color: rgba(143, 232, 239, 0.32);
+}
+
+.hero-card-ranger .hero-card-art {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(207, 232, 137, 0.24), transparent 32%),
+    linear-gradient(135deg, #294132, #6c8646 52%, #7f4f53);
+}
+
+.hero-card-guardian .hero-card-art {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(219, 228, 215, 0.22), transparent 32%),
+    linear-gradient(135deg, #243442, #496477 54%, #7f4f53);
+}
+
+.hero-card-angler .hero-card-art {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(143, 232, 239, 0.24), transparent 32%),
+    linear-gradient(135deg, #173e42, #2b746f 54%, #4a2738);
+}
+
+.hero-card-herbalist .hero-card-art {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(204, 230, 138, 0.24), transparent 32%),
+    linear-gradient(135deg, #33452b, #6c8646 54%, #4a2738);
 }
 
 .build-card-body {
@@ -620,12 +715,23 @@ body {
   text-shadow: 0 0 14px rgba(143, 232, 239, 0.36);
 }
 
-.build-effect-stone {
-  color: #dbe4d7;
-}
-
 .build-effect-watch {
   color: #ffb86e;
+}
+
+.build-effect-storage {
+  color: #f3d35f;
+  text-shadow: 0 0 14px rgba(243, 211, 95, 0.4);
+}
+
+.build-effect-hero {
+  color: #ffce7a;
+  text-shadow: 0 0 14px rgba(255, 206, 122, 0.44);
+}
+
+.build-effect-quest {
+  color: #8fe8ef;
+  text-shadow: 0 0 14px rgba(143, 232, 239, 0.4);
 }
 
 .build-card dl {
@@ -692,6 +798,78 @@ body {
   color: #11211f;
   font-size: 0.68rem;
   font-weight: 950;
+}
+
+.hero-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 206, 122, 0.26);
+  border-radius: 999px;
+  background: rgba(74, 39, 56, 0.34);
+  color: #ffce7a;
+  font-size: 0.72rem;
+  font-weight: 920;
+}
+
+.quest-team {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.quest-hero-chip {
+  display: grid;
+  gap: 2px;
+  min-width: 68px;
+  min-height: 42px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 244, 214, 0.18);
+  border-radius: 8px;
+  background: rgba(12, 13, 13, 0.24);
+  color: #fff4d6;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quest-hero-chip span {
+  font-size: 0.74rem;
+  font-weight: 920;
+  line-height: 1.05;
+}
+
+.quest-hero-chip small {
+  color: rgba(255, 244, 214, 0.66);
+  font-size: 0.62rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.quest-hero-chip.is-selected {
+  border-color: rgba(143, 232, 239, 0.58);
+  background: rgba(43, 116, 111, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(143, 232, 239, 0.2);
+}
+
+.quest-hero-chip:disabled {
+  color: rgba(255, 244, 214, 0.44);
+  cursor: not-allowed;
+}
+
+.quest-progress {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 244, 214, 0.12);
+}
+
+.quest-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8fe8ef, #ffce7a);
 }
 
 .build-card button {

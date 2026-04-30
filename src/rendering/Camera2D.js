@@ -44,6 +44,15 @@ export class Camera2D {
     this.setZoom(fitZoom);
     this.setPosition(center.x, center.y + this.tileHeight * 0.7);
   }
+
+  frameTile(tile, viewport, zoom = this.maxZoom * 0.82) {
+    const point = gridToWorld(tile.column, tile.row, this.tileWidth, this.tileHeight);
+    const comfortableZoom = Math.min(this.maxZoom, Math.max(this.minZoom, zoom));
+    const mobileZoom = viewport.width < 760 ? Math.min(comfortableZoom, 0.86) : comfortableZoom;
+
+    this.setZoom(mobileZoom);
+    this.setPosition(point.x, point.y + this.tileHeight * 0.2);
+  }
 }
 
 function clamp(value, min, max) {

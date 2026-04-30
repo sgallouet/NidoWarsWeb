@@ -5,6 +5,10 @@ export class UnitPainter {
   }
 
   paint(ctx, { unit, x, y, elapsed, dayNight }) {
+    if (unit.isAwayOnQuest) {
+      return;
+    }
+
     const scale = unit.scale || 1;
     const nightAmount = dayNight?.nightAmount || 0;
     const carryingHeavy = hasCarriedLoad(unit);
@@ -20,6 +24,9 @@ export class UnitPainter {
     ctx.rotate(struggleTilt);
     ctx.scale(scale, scale);
     this.paintUnitBody(ctx, unit, 0, 0, elapsed);
+    if (unit.waveMs > 0) {
+      this.paintGreetingWave(ctx, unit, elapsed);
+    }
     if (unit.faction === "player" && nightAmount > 0.08) {
       this.paintTorch(ctx, 18, -31, elapsed, nightAmount);
     }
@@ -101,9 +108,6 @@ export class UnitPainter {
     ctx.rotate(Math.PI / 2 + 0.12);
     ctx.scale(scale * 0.78, scale * 0.78);
     this.paintUnitBody(ctx, corpse, 0, 0, elapsed);
-    ctx.globalCompositeOperation = "source-atop";
-    ctx.fillStyle = "rgba(34, 26, 22, 0.52)";
-    ctx.fillRect(-48, -56, 96, 96);
     ctx.restore();
 
     ctx.save();
@@ -233,6 +237,30 @@ export class UnitPainter {
     ctx.bezierCurveTo(x, y - 10, x + 3, y - 5, x + 6, y - 6);
     ctx.bezierCurveTo(x + 10, y - 9, x + 8, y - 13, x + 5, y - 15 * flame);
     ctx.fill();
+    ctx.restore();
+  }
+
+  paintGreetingWave(ctx, unit, elapsed) {
+    const wave = Math.sin(elapsed * 0.018 + unit.column) * 0.5 + 0.5;
+    const side = unit.role === "Warrior" ? -1 : 1;
+
+    ctx.save();
+    ctx.strokeStyle = "#f0b875";
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(side * 8, -23);
+    ctx.lineTo(side * (17 + wave * 4), -36 - wave * 6);
+    ctx.lineTo(side * (22 + wave * 2), -32 - wave * 2);
+    ctx.moveTo(side * (18 + wave * 4), -37 - wave * 6);
+    ctx.lineTo(side * (21 + wave * 6), -42 - wave * 5);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255, 226, 142, 0.62)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(side * 23, -39, 6 + wave * 2, -0.5, 0.8);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -590,6 +618,18 @@ export class UnitPainter {
       ctx.fillStyle = "#173e42";
       ctx.beginPath();
       ctx.arc(x, y, 2.3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (icon === "gold") {
+      ctx.fillStyle = "#f1c65b";
+      ctx.strokeStyle = "#7b4828";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fff0a6";
+      ctx.beginPath();
+      ctx.arc(x - 2, y - 2, 2, 0, Math.PI * 2);
       ctx.fill();
     } else if (icon === "muscle") {
       ctx.beginPath();
