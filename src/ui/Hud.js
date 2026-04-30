@@ -7,6 +7,7 @@ export class Hud {
       gold: root.querySelector('[data-ui="gold"]'),
       herbs: root.querySelector('[data-ui="herbs"]'),
       fish: root.querySelector('[data-ui="fish"]'),
+      meat: root.querySelector('[data-ui="meat"]'),
       berries: root.querySelector('[data-ui="berries"]'),
       wood: root.querySelector('[data-ui="wood"]'),
       rock: root.querySelector('[data-ui="rock"]'),
