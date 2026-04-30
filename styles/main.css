@@ -442,11 +442,13 @@ body {
   border: 1px solid rgba(255, 244, 214, 0.22);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 244, 214, 0.1), rgba(14, 15, 16, 0.14)),
-    rgba(26, 27, 24, 0.7);
+    linear-gradient(180deg, rgba(255, 244, 214, 0.12), rgba(14, 15, 16, 0.22)),
+    radial-gradient(circle at 50% 0, rgba(255, 226, 142, 0.12), transparent 36%),
+    rgba(26, 27, 24, 0.78);
   box-shadow:
     0 16px 34px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 3px rgba(25, 18, 12, 0.2);
 }
 
 .build-card-art {
@@ -559,6 +561,25 @@ body {
   margin: 0;
 }
 
+.build-card-title {
+  display: grid;
+  gap: 4px;
+}
+
+.build-card-kind {
+  justify-self: start;
+  max-width: 100%;
+  padding: 3px 7px;
+  border: 1px solid rgba(255, 244, 214, 0.2);
+  border-radius: 999px;
+  background: rgba(12, 13, 13, 0.32);
+  color: rgba(255, 226, 142, 0.9);
+  font-size: 0.62rem;
+  font-weight: 920;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .build-card h3 {
   color: #ffffff;
   font-size: 1rem;
@@ -567,10 +588,44 @@ body {
 }
 
 .build-card p {
-  color: rgba(255, 244, 214, 0.78);
+  color: rgba(255, 244, 214, 0.82);
   font-size: 0.78rem;
   font-weight: 660;
   line-height: 1.34;
+}
+
+.build-card-effect {
+  min-height: 3.1em;
+}
+
+.build-effect-var {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 244, 214, 0.22);
+  border-radius: 6px;
+  background: rgba(12, 13, 13, 0.34);
+  color: #ffe28e;
+  font-weight: 950;
+  line-height: 1.15;
+  text-shadow: 0 0 12px rgba(255, 226, 142, 0.38);
+}
+
+.build-effect-gain {
+  color: #a9f06f;
+  text-shadow: 0 0 14px rgba(169, 240, 111, 0.44);
+}
+
+.build-effect-food {
+  color: #8fe8ef;
+  text-shadow: 0 0 14px rgba(143, 232, 239, 0.36);
+}
+
+.build-effect-stone {
+  color: #dbe4d7;
+}
+
+.build-effect-watch {
+  color: #ffb86e;
 }
 
 .build-card dl {
@@ -581,7 +636,11 @@ body {
 
 .build-card dl div {
   display: grid;
-  gap: 3px;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid rgba(255, 244, 214, 0.12);
+  border-radius: 8px;
+  background: rgba(12, 13, 13, 0.22);
 }
 
 .build-card dt {
@@ -592,11 +651,47 @@ body {
 }
 
 .build-card dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin: 0;
   color: #fff4d6;
   font-size: 0.76rem;
   font-weight: 760;
   line-height: 1.28;
+}
+
+.resource-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  padding: 3px 7px 3px 4px;
+  border: 1px solid rgba(255, 244, 214, 0.16);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 244, 214, 0.08), rgba(12, 13, 13, 0.16)),
+    rgba(255, 244, 214, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.resource-pip img {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.42));
+}
+
+.resource-rune {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #8fd6c8, #2b746f);
+  color: #11211f;
+  font-size: 0.68rem;
+  font-weight: 950;
 }
 
 .build-card button {

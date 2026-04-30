@@ -341,14 +341,18 @@ export class Game {
       card.className = `build-card build-card-${building.tone}`;
 
       const canAfford = this.canAfford(building.cost);
-      const cost = formatResourceList(building.cost);
-      const maintenance = formatResourceList(building.maintenance, "/day");
+      const cost = formatResourcePips(building.cost);
+      const maintenance = formatResourcePips(building.maintenance, { suffix: "/day" });
+      const effect = formatEffect(building);
 
       card.innerHTML = `
         <div class="build-card-art" aria-hidden="true"><span></span></div>
         <div class="build-card-body">
-          <h3>${building.name}</h3>
-          <p>${building.effect}</p>
+          <div class="build-card-title">
+            <span class="build-card-kind">${building.tone}</span>
+            <h3>${building.name}</h3>
+          </div>
+          <p class="build-card-effect">${effect}</p>
           <dl>
             <div><dt>Build</dt><dd>${cost}</dd></div>
             <div><dt>Keep</dt><dd>${maintenance}</dd></div>
@@ -501,7 +505,13 @@ export class Game {
   }
 
   isBuildSiteCenter(tile) {
-    if (!tile?.isEmpty || tile.building || tile.construction || !this.canConnectToRoadNetwork(tile)) {
+    if (
+      !tile?.isEmpty ||
+      tile.building ||
+      tile.construction ||
+      this.hasAdjacentRoadAnchor(tile) ||
+      !this.canConnectToRoadNetwork(tile)
+    ) {
       return false;
     }
 
@@ -530,8 +540,24 @@ export class Game {
       const neighbor = this.world.getTile(tile.column + offset.column, tile.row + offset.row);
       const anchor = this.world.getTile(tile.column + offset.column * 2, tile.row + offset.row * 2);
 
-      if (neighbor?.hasRoad || (neighbor?.isEmpty && anchor && this.isRoadAnchor(anchor.column, anchor.row))) {
+      if (neighbor?.isEmpty && !neighbor.building && !neighbor.construction && anchor && this.isRoadNetworkAnchor(anchor)) {
         return true;
+      }
+    }
+
+    return false;
+  }
+
+  hasAdjacentRoadAnchor(tile) {
+    for (let row = tile.row - 1; row <= tile.row + 1; row += 1) {
+      for (let column = tile.column - 1; column <= tile.column + 1; column += 1) {
+        if (column === tile.column && row === tile.row) {
+          continue;
+        }
+
+        if (this.isRoadAnchor(column, row)) {
+          return true;
+        }
       }
     }
 
@@ -544,8 +570,18 @@ export class Game {
     }
 
     return (
-      (this.isRoadAnchor(tile.column - 1, tile.row) && this.isRoadAnchor(tile.column + 1, tile.row)) ||
-      (this.isRoadAnchor(tile.column, tile.row - 1) && this.isRoadAnchor(tile.column, tile.row + 1))
+      this.hasRoadConnection(tile.column - 1, tile.row, tile.column + 1, tile.row) ||
+      this.hasRoadConnection(tile.column, tile.row - 1, tile.column, tile.row + 1)
+    );
+  }
+
+  hasRoadConnection(firstColumn, firstRow, secondColumn, secondRow) {
+    const firstIsAnchor = this.isRoadAnchor(firstColumn, firstRow);
+    const secondIsAnchor = this.isRoadAnchor(secondColumn, secondRow);
+
+    return (
+      (firstIsAnchor && this.isRoadNetworkAnchor(this.world.getTile(secondColumn, secondRow))) ||
+      (secondIsAnchor && this.isRoadNetworkAnchor(this.world.getTile(firstColumn, firstRow)))
     );
   }
 
@@ -553,6 +589,10 @@ export class Game {
     const tile = this.world.getTile(column, row);
 
     return Boolean(tile && (tile.building || tile.construction || tile.id === this.campTile.id));
+  }
+
+  isRoadNetworkAnchor(tile) {
+    return Boolean(tile && (tile.hasRoad || tile.building || tile.construction || tile.id === this.campTile.id));
   }
 
   addGold(gold) {
@@ -607,10 +647,67 @@ function getEmptyTileType(tile) {
   return "grass";
 }
 
-function formatResourceList(resources, suffix = "") {
+function formatEffect(building) {
+  const tokens = building.effectTokens || [{ text: building.effect }];
+
+  return tokens
+    .map((token) => {
+      const text = escapeHtml(token.text);
+
+      if (!token.tone) {
+        return text;
+      }
+
+      return `<strong class="build-effect-var build-effect-${token.tone}">${text}</strong>`;
+    })
+    .join("");
+}
+
+function formatResourcePips(resources, options = {}) {
+  const suffix = typeof options === "string" ? options : options.suffix || "";
+
   return Object.entries(resources)
-    .map(([resource, amount]) => `${capitalize(resource)} ${amount}${suffix}`)
-    .join(", ");
+    .map(([resource, amount]) => {
+      const icon = getResourceIcon(resource);
+      const label = capitalize(resource);
+
+      if (!icon) {
+        return `<span class="resource-pip resource-pip-text"><span class="resource-rune" aria-hidden="true">${label.charAt(
+          0,
+        )}</span><span>${amount}${suffix}</span><span class="sr-only"> ${label}</span></span>`;
+      }
+
+      return `<span class="resource-pip"><img src="${icon}" alt="" /><span>${amount}${suffix}</span><span class="sr-only"> ${label}</span></span>`;
+    })
+    .join("");
+}
+
+function getResourceIcon(resource) {
+  const icons = {
+    gold: "./assets/gold.png",
+    herbs: "./assets/herbs.svg",
+    fish: "./assets/fish.png",
+    meat: "./assets/meat.svg",
+    berries: "./assets/berries.png",
+    wood: "./assets/wood.png",
+    rock: "./assets/rock.png",
+  };
+
+  return icons[resource] || null;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => {
+    const entities = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+
+    return entities[character];
+  });
 }
 
 function capitalize(value) {
