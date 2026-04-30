@@ -24,6 +24,9 @@ export class UnitPainter {
     ctx.rotate(struggleTilt);
     ctx.scale(scale, scale);
     this.paintUnitBody(ctx, unit, 0, 0, elapsed);
+    if (unit.attackStyle === "ranged" && unit.attackFlashMs > 0) {
+      this.paintArrowShot(ctx, unit);
+    }
     if (unit.waveMs > 0) {
       this.paintGreetingWave(ctx, unit, elapsed);
     }
@@ -76,7 +79,9 @@ export class UnitPainter {
   paintUnitBody(ctx, unit, x, y, elapsed) {
     const body = unit.body || unit.definition;
 
-    if (body === "duneVanguard") {
+    if (body === "ranger") {
+      this.paintRanger(ctx, x, y, unit, elapsed);
+    } else if (body === "duneVanguard") {
       this.paintWarrior(ctx, x, y, unit);
     } else if (body === "duneSettler") {
       this.paintSettler(ctx, x, y, unit);
@@ -208,6 +213,117 @@ export class UnitPainter {
     ctx.moveTo(x + 5, y - 7);
     ctx.lineTo(x + 13, y + 5);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  paintRanger(ctx, x, y, unit, elapsed) {
+    const { colors } = unit;
+    const draw = unit.attackFlashMs > 0 ? Math.min(1, unit.attackFlashMs / 180) : 0;
+
+    ctx.save();
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    ctx.strokeStyle = "#5b3925";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x + 14, y - 24, 15 + draw * 3, -1.25, 1.15);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.82)";
+    ctx.lineWidth = 1.1;
+    ctx.beginPath();
+    ctx.moveTo(x + 19 + draw * 2, y - 38);
+    ctx.lineTo(x + 20 + draw * 5, y - 12);
+    ctx.stroke();
+
+    ctx.strokeStyle = "#e7c07a";
+    ctx.lineWidth = 2.1;
+    ctx.beginPath();
+    ctx.moveTo(x + 8, y - 20);
+    ctx.lineTo(x + 24 + draw * 9, y - 28);
+    ctx.stroke();
+
+    ctx.fillStyle = colors.shadow;
+    ctx.beginPath();
+    ctx.moveTo(x - 13, y - 11);
+    ctx.lineTo(x - 2, y + 7);
+    ctx.lineTo(x + 13, y - 9);
+    ctx.lineTo(x + 2, y - 25);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = colors.primary;
+    ctx.beginPath();
+    ctx.roundRect(x - 9, y - 28, 18, 23, 7);
+    ctx.fill();
+
+    ctx.fillStyle = colors.secondary;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y - 24);
+    ctx.lineTo(x + 9, y - 25);
+    ctx.lineTo(x + 6, y - 17);
+    ctx.lineTo(x - 7, y - 16);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#e4a86b";
+    ctx.beginPath();
+    ctx.arc(x, y - 35, 7.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = colors.accent;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y - 38);
+    ctx.lineTo(x + 2, y - 47);
+    ctx.lineTo(x + 11, y - 37);
+    ctx.lineTo(x, y - 31);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "#3c2b1e";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y - 7);
+    ctx.lineTo(x - 11, y + 6);
+    ctx.moveTo(x + 5, y - 7);
+    ctx.lineTo(x + 13, y + 5);
+    ctx.moveTo(x - 9, y - 19);
+    ctx.lineTo(x - 18, y - 10);
+    ctx.moveTo(x + 9, y - 19);
+    ctx.lineTo(x + 21 + draw * 4, y - 27);
+    ctx.stroke();
+
+    ctx.fillStyle = "#182624";
+    ctx.fillRect(x + 2, y - 36, 2, 2);
+    ctx.restore();
+  }
+
+  paintArrowShot(ctx, unit) {
+    const vector = unit.attackVector || { column: 1, row: 0 };
+    const isoX = (vector.column - vector.row) * (this.tileWidth / 2);
+    const isoY = (vector.column + vector.row) * (this.tileHeight / 2);
+    const length = Math.max(1, Math.hypot(isoX, isoY));
+    const progress = 1 - Math.max(0, Math.min(1, unit.attackFlashMs / 260));
+    const startX = 18;
+    const startY = -29;
+    const endX = startX + (isoX / length) * (38 + progress * 34);
+    const endY = startY + (isoY / length) * (22 + progress * 22);
+
+    ctx.save();
+    ctx.globalAlpha = 1 - progress * 0.35;
+    ctx.strokeStyle = "rgba(255, 242, 176, 0.92)";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff0a6";
+    ctx.beginPath();
+    ctx.arc(endX, endY, 2.6, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 

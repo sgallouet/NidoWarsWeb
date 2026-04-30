@@ -15,7 +15,7 @@ import { createStartingUnits, findCampTile } from "../units/unitDefinitions.js";
 import { BUILDINGS, getBuildingById } from "../world/buildings.js";
 import { TILE_TYPES } from "../world/tileTypes.js";
 
-const CONSTRUCTION_MS = 2 * 60 * 1000;
+const CONSTRUCTION_MS = 12 * 1000;
 const START_CLEAR_RADIUS = 5;
 const BUILD_FOOTPRINT_RADIUS = 1;
 const BUILD_CONNECTOR_DISTANCE = BUILD_FOOTPRINT_RADIUS + 1;

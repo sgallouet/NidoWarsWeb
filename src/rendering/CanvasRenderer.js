@@ -147,15 +147,16 @@ export class CanvasRenderer {
     }
 
     const progress = Math.max(0, Math.min(1, intro.elapsedMs / intro.durationMs));
-    const eased = easeOutCubic(progress);
+    const revealProgress = getIntroRevealProgress(intro);
+    const eased = easeOutCubic(revealProgress);
     const campCenter = this.getTileCenter(campTile);
     const maxGridRadius = Math.max(world.columns, world.rows) * 0.78;
     const revealGridRadius = -0.35 + eased * maxGridRadius;
     const ringGridRadius = Math.max(0, revealGridRadius);
 
     this.paintIntroUnrevealedTiles(ctx, visibleTiles, campTile, revealGridRadius);
-    this.paintIntroWaveTiles(ctx, visibleTiles, campTile, ringGridRadius, elapsed, progress);
-    this.paintIntroCampPulse(ctx, campCenter, elapsed, progress);
+    this.paintIntroWaveTiles(ctx, visibleTiles, campTile, ringGridRadius, elapsed, revealProgress);
+    this.paintIntroWaveRings(ctx, campCenter, ringGridRadius, elapsed, progress, revealProgress);
   }
 
   paintIntroUnrevealedTiles(ctx, visibleTiles, campTile, revealGridRadius) {
@@ -216,19 +217,25 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintIntroCampPulse(ctx, point, elapsed, progress) {
+  paintIntroWaveRings(ctx, point, ringGridRadius, elapsed, progress, revealProgress) {
     const pulse = Math.sin(elapsed * 0.015) * 0.5 + 0.5;
     const alpha = Math.max(0, 1 - Math.max(0, progress - 0.88) / 0.12);
+    const baseRadius = Math.max(18, ringGridRadius * this.config.tileWidth * 0.54);
+    const charge = 1 - revealProgress;
 
     ctx.save();
     ctx.globalCompositeOperation = "screen";
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = `rgba(255, 226, 142, ${0.52 + pulse * 0.28})`;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.4;
 
     for (let i = 0; i < 3; i += 1) {
-      const radius = 26 + i * 18 + pulse * 8;
+      const radius = revealProgress <= 0 ? 22 + i * 16 + pulse * 5 : baseRadius - i * 24 + pulse * 4;
 
+      if (radius <= 10) {
+        continue;
+      }
+
+      ctx.strokeStyle = `rgba(${i === 0 ? "143, 232, 239" : "255, 226, 142"}, ${0.22 + charge * 0.35 + pulse * 0.18})`;
       ctx.beginPath();
       ctx.ellipse(point.x, point.y, radius, radius * 0.46, 0, 0, Math.PI * 2);
       ctx.stroke();
@@ -1069,6 +1076,13 @@ function mixColor(fromHex, toHex, amount) {
 
 function easeOutCubic(value) {
   return 1 - Math.pow(1 - value, 3);
+}
+
+function getIntroRevealProgress(intro) {
+  const firstTileDelayMs = 300;
+  const remainingMs = Math.max(1, intro.durationMs - firstTileDelayMs);
+
+  return Math.max(0, Math.min(1, (intro.elapsedMs - firstTileDelayMs) / remainingMs));
 }
 
 function easeOutBack(value) {

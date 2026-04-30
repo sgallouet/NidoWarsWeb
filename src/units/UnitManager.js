@@ -6,7 +6,7 @@ import { getResourceDefinition } from "../world/ResourceNodeManager.js";
 const BASE_STEP_MS = 520;
 const CLEAN_WORK_MS = 3600;
 const MEAT_WORK_MS = 5000;
-const BUILD_WORK_MS = 2600;
+const BUILD_WORK_MS = 260;
 const REVEAL_RADIUS = 4;
 const CAMP_REVEAL_RADIUS = 6;
 const THREAT_RADIUS = 5;
@@ -1222,8 +1222,10 @@ export class UnitManager {
       return;
     }
 
-    if (tileDistance(unit, target) > 1) {
-      const attackTile = this.getAdjacentAttackTile(unit, target);
+    const attackRange = getAttackRange(unit);
+
+    if (tileDistance(unit, target) > attackRange) {
+      const attackTile = this.getAttackTile(unit, target, attackRange);
 
       if (!attackTile) {
         unit.pauseMs = 300;
@@ -1249,6 +1251,11 @@ export class UnitManager {
     }
 
     unit.attackCooldownMs = ATTACK_INTERVAL_MS;
+    unit.attackFlashMs = unit.attackStyle === "ranged" ? 260 : 140;
+    unit.attackVector = {
+      column: target.visualColumn - unit.visualColumn,
+      row: target.visualRow - unit.visualRow,
+    };
 
     if (unit.faction === "player") {
       this.applyDamage(target, unit.attackDamage || 1);
@@ -1411,6 +1418,35 @@ export class UnitManager {
     if (unit.health >= unit.maxHealth) {
       this.setPatrol(unit);
     }
+  }
+
+  getAttackTile(unit, target, range = 1) {
+    if (range <= 1) {
+      return this.getAdjacentAttackTile(unit, target);
+    }
+
+    const occupiedKeys = this.getUnitTileKeys();
+    let bestTile = null;
+    let bestScore = Infinity;
+
+    for (let row = target.row - range; row <= target.row + range; row += 1) {
+      for (let column = target.column - range; column <= target.column + range; column += 1) {
+        const tile = this.world.getTile(column, row);
+
+        if (!tile || !isTilePassable(tile) || occupiedKeys.has(tile.id) || tileDistance(tile, target) > range) {
+          continue;
+        }
+
+        const score = tileDistance(unit, tile) + Math.abs(tileDistance(tile, target) - Math.max(2, range - 1)) * 0.35;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestTile = tile;
+        }
+      }
+    }
+
+    return bestTile || this.getAdjacentAttackTile(unit, target);
   }
 
   getAdjacentAttackTile(unit, target) {
@@ -1861,7 +1897,7 @@ export class UnitManager {
         (candidate) => candidate.faction === "monster" && candidate.temperament === "scary" && !candidate.defeated,
       );
       const nearest = findNearestUnit(unit, monsters);
-      const attackTile = nearest ? this.getAdjacentAttackTile(unit, nearest) : null;
+      const attackTile = nearest ? this.getAttackTile(unit, nearest, getAttackRange(unit)) : null;
 
       return attackTile || getRandomPassableTileNear(this.world, unit, 8, this.getUnitTileKeys());
     }
@@ -2095,6 +2131,7 @@ function tickUnitEffects(unit, delta) {
   tickSpeech(unit, delta);
   unit.waveMs = Math.max(0, (unit.waveMs || 0) - delta);
   unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
+  unit.attackFlashMs = Math.max(0, (unit.attackFlashMs || 0) - delta);
   unit.hitFlashMs = Math.max(0, (unit.hitFlashMs || 0) - delta);
 
   if (unit.combatText) {
@@ -2137,6 +2174,10 @@ function showResourceText(unit, amount, type) {
   };
 }
 
+function getAttackRange(unit) {
+  return Math.max(1, unit.attackRange || 1);
+}
+
 function createHeroUnit(hero, spawnTile, homeTile) {
   const template = getHeroClassTemplate(hero.classId);
 
@@ -2174,6 +2215,9 @@ function createHeroUnit(hero, spawnTile, homeTile) {
     targetMonsterId: null,
     targetUnitId: null,
     attackCooldownMs: 0,
+    attackFlashMs: 0,
+    attackStyle: template.attackStyle || "melee",
+    attackRange: template.attackRange || 1,
     maxHealth: template.health,
     health: template.health,
     recoverMs: 0,
@@ -2186,11 +2230,13 @@ function createHeroUnit(hero, spawnTile, homeTile) {
 function getHeroClassTemplate(classId) {
   const templates = {
     ranger: {
-      body: "duneVanguard",
+      body: "ranger",
       speed: 1.78,
       patrolRadius: 8,
       health: 4,
       attackDamage: 2,
+      attackStyle: "ranged",
+      attackRange: 4,
       scale: 1.03,
       colors: {
         primary: "#396f50",
