@@ -1,7 +1,15 @@
+import { ACTION_SPRITES, RESOURCE_SPRITES } from "./SpriteAtlas.js";
+
 export class UnitPainter {
-  constructor({ tileWidth, tileHeight }) {
+  constructor({ tileWidth, tileHeight }, spriteAtlas = null) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
+    this.spriteAtlas = spriteAtlas;
+    this.settlerImage = typeof Image === "undefined" ? null : new Image();
+
+    if (this.settlerImage) {
+      this.settlerImage.src = "./assets/settler.png";
+    }
   }
 
   paint(ctx, { unit, x, y, elapsed, dayNight }) {
@@ -78,6 +86,28 @@ export class UnitPainter {
 
   paintUnitBody(ctx, unit, x, y, elapsed) {
     const body = unit.body || unit.definition;
+    const spriteName = getUnitSprite(unit);
+
+    if (body === "duneSettler" && !unit.isHero) {
+      const size = getUnitSpriteSize(unit, body);
+
+      if (this.paintImageSprite(ctx, this.settlerImage, x, y + 10, size)) {
+        this.paintSpriteFeet(ctx, x, y + 9, size);
+        return;
+      }
+    }
+
+    if (spriteName) {
+      const size = getUnitSpriteSize(unit, body);
+      const yOffset = unit.canFly ? -8 + Math.sin(elapsed * 0.012) * 3 : 9;
+
+      if (this.spriteAtlas?.draw(ctx, spriteName, x, y + yOffset, { size, anchorY: 1 })) {
+        if (unit.faction === "player" && !unit.canFly) {
+          this.paintSpriteFeet(ctx, x, y + yOffset - 1, size);
+        }
+        return;
+      }
+    }
 
     if (body === "ranger") {
       this.paintRanger(ctx, x, y, unit, elapsed);
@@ -135,6 +165,42 @@ export class UnitPainter {
     ctx.ellipse(x + 2, y + 9, (unit.faction === "player" ? 18 : 22) * scale, 8 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.restore();
+  }
+
+  paintImageSprite(ctx, image, x, y, size) {
+    if (!image?.complete || image.naturalWidth <= 0) {
+      return false;
+    }
+
+    const previousSmoothing = ctx.imageSmoothingEnabled;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(image, x - size * 0.5, y - size, size, size);
+    ctx.imageSmoothingEnabled = previousSmoothing;
+    ctx.restore();
+    return true;
+  }
+
+  paintSpriteFeet(ctx, x, y, size) {
+    const scale = size / 64;
+
+    ctx.save();
+    ctx.fillStyle = "#3e2819";
+    ctx.strokeStyle = "rgba(24, 17, 12, 0.92)";
+    ctx.lineWidth = Math.max(1, 1.4 * scale);
+    ctx.beginPath();
+    ctx.ellipse(x - 7 * scale, y - 2 * scale, 5.6 * scale, 2.8 * scale, -0.1, 0, Math.PI * 2);
+    ctx.ellipse(x + 7 * scale, y - 2 * scale, 5.6 * scale, 2.8 * scale, 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(216, 149, 73, 0.55)";
+    ctx.beginPath();
+    ctx.ellipse(x - 8 * scale, y - 3 * scale, 2.2 * scale, 0.9 * scale, -0.1, 0, Math.PI * 2);
+    ctx.ellipse(x + 6 * scale, y - 3 * scale, 2.2 * scale, 0.9 * scale, 0.1, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
@@ -584,6 +650,10 @@ export class UnitPainter {
   }
 
   paintCarriedTreasure(ctx, x, y) {
+    if (this.spriteAtlas?.draw(ctx, "goldChest", x, y + 8, { size: 23, anchorY: 1 })) {
+      return;
+    }
+
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(-0.08);
@@ -598,6 +668,10 @@ export class UnitPainter {
   }
 
   paintCarriedHerbs(ctx, x, y) {
+    if (this.spriteAtlas?.draw(ctx, "greenPotion", x, y + 10, { size: 21, anchorY: 1 })) {
+      return;
+    }
+
     ctx.save();
     ctx.strokeStyle = "#4e8a4f";
     ctx.lineWidth = 2;
@@ -619,6 +693,12 @@ export class UnitPainter {
   }
 
   paintCarriedResource(ctx, x, y, type) {
+    const spriteName = RESOURCE_SPRITES[type] || RESOURCE_SPRITES.berries;
+
+    if (this.spriteAtlas?.draw(ctx, spriteName, x, y + 10, { size: 22, anchorY: 1 })) {
+      return;
+    }
+
     if (type === "fish") {
       ctx.save();
       ctx.fillStyle = "#8fe8ef";
@@ -726,6 +806,13 @@ export class UnitPainter {
     ctx.fillStyle = "#fff3bd";
     ctx.strokeStyle = "#fff3bd";
     ctx.lineWidth = 1.8;
+
+    const spriteName = ACTION_SPRITES[icon] || RESOURCE_SPRITES[icon] || null;
+
+    if (spriteName && this.spriteAtlas?.draw(ctx, spriteName, x, y + 8, { size: 18, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
 
     if (icon === "eye") {
       ctx.beginPath();
@@ -972,6 +1059,12 @@ export class UnitPainter {
   }
 
   paintResourceTextIcon(ctx, type, x, y) {
+    const spriteName = RESOURCE_SPRITES[type];
+
+    if (spriteName && this.spriteAtlas?.draw(ctx, spriteName, x, y + 7, { size: 16, anchorY: 1 })) {
+      return;
+    }
+
     if (type === "gold") {
       ctx.save();
       ctx.fillStyle = "#f1c65b";
@@ -1066,4 +1159,61 @@ function hasCarriedLoad(unit) {
   return Boolean(
     unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId || unit.carryingMeatCorpseId,
   );
+}
+
+function getUnitSprite(unit) {
+  const body = unit.body || unit.definition;
+
+  if (unit.isHero) {
+    if (body === "ranger") {
+      return "greenArcher";
+    }
+
+    if (body === "duneVanguard") {
+      return "knight";
+    }
+
+    if (unit.heroHobby === "fishing") {
+      return "blueWizard";
+    }
+
+    if (unit.heroHobby === "foraging") {
+      return "whiteCleric";
+    }
+  }
+
+  const sprites = {
+    duneVanguard: "knight",
+    duneSettler: "greenArcher",
+    ranger: "greenArcher",
+    emberMaw: "redSlime",
+    frostHorn: "blueSlime",
+    groveStalker: "goblin",
+    cinderMaw: "flytrap",
+    bloomWisp: "ghost",
+    glassStalker: "spider",
+    thornback: "thornPlant",
+    duneHare: "yellowSlime",
+    sunBird: "bee",
+  };
+  const definitionSprites = {
+    cinderMaw: "flytrap",
+    frostHorn: "blueSlime",
+    groveStalker: "goblin",
+    bloomWisp: "ghost",
+  };
+
+  return definitionSprites[unit.definition] || sprites[body] || sprites[unit.definition] || null;
+}
+
+function getUnitSpriteSize(unit, body) {
+  if (unit.decorative) {
+    return body === "sunBird" ? 66 : 58;
+  }
+
+  if (unit.faction === "player") {
+    return unit.isHero ? 68 : 62;
+  }
+
+  return body === "thornback" || body === "emberMaw" ? 68 : 64;
 }

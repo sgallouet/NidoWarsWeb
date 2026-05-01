@@ -4,6 +4,7 @@ import { ResourceNodePainter } from "./ResourceNodePainter.js";
 import { TreasurePainter } from "./TreasurePainter.js";
 import { UnitPainter } from "./UnitPainter.js";
 import { gridToWorld, worldToGrid } from "./isoMath.js";
+import { ACTION_SPRITES, fantasySprites } from "./SpriteAtlas.js";
 
 export class CanvasRenderer {
   constructor({ canvas, camera, config }) {
@@ -11,12 +12,13 @@ export class CanvasRenderer {
     this.context = canvas.getContext("2d", { alpha: false });
     this.camera = camera;
     this.config = config;
+    this.spriteAtlas = fantasySprites;
     this.viewport = { width: 1, height: 1, dpr: 1 };
-    this.tilePainter = new TilePainter(config);
-    this.herbPainter = new HerbPainter();
-    this.resourceNodePainter = new ResourceNodePainter();
-    this.treasurePainter = new TreasurePainter();
-    this.unitPainter = new UnitPainter(config);
+    this.tilePainter = new TilePainter(config, this.spriteAtlas);
+    this.herbPainter = new HerbPainter(this.spriteAtlas);
+    this.resourceNodePainter = new ResourceNodePainter(this.spriteAtlas);
+    this.treasurePainter = new TreasurePainter(this.spriteAtlas);
+    this.unitPainter = new UnitPainter(config, this.spriteAtlas);
     this.terrainCache = null;
     this.fogCache = null;
   }
@@ -378,6 +380,7 @@ export class CanvasRenderer {
   async prepareWorld(world, fogOfWar, onProgress = () => {}) {
     const terrainWeight = 0.78;
 
+    await this.spriteAtlas.ready;
     await this.prepareTerrainCache(world, (progress) => onProgress(progress * terrainWeight));
     await this.prepareFogCache(world, fogOfWar, (progress) =>
       onProgress(terrainWeight + progress * (1 - terrainWeight)),
@@ -503,6 +506,11 @@ export class CanvasRenderer {
     const flame = 1 + Math.sin(elapsed * 0.01) * 0.16;
 
     ctx.save();
+    if (this.spriteAtlas.draw(ctx, "campfire", point.x, point.y + 19, { size: 64, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "rgba(33, 21, 12, 0.32)";
     ctx.beginPath();
     ctx.ellipse(point.x, point.y + 8, 28, 11, 0, 0, Math.PI * 2);
@@ -561,6 +569,13 @@ export class CanvasRenderer {
     ctx.roundRect(x - 15, y - 13, 30, 26, 8);
     ctx.fill();
     ctx.stroke();
+
+    const spriteName = ACTION_SPRITES[type] || null;
+
+    if (spriteName && this.spriteAtlas.draw(ctx, spriteName, x, y + 11, { size: 26, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
 
     if (type === "eye") {
       ctx.fillStyle = "#d7fff6";

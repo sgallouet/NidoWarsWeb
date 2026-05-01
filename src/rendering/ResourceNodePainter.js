@@ -1,5 +1,8 @@
+import { pickSprite } from "./SpriteAtlas.js";
+
 export class ResourceNodePainter {
-  constructor() {
+  constructor(spriteAtlas = null) {
+    this.spriteAtlas = spriteAtlas;
     this.rockImage = typeof Image === "undefined" ? null : new Image();
 
     if (this.rockImage) {
@@ -30,6 +33,11 @@ export class ResourceNodePainter {
     const shimmer = Math.sin(elapsed * 0.006 + node.column) * 1.6;
 
     ctx.save();
+    if (this.spriteAtlas?.draw(ctx, "blueSlime", x, y + 15 + shimmer * 0.2, { size: 42, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "rgba(7, 54, 73, 0.22)";
     ctx.beginPath();
     ctx.ellipse(x, y + 7, 25, 10, -0.08, 0, Math.PI * 2);
@@ -72,8 +80,14 @@ export class ResourceNodePainter {
 
   paintTimberTree(ctx, x, y, node) {
     const sway = (node.seed || node.column + node.row) % 2 === 0 ? -1 : 1;
+    const tree = pickSprite((node.column + 1) * 13 + node.row * 7, ["pineTree", "greenTree", "autumnTree"]);
 
     ctx.save();
+    if (this.spriteAtlas?.draw(ctx, tree, x, y + 22, { size: 62, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "rgba(25, 18, 13, 0.24)";
     ctx.beginPath();
     ctx.ellipse(x, y + 12, 22, 7, 0, 0, Math.PI * 2);
@@ -120,11 +134,18 @@ export class ResourceNodePainter {
   }
 
   paintRockDeposit(ctx, x, y, node) {
+    const rock = pickSprite((node.column + 3) * 17 + node.row * 5, ["stoneBlock", "darkOre", "blueCrystal"]);
+
     ctx.save();
     ctx.fillStyle = "rgba(25, 18, 13, 0.25)";
     ctx.beginPath();
     ctx.ellipse(x, y + 12, 23, 8, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    if (this.spriteAtlas?.draw(ctx, rock, x, y + 24, { size: 54, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
 
     if (this.rockImage?.complete && this.rockImage.naturalWidth > 0) {
       ctx.drawImage(this.rockImage, x - 26, y - 34, 52, 52);
@@ -153,7 +174,14 @@ export class ResourceNodePainter {
   }
 
   paintBerryBush(ctx, x, y, node) {
+    const plant = pickSprite((node.column + 5) * 11 + node.row * 3, ["redFlower", "bush", "purpleFlower"]);
+
     ctx.save();
+    if (this.spriteAtlas?.draw(ctx, plant, x, y + 20, { size: 50, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "rgba(25, 18, 13, 0.22)";
     ctx.beginPath();
     ctx.ellipse(x, y + 10, 20, 7, 0, 0, Math.PI * 2);

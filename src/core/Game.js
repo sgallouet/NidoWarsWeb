@@ -507,7 +507,7 @@ export class Game {
       const effect = formatEffect(building);
 
       card.innerHTML = `
-        <div class="build-card-art" aria-hidden="true"><span></span></div>
+        <div class="build-card-art" aria-hidden="true"><img src="${getBuildingIcon(building.id)}" alt="" /></div>
         <div class="build-card-body">
           <div class="build-card-title">
             <span class="build-card-kind">${building.tone}</span>
@@ -546,7 +546,7 @@ export class Game {
       const hireLabel = hero.hired ? "Hired" : canAfford ? "Hire" : "Need resources";
 
       card.innerHTML = `
-        <div class="build-card-art hero-card-art" aria-hidden="true"><span></span></div>
+        <div class="build-card-art hero-card-art" aria-hidden="true"><img src="${getHeroIcon(hero.classId)}" alt="" /></div>
         <div class="build-card-body">
           <div class="build-card-title">
             <span class="build-card-kind">${escapeHtml(hero.className)}</span>
@@ -625,7 +625,7 @@ export class Game {
 
       card.className = `build-card quest-card quest-card-${quest.tone}`;
       card.innerHTML = `
-        <div class="build-card-art quest-card-art" aria-hidden="true"><span></span></div>
+        <div class="build-card-art quest-card-art" aria-hidden="true"><img src="${getQuestIcon(quest.tone)}" alt="" /></div>
         <div class="build-card-body">
           <div class="build-card-title">
             <span class="build-card-kind">${escapeHtml(quest.kind)}</span>
@@ -1276,7 +1276,7 @@ function renderActiveQuestCard(quest) {
 
   return `
     <article class="build-card quest-card quest-card-active">
-      <div class="build-card-art quest-card-art" aria-hidden="true"><span></span></div>
+      <div class="build-card-art quest-card-art" aria-hidden="true"><img src="${getQuestIcon(quest.tone)}" alt="" /></div>
       <div class="build-card-body">
         <div class="build-card-title">
           <span class="build-card-kind">Away</span>
@@ -1384,16 +1384,35 @@ function formatResourcePips(resources, options = {}) {
 
 function getResourceIcon(resource) {
   const icons = {
-    gold: "./assets/gold.png",
-    herbs: "./assets/herbs.svg",
-    fish: "./assets/fish.png",
-    meat: "./assets/meat.svg",
-    berries: "./assets/berries.png",
-    wood: "./assets/wood.png",
-    rock: "./assets/rock.png",
+    gold: "./assets/fantasy-icons/gold.png",
+    herbs: "./assets/fantasy-icons/herbs.png",
+    fish: "./assets/fantasy-icons/fish.png",
+    meat: "./assets/fantasy-icons/meat.png",
+    berries: "./assets/fantasy-icons/berries.png",
+    wood: "./assets/fantasy-icons/wood.png",
+    rock: "./assets/fantasy-icons/rock.png",
   };
 
   return icons[resource] || null;
+}
+
+function getBuildingIcon(buildingId) {
+  return `./assets/fantasy-icons/${buildingId}.png`;
+}
+
+function getHeroIcon(classId) {
+  return `./assets/fantasy-icons/hero-${classId}.png`;
+}
+
+function getQuestIcon(tone) {
+  const icons = {
+    hunt: "./assets/fantasy-icons/quest-hunt.png",
+    rescue: "./assets/fantasy-icons/quest-rescue.png",
+    raid: "./assets/fantasy-icons/quest-raid.png",
+    watch: "./assets/fantasy-icons/quest-watch.png",
+  };
+
+  return icons[tone] || "./assets/fantasy-icons/quest-watch.png";
 }
 
 function escapeHtml(value) {

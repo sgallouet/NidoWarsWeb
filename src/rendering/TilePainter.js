@@ -1,9 +1,11 @@
 import { TILE_TYPES } from "../world/tileTypes.js";
+import { pickSprite } from "./SpriteAtlas.js";
 
 export class TilePainter {
-  constructor({ tileWidth, tileHeight }) {
+  constructor({ tileWidth, tileHeight }, spriteAtlas = null) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
+    this.spriteAtlas = spriteAtlas;
   }
 
   paint(ctx, { tile, x, y, elapsed, isHovered }) {
@@ -60,6 +62,8 @@ export class TilePainter {
   paintTop(ctx, corners, tile) {
     const type = TILE_TYPES[tile.type];
     const gradient = ctx.createLinearGradient(corners.top.x, corners.top.y, corners.bottom.x, corners.bottom.y);
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
 
     gradient.addColorStop(0, shade(type.colors.light, tile.lightness + 0.05));
     gradient.addColorStop(0.56, shade(type.colors.base, tile.lightness));
@@ -69,8 +73,33 @@ export class TilePainter {
     drawDiamond(ctx, corners);
     ctx.fill();
 
-    ctx.strokeStyle = "rgba(68, 42, 21, 0.28)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.09)";
+    ctx.beginPath();
+    ctx.moveTo(corners.top.x, corners.top.y + 1);
+    ctx.lineTo(corners.left.x + 4, corners.left.y);
+    ctx.lineTo(cx, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(28, 22, 18, 0.12)";
+    ctx.beginPath();
+    ctx.moveTo(corners.right.x - 4, corners.right.y);
+    ctx.lineTo(corners.bottom.x, corners.bottom.y - 1);
+    ctx.lineTo(cx, cy);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(38, 29, 22, 0.46)";
+    ctx.lineWidth = 1.4;
+    drawDiamond(ctx, corners);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.16)";
     ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(corners.left.x + 4, corners.left.y);
+    ctx.lineTo(corners.top.x, corners.top.y + 2);
+    ctx.lineTo(corners.right.x - 4, corners.right.y);
     ctx.stroke();
   }
 
@@ -358,6 +387,8 @@ export class TilePainter {
     ctx.moveTo(cx - 6, cy + 4);
     ctx.lineTo(cx + 6, cy + 4);
     ctx.stroke();
+
+    this.spriteAtlas?.draw(ctx, "hammer", cx + 2, cy + 8, { size: 24, anchorY: 1 });
     ctx.restore();
   }
 
@@ -365,8 +396,14 @@ export class TilePainter {
     const cx = corners.top.x;
     const cy = corners.top.y + this.tileHeight * 0.5;
     const tone = getBuildingTone(tile.building);
+    const spriteName = getBuildingSprite(tile.building);
 
     ctx.save();
+    if (spriteName && this.spriteAtlas?.draw(ctx, spriteName, cx, cy + 25, { size: 64, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "rgba(24, 15, 10, 0.34)";
     ctx.beginPath();
     ctx.ellipse(cx + 2, cy + 10, 28, 10, 0, 0, Math.PI * 2);
@@ -395,8 +432,17 @@ export class TilePainter {
   paintRock(ctx, corners, tile) {
     const cx = corners.top.x;
     const cy = corners.top.y + this.tileHeight * 0.5;
+    const spriteName =
+      tile.type === "obsidian"
+        ? pickSprite(tile.seed * 100, ["darkOre", "coal", "lavaRock"])
+        : pickSprite(tile.seed * 100, ["stoneBlock", "silverIngot", "blueCrystal"]);
 
     ctx.save();
+    if (this.spriteAtlas?.draw(ctx, spriteName, cx, cy + 20, { size: 46, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "rgba(52, 34, 25, 0.24)";
     ctx.beginPath();
     ctx.ellipse(cx + 4, cy + 8, 20, 7, 0, 0, Math.PI * 2);
@@ -425,8 +471,14 @@ export class TilePainter {
   paintScrub(ctx, corners, tile) {
     const cx = corners.top.x;
     const cy = corners.top.y + this.tileHeight * 0.5;
+    const spriteName = tile.biome === "desert" ? "cactus" : "bush";
 
     ctx.save();
+    if (this.spriteAtlas?.draw(ctx, spriteName, cx, cy + 20, { size: 43, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     ctx.strokeStyle = "#6f8653";
     ctx.lineWidth = 2;
     ctx.lineCap = "round";
@@ -450,8 +502,14 @@ export class TilePainter {
   paintForest(ctx, corners, tile) {
     const cx = corners.top.x;
     const cy = corners.top.y + this.tileHeight * 0.5;
+    const tree = pickSprite(tile.seed * 100, ["pineTree", "greenTree", "autumnTree"]);
 
     ctx.save();
+    if (this.spriteAtlas?.draw(ctx, tree, cx, cy + 26, { size: 58, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+
     for (let i = 0; i < 3; i += 1) {
       const offset = (i - 1) * 12;
 
@@ -476,6 +534,14 @@ export class TilePainter {
   paintFlowers(ctx, corners, tile) {
     const cx = corners.top.x;
     const cy = corners.top.y + this.tileHeight * 0.5;
+    const flower = pickSprite(tile.seed * 100, ["redFlower", "blueFlower", "purpleFlower"]);
+
+    ctx.save();
+    if (this.spriteAtlas?.draw(ctx, flower, cx, cy + 21, { size: 45, anchorY: 1 })) {
+      ctx.restore();
+      return;
+    }
+    ctx.restore();
 
     this.paintScrub(ctx, corners, tile);
 
@@ -557,6 +623,18 @@ export class TilePainter {
     ctx.stroke();
     ctx.restore();
   }
+}
+
+function getBuildingSprite(buildingId) {
+  const sprites = {
+    "settler-hut": "haystack",
+    "storage-house": "barrel",
+    "torch-watch": "lantern",
+    tavern: "workTable",
+    "guild-town": "crystalBall",
+  };
+
+  return sprites[buildingId] || "crate";
 }
 
 function drawDiamond(ctx, corners) {

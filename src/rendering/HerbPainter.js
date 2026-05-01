@@ -1,6 +1,16 @@
 export class HerbPainter {
+  constructor(spriteAtlas = null) {
+    this.spriteAtlas = spriteAtlas;
+  }
+
   paint(ctx, { x, y, loadsRemaining }) {
     ctx.save();
+    if (this.spriteAtlas?.draw(ctx, "greenPotion", x, y + 16, { size: 35, anchorY: 1 })) {
+      this.paintLoads(ctx, x, y, loadsRemaining);
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "rgba(33, 23, 12, 0.2)";
     ctx.beginPath();
     ctx.ellipse(x, y + 8, 16, 5, 0, 0, Math.PI * 2);
@@ -27,10 +37,15 @@ export class HerbPainter {
     ctx.fill();
 
     ctx.fillStyle = "rgba(255, 244, 214, 0.84)";
+    this.paintLoads(ctx, x, y, loadsRemaining);
+    ctx.restore();
+  }
+
+  paintLoads(ctx, x, y, loadsRemaining) {
+    ctx.fillStyle = "rgba(255, 244, 214, 0.84)";
     ctx.font = "700 9px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(String(loadsRemaining), x, y + 12);
-    ctx.restore();
   }
 }

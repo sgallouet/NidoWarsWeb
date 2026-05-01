@@ -486,6 +486,17 @@ body {
   content: "";
 }
 
+.build-card-art img {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: min(112px, 78%);
+  height: 106px;
+  object-fit: contain;
+  filter: drop-shadow(0 9px 8px rgba(0, 0, 0, 0.42));
+  transform: translateX(-50%);
+}
+
 .build-card-art span {
   position: absolute;
   left: 50%;
