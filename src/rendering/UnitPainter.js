@@ -1,7 +1,14 @@
+const WARRIOR_SPRITE_SRC = "./assets/warrior_idle_sheet.png";
+const WARRIOR_SPRITE_SOURCE_SIZE = 186;
+const WARRIOR_SPRITE_DRAW_SIZE = 66;
+const WARRIOR_SPRITE_FRAME_COUNT = 8;
+const WARRIOR_SPRITE_FRAME_MS = 125;
+
 export class UnitPainter {
   constructor({ tileWidth, tileHeight }) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
+    this.warriorSpriteSheet = loadImage(WARRIOR_SPRITE_SRC);
   }
 
   paint(ctx, { unit, x, y, elapsed, dayNight }) {
@@ -27,7 +34,7 @@ export class UnitPainter {
     if (unit.attackStyle === "ranged" && unit.attackFlashMs > 0) {
       this.paintArrowShot(ctx, unit);
     }
-    if (unit.waveMs > 0) {
+    if (unit.waveMs > 0 && !this.usesWarriorSprite(unit)) {
       this.paintGreetingWave(ctx, unit, elapsed);
     }
     if (unit.faction === "player" && nightAmount > 0.08) {
@@ -82,7 +89,7 @@ export class UnitPainter {
     if (body === "ranger") {
       this.paintRanger(ctx, x, y, unit, elapsed);
     } else if (body === "duneVanguard") {
-      this.paintWarrior(ctx, x, y, unit);
+      this.paintWarrior(ctx, x, y, unit, elapsed);
     } else if (body === "duneSettler") {
       this.paintSettler(ctx, x, y, unit);
     } else if (body === "glassStalker") {
@@ -138,7 +145,11 @@ export class UnitPainter {
     ctx.restore();
   }
 
-  paintWarrior(ctx, x, y, unit) {
+  paintWarrior(ctx, x, y, unit, elapsed) {
+    if (this.paintWarriorSprite(ctx, x, y, elapsed)) {
+      return;
+    }
+
     const { colors } = unit;
 
     ctx.save();
@@ -214,6 +225,34 @@ export class UnitPainter {
     ctx.lineTo(x + 13, y + 5);
     ctx.stroke();
     ctx.restore();
+  }
+
+  paintWarriorSprite(ctx, x, y, elapsed) {
+    if (!isImageReady(this.warriorSpriteSheet)) {
+      return false;
+    }
+
+    const frameIndex = Math.floor(elapsed / WARRIOR_SPRITE_FRAME_MS) % WARRIOR_SPRITE_FRAME_COUNT;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(
+      this.warriorSpriteSheet,
+      frameIndex * WARRIOR_SPRITE_SOURCE_SIZE,
+      0,
+      WARRIOR_SPRITE_SOURCE_SIZE,
+      WARRIOR_SPRITE_SOURCE_SIZE,
+      x - WARRIOR_SPRITE_DRAW_SIZE / 2,
+      y - WARRIOR_SPRITE_DRAW_SIZE + 8,
+      WARRIOR_SPRITE_DRAW_SIZE,
+      WARRIOR_SPRITE_DRAW_SIZE,
+    );
+    ctx.restore();
+    return true;
+  }
+
+  usesWarriorSprite(unit) {
+    return (unit.body || unit.definition) === "duneVanguard" && isImageReady(this.warriorSpriteSheet);
   }
 
   paintRanger(ctx, x, y, unit, elapsed) {
@@ -1066,4 +1105,20 @@ function hasCarriedLoad(unit) {
   return Boolean(
     unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId || unit.carryingMeatCorpseId,
   );
+}
+
+function loadImage(src) {
+  if (typeof Image !== "function") {
+    return null;
+  }
+
+  const image = new Image();
+
+  image.decoding = "async";
+  image.src = src;
+  return image;
+}
+
+function isImageReady(image) {
+  return Boolean(image?.complete && image.naturalWidth > 0);
 }
