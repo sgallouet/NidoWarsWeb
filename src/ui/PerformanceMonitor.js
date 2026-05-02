@@ -1,6 +1,8 @@
 const HISTORY_SIZE = 1800;
 const SAMPLE_RANGE_MS = 32;
-const DRAW_SAMPLE_INTERVAL = 2;
+const DRAW_INTERVAL_MS = 250;
+const VALUE_UPDATE_INTERVAL_MS = 250;
+const GRAPH_PIXEL_STEP = 3;
 const FRAME_BUDGET_MS = 16;
 const HEAVY_SPIKE_MS = 30;
 
@@ -12,7 +14,8 @@ export class PerformanceMonitor {
     this.samples = new Float32Array(HISTORY_SIZE);
     this.cursor = 0;
     this.count = 0;
-    this.pendingSamples = 0;
+    this.lastDrawAt = 0;
+    this.lastValueAt = 0;
     this.viewport = { width: 1, height: 1, dpr: 1 };
   }
 
@@ -40,17 +43,19 @@ export class PerformanceMonitor {
       return;
     }
 
+    const now = performance.now();
+
     this.samples[this.cursor] = frameMs;
     this.cursor = (this.cursor + 1) % this.samples.length;
     this.count = Math.min(this.count + 1, this.samples.length);
-    this.pendingSamples += 1;
 
-    if (this.valueNode) {
+    if (this.valueNode && now - this.lastValueAt >= VALUE_UPDATE_INTERVAL_MS) {
       this.valueNode.textContent = frameMs.toFixed(2);
+      this.lastValueAt = now;
     }
 
-    if (this.pendingSamples >= DRAW_SAMPLE_INTERVAL) {
-      this.pendingSamples = 0;
+    if (now - this.lastDrawAt >= DRAW_INTERVAL_MS) {
+      this.lastDrawAt = now;
       this.draw();
     }
   }
@@ -77,35 +82,39 @@ export class PerformanceMonitor {
     ctx.lineCap = "round";
     ctx.shadowBlur = 8;
 
-    let previousPoint = null;
+    const pointCount = Math.max(2, Math.min(this.count, Math.ceil(width / GRAPH_PIXEL_STEP)));
+    let previousPoint = this.getSamplePoint(0, pointCount, width, height);
 
-    for (let i = 0; i < this.count; i += 1) {
-      const point = this.getSamplePoint(i, width, height);
+    for (let i = 1; i < pointCount; i += 1) {
+      const point = this.getSamplePoint(i, pointCount, width, height);
+      const color = getSampleColor(Math.max(previousPoint.sample, point.sample));
 
-      if (previousPoint) {
-        const color = getSampleColor(Math.max(previousPoint.sample, point.sample));
-
-        ctx.strokeStyle = color.stroke;
-        ctx.shadowColor = color.glow;
-        ctx.beginPath();
-        ctx.moveTo(previousPoint.x, previousPoint.y);
-        ctx.lineTo(point.x, point.y);
-        ctx.stroke();
-      }
-
+      ctx.strokeStyle = color.stroke;
+      ctx.shadowColor = color.glow;
+      ctx.beginPath();
+      ctx.moveTo(previousPoint.x, previousPoint.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
       previousPoint = point;
     }
 
     ctx.restore();
   }
 
-  getSamplePoint(index, width, height) {
-    const sampleIndex = (this.cursor - this.count + index + this.samples.length) % this.samples.length;
-    const sample = this.samples[sampleIndex];
+  getSamplePoint(index, pointCount, width, height) {
+    const start = Math.floor((index / pointCount) * this.count);
+    const end = Math.max(start + 1, Math.floor(((index + 1) / pointCount) * this.count));
+    let sample = 0;
+
+    for (let i = start; i < end; i += 1) {
+      const sampleIndex = (this.cursor - this.count + i + this.samples.length) % this.samples.length;
+
+      sample = Math.max(sample, this.samples[sampleIndex]);
+    }
 
     return {
       sample,
-      x: (index / (this.samples.length - 1)) * width,
+      x: (index / (pointCount - 1)) * width,
       y: height - Math.min(1, sample / SAMPLE_RANGE_MS) * (height - 8) - 4,
     };
   }
