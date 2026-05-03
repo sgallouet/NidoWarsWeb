@@ -18,10 +18,11 @@ export class UnitPainter {
 
     const scale = unit.scale || 1;
     const nightAmount = dayNight?.nightAmount || 0;
+    const usesWarriorSprite = this.usesWarriorSprite(unit);
     const carryingHeavy = hasCarriedLoad(unit);
     const strain = carryingHeavy ? Math.sin(elapsed * 0.014) * 2.4 : 0;
     const struggleTilt = carryingHeavy ? -0.08 + Math.sin(elapsed * 0.011) * 0.035 : 0;
-    const bob = Math.sin(elapsed * 0.006 + unit.column * 0.4) * (carryingHeavy ? 2.1 : 1.4);
+    const bob = usesWarriorSprite ? 0 : Math.sin(elapsed * 0.006 + unit.column * 0.4) * (carryingHeavy ? 2.1 : 1.4);
     const drawY = y + bob;
 
     this.paintGroundShadow(ctx, x, y, unit, scale);
@@ -34,7 +35,7 @@ export class UnitPainter {
     if (unit.attackStyle === "ranged" && unit.attackFlashMs > 0) {
       this.paintArrowShot(ctx, unit);
     }
-    if (unit.waveMs > 0 && !this.usesWarriorSprite(unit)) {
+    if (unit.waveMs > 0 && !usesWarriorSprite) {
       this.paintGreetingWave(ctx, unit, elapsed);
     }
     if (unit.faction === "player" && nightAmount > 0.08) {
