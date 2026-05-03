@@ -17,6 +17,7 @@ const COMBAT_TEXT_MS = 720;
 const RECOVERY_RADIUS = 2;
 const RECOVERY_TICK_MS = 1800;
 const RECOVERY_PAUSE_MS = 260;
+const SPRITE_WARRIOR_MOVE_MULTIPLIER = 1.55;
 const ATTACK_OFFSETS = [
   { column: 1, row: 0 },
   { column: -1, row: 0 },
@@ -1885,29 +1886,39 @@ export class UnitManager {
       return;
     }
 
-    unit.movementSegment.elapsed += delta;
+    let remaining = delta;
 
-    const progress = Math.min(1, unit.movementSegment.elapsed / unit.movementSegment.duration);
-    const eased = easeInOut(progress);
+    while (unit.movementSegment && remaining > 0) {
+      const segment = unit.movementSegment;
+      const previousElapsed = segment.elapsed;
+      const nextElapsed = Math.min(segment.duration, previousElapsed + remaining);
+      const consumed = nextElapsed - previousElapsed;
 
-    unit.visualColumn = lerp(unit.movementSegment.from.column, unit.movementSegment.to.column, eased);
-    unit.visualRow = lerp(unit.movementSegment.from.row, unit.movementSegment.to.row, eased);
+      segment.elapsed = nextElapsed;
+      remaining -= consumed;
 
-    if (progress < 1) {
-      return;
+      const progress = Math.min(1, segment.elapsed / segment.duration);
+      const movementProgress = getVisualMovementProgress(unit, progress);
+
+      unit.visualColumn = lerp(segment.from.column, segment.to.column, movementProgress);
+      unit.visualRow = lerp(segment.from.row, segment.to.row, movementProgress);
+
+      if (progress < 1) {
+        return;
+      }
+
+      unit.column = segment.to.column;
+      unit.row = segment.to.row;
+      unit.visualColumn = unit.column;
+      unit.visualRow = unit.row;
+      unit.movementSegment = null;
+
+      if (unit.faction === "player") {
+        this.fogOfWar.revealAround(unit, REVEAL_RADIUS);
+      }
+
+      this.startNextSegment(unit);
     }
-
-    unit.column = unit.movementSegment.to.column;
-    unit.row = unit.movementSegment.to.row;
-    unit.visualColumn = unit.column;
-    unit.visualRow = unit.row;
-    unit.movementSegment = null;
-
-    if (unit.faction === "player") {
-      this.fogOfWar.revealAround(unit, REVEAL_RADIUS);
-    }
-
-    this.startNextSegment(unit);
   }
 
   startNextSegment(unit) {
@@ -1921,7 +1932,9 @@ export class UnitManager {
     const carryMultiplier = hasCarriedLoad(unit) ? 2 : 1;
     const nightMultiplier = unit.faction === "player" ? 1 + this.nightAmount * 0.3 : 1;
     const terrainCost = unit.canFly ? 1 : getTileMovementCost(destinationTile);
-    const duration = (BASE_STEP_MS * terrainCost * carryMultiplier * nightMultiplier) / unit.speed;
+    const duration =
+      (BASE_STEP_MS * terrainCost * carryMultiplier * nightMultiplier * getMovementDurationMultiplier(unit)) /
+      unit.speed;
 
     unit.movementSegment = {
       from: {
@@ -2630,6 +2643,22 @@ function buildAirPath(start, destination) {
 
 function easeInOut(value) {
   return value < 0.5 ? 2 * value * value : 1 - Math.pow(-2 * value + 2, 2) / 2;
+}
+
+function getVisualMovementProgress(unit, progress) {
+  if ((unit.body || unit.definition) === "duneVanguard") {
+    return progress;
+  }
+
+  return easeInOut(progress);
+}
+
+function getMovementDurationMultiplier(unit) {
+  if ((unit.body || unit.definition) === "duneVanguard") {
+    return SPRITE_WARRIOR_MOVE_MULTIPLIER;
+  }
+
+  return 1;
 }
 
 function lerp(a, b, amount) {

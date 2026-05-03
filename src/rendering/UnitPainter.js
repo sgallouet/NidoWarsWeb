@@ -3,6 +3,8 @@ const WARRIOR_SPRITE_SOURCE_SIZE = 186;
 const WARRIOR_SPRITE_DRAW_SIZE = 66;
 const WARRIOR_SPRITE_FRAME_COUNT = 8;
 const WARRIOR_SPRITE_FRAME_MS = 125;
+const WARRIOR_SPRITE_FOOT_SOURCE_X = 85;
+const WARRIOR_SPRITE_FOOT_SOURCE_Y = 177;
 
 export class UnitPainter {
   constructor({ tileWidth, tileHeight }) {
@@ -137,12 +139,30 @@ export class UnitPainter {
   }
 
   paintGroundShadow(ctx, x, y, unit, scale) {
+    if (this.usesWarriorSprite(unit)) {
+      this.paintWarriorShadow(ctx, x, y, scale);
+      return;
+    }
+
     ctx.save();
     ctx.fillStyle = "rgba(25, 18, 13, 0.34)";
     ctx.beginPath();
     ctx.ellipse(x + 2, y + 9, (unit.faction === "player" ? 18 : 22) * scale, 8 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    ctx.restore();
+  }
+
+  paintWarriorShadow(ctx, x, y, scale) {
+    const sourceScale = WARRIOR_SPRITE_DRAW_SIZE / WARRIOR_SPRITE_SOURCE_SIZE;
+    const footX = x - WARRIOR_SPRITE_DRAW_SIZE / 2 + WARRIOR_SPRITE_FOOT_SOURCE_X * sourceScale;
+    const footY = y - WARRIOR_SPRITE_DRAW_SIZE + 8 + WARRIOR_SPRITE_FOOT_SOURCE_Y * sourceScale;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(25, 18, 13, 0.32)";
+    ctx.beginPath();
+    ctx.ellipse(footX, footY + 1.5, 12 * scale, 4.8 * scale, -0.08, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
