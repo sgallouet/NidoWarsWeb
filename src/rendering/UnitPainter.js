@@ -1,8 +1,11 @@
 const WARRIOR_SPRITE_SRC = "./assets/warrior_idle_sheet.png";
+const WARRIOR_WALK_SPRITE_SRC = "./assets/warrior_walk_sheet.png";
 const WARRIOR_SPRITE_SOURCE_SIZE = 186;
 const WARRIOR_SPRITE_DRAW_SIZE = 66;
 const WARRIOR_SPRITE_FRAME_COUNT = 8;
 const WARRIOR_SPRITE_FRAME_MS = 125;
+const WARRIOR_WALK_FRAME_COUNT = 8;
+const WARRIOR_WALK_FRAME_MS = 110;
 const WARRIOR_SPRITE_FOOT_SOURCE_X = 85;
 const WARRIOR_SPRITE_FOOT_SOURCE_Y = 177;
 
@@ -11,6 +14,7 @@ export class UnitPainter {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
     this.warriorSpriteSheet = loadImage(WARRIOR_SPRITE_SRC);
+    this.warriorWalkSpriteSheet = loadImage(WARRIOR_WALK_SPRITE_SRC);
   }
 
   paint(ctx, { unit, x, y, elapsed, dayNight }) {
@@ -155,19 +159,19 @@ export class UnitPainter {
 
   paintWarriorShadow(ctx, x, y, scale) {
     const sourceScale = WARRIOR_SPRITE_DRAW_SIZE / WARRIOR_SPRITE_SOURCE_SIZE;
-    const footX = x - WARRIOR_SPRITE_DRAW_SIZE / 2 + WARRIOR_SPRITE_FOOT_SOURCE_X * sourceScale;
-    const footY = y - WARRIOR_SPRITE_DRAW_SIZE + 8 + WARRIOR_SPRITE_FOOT_SOURCE_Y * sourceScale;
+    const footX = x;// - WARRIOR_SPRITE_DRAW_SIZE / 2 + WARRIOR_SPRITE_FOOT_SOURCE_X * sourceScale;
+    const footY = y;// - WARRIOR_SPRITE_DRAW_SIZE + 8 + WARRIOR_SPRITE_FOOT_SOURCE_Y * sourceScale;
 
     ctx.save();
     ctx.fillStyle = "rgba(25, 18, 13, 0.32)";
     ctx.beginPath();
-    ctx.ellipse(footX, footY + 1.5, 12 * scale, 4.8 * scale, -0.08, 0, Math.PI * 2);
+    ctx.ellipse(footX, footY+2.5 , 15 * scale, 8 * scale, -0.08, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
   paintWarrior(ctx, x, y, unit, elapsed) {
-    if (this.paintWarriorSprite(ctx, x, y, elapsed)) {
+    if (this.paintWarriorSprite(ctx, x, y,unit, elapsed)) {
       return;
     }
 
@@ -248,17 +252,27 @@ export class UnitPainter {
     ctx.restore();
   }
 
-  paintWarriorSprite(ctx, x, y, elapsed) {
+  paintWarriorSprite(ctx, x, y, unit, elapsed) {
     if (!isImageReady(this.warriorSpriteSheet)) {
       return false;
     }
 
-    const frameIndex = Math.floor(elapsed / WARRIOR_SPRITE_FRAME_MS) % WARRIOR_SPRITE_FRAME_COUNT;
+    const isWalking = this.isWarriorWalking(unit);
+    const spriteSheet = isWalking && isImageReady(this.warriorWalkSpriteSheet)
+      ? this.warriorWalkSpriteSheet
+      : this.warriorSpriteSheet;
+    const frameCount = isWalking && spriteSheet === this.warriorWalkSpriteSheet
+      ? WARRIOR_WALK_FRAME_COUNT
+      : WARRIOR_SPRITE_FRAME_COUNT;
+    const frameMs = isWalking && spriteSheet === this.warriorWalkSpriteSheet
+      ? WARRIOR_WALK_FRAME_MS
+      : WARRIOR_SPRITE_FRAME_MS;
+    const frameIndex = Math.floor(elapsed / frameMs) % frameCount;
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(
-      this.warriorSpriteSheet,
+      spriteSheet,
       frameIndex * WARRIOR_SPRITE_SOURCE_SIZE,
       0,
       WARRIOR_SPRITE_SOURCE_SIZE,
@@ -274,6 +288,10 @@ export class UnitPainter {
 
   usesWarriorSprite(unit) {
     return (unit.body || unit.definition) === "duneVanguard" && isImageReady(this.warriorSpriteSheet);
+  }
+
+  isWarriorWalking(unit) {
+    return Boolean(unit.movementSegment || unit.movementQueue?.length);
   }
 
   paintRanger(ctx, x, y, unit, elapsed) {
