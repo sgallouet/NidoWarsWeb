@@ -279,17 +279,20 @@ export class UnitPainter {
       ? WARRIOR_WALK_FRAME_MS
       : WARRIOR_SPRITE_FRAME_MS;
     const frameIndex = Math.floor(elapsed / frameMs) % frameCount;
+    const facing = getMovementFacing(unit);
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
     ctx.drawImage(
       spriteSheet,
       frameIndex * WARRIOR_SPRITE_SOURCE_SIZE,
       0,
       WARRIOR_SPRITE_SOURCE_SIZE,
       WARRIOR_SPRITE_SOURCE_SIZE,
-      x - WARRIOR_SPRITE_DRAW_SIZE / 2,
-      y - WARRIOR_SPRITE_DRAW_SIZE + 8,
+      -WARRIOR_SPRITE_DRAW_SIZE / 2,
+      -WARRIOR_SPRITE_DRAW_SIZE + 8,
       WARRIOR_SPRITE_DRAW_SIZE,
       WARRIOR_SPRITE_DRAW_SIZE,
     );
@@ -551,17 +554,20 @@ export class UnitPainter {
       ? SETTLER_WALK_FRAME_MS
       : SETTLER_SPRITE_FRAME_MS;
     const frameIndex = Math.floor(elapsed / frameMs) % frameCount;
+    const facing = getMovementFacing(unit);
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
+    ctx.translate(x, y);
+    ctx.scale(facing, 1);
     ctx.drawImage(
       spriteSheet,
       frameIndex * SETTLER_SPRITE_SOURCE_SIZE,
       0,
       SETTLER_SPRITE_SOURCE_SIZE,
       SETTLER_SPRITE_SOURCE_SIZE,
-      x - SETTLER_SPRITE_DRAW_SIZE / 2,
-      y - SETTLER_SPRITE_DRAW_SIZE + 8,
+      -SETTLER_SPRITE_DRAW_SIZE / 2,
+      -SETTLER_SPRITE_DRAW_SIZE + 8,
       SETTLER_SPRITE_DRAW_SIZE,
       SETTLER_SPRITE_DRAW_SIZE,
     );
@@ -1217,4 +1223,20 @@ function loadImage(src) {
 
 function isImageReady(image) {
   return Boolean(image?.complete && image.naturalWidth > 0);
+}
+
+function getMovementFacing(unit) {
+  const segment = unit.movementSegment;
+
+  if (!segment) {
+    return unit.facingX || 1;
+  }
+
+  const isoX = segment.to.column - segment.from.column - (segment.to.row - segment.from.row);
+
+  if (isoX === 0) {
+    return unit.facingX || 1;
+  }
+
+  return isoX < 0 ? -1 : 1;
 }

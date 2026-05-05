@@ -8,7 +8,7 @@ import json
 from collections import deque
 from pathlib import Path
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter
 
 
 def parse_color(value: str | None) -> tuple[int, int, int] | None:
@@ -100,7 +100,27 @@ def remove_edge_key(image: Image.Image, key: tuple[int, int, int], threshold: in
     return rgba
 
 
-def trim_and_fit(frame: Image.Image, cell: int, baseline_y: int, padding: int) -> Image.Image:
+def add_outline(frame: Image.Image, radius: int, color: tuple[int, int, int, int]) -> Image.Image:
+    if radius <= 0:
+        return frame
+
+    alpha = frame.getchannel("A")
+    outline_alpha = alpha.filter(ImageFilter.MaxFilter(radius * 2 + 1))
+    outline = Image.new("RGBA", frame.size, color)
+    outline.putalpha(outline_alpha)
+    return Image.alpha_composite(outline, frame)
+
+
+def trim_and_fit(
+    frame: Image.Image,
+    cell: int,
+    baseline_y: int,
+    padding: int,
+    max_subject_width: int,
+    max_subject_height: int,
+    outline_radius: int,
+    outline_color: tuple[int, int, int, int],
+) -> Image.Image:
     alpha = frame.getchannel("A")
     bbox = alpha.getbbox()
     out = Image.new("RGBA", (cell, cell), (0, 0, 0, 0))
@@ -108,13 +128,14 @@ def trim_and_fit(frame: Image.Image, cell: int, baseline_y: int, padding: int) -
         return out
 
     crop = frame.crop(bbox)
-    max_w = cell - padding * 2
-    max_h = baseline_y - padding
+    max_w = max_subject_width if max_subject_width > 0 else cell - padding * 2
+    max_h = max_subject_height if max_subject_height > 0 else baseline_y - padding
     scale = min(max_w / crop.width, max_h / crop.height, 1.0)
     fitted = crop.resize(
         (max(1, round(crop.width * scale)), max(1, round(crop.height * scale))),
         Image.Resampling.LANCZOS,
     )
+    fitted = add_outline(fitted, outline_radius, outline_color)
     x = (cell - fitted.width) // 2
     y = baseline_y - fitted.height
     out.alpha_composite(fitted, (x, y))
@@ -224,6 +245,11 @@ def main() -> None:
     parser.add_argument("--baseline-y", type=int, default=180)
     parser.add_argument("--duration", type=int, default=125)
     parser.add_argument("--padding", type=int, default=3)
+    parser.add_argument("--max-subject-width", type=int, default=0)
+    parser.add_argument("--max-subject-height", type=int, default=0)
+    parser.add_argument("--outline-radius", type=int, default=0)
+    parser.add_argument("--outline-color", default="#0e0b09")
+    parser.add_argument("--outline-alpha", type=int, default=235)
     parser.add_argument("--min-component-area", type=int, default=120)
     parser.add_argument("--key", default="")
     parser.add_argument("--key-threshold", type=int, default=90)
@@ -241,12 +267,23 @@ def main() -> None:
         image = image.crop(crop)
 
     explicit_key = parse_color(args.key)
+    outline_rgb = parse_color(args.outline_color) or (14, 11, 9)
+    outline_color = (*outline_rgb, max(0, min(255, args.outline_alpha)))
     transparent_input = border_is_mostly_transparent(image)
     key = explicit_key if explicit_key else (None if transparent_input else guess_border_key(image))
     cleaned = remove_edge_key(image, key, args.key_threshold) if key else image.convert("RGBA")
     fitted_frames = [
         remove_small_components(
-            trim_and_fit(frame, args.cell, args.baseline_y, args.padding),
+            trim_and_fit(
+                frame,
+                args.cell,
+                args.baseline_y,
+                args.padding,
+                args.max_subject_width,
+                args.max_subject_height,
+                args.outline_radius,
+                outline_color,
+            ),
             args.min_component_area,
         )
         for frame in split_frames(cleaned, args.frames)

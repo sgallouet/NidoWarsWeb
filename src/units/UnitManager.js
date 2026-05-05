@@ -19,6 +19,7 @@ const RECOVERY_RADIUS = 2;
 const RECOVERY_TICK_MS = 1800;
 const RECOVERY_PAUSE_MS = 260;
 const SPRITE_WARRIOR_MOVE_MULTIPLIER = 1.55;
+const SPRITE_SETTLER_MOVE_MULTIPLIER = 1.55;
 const ATTACK_OFFSETS = [
   { column: 1, row: 0 },
   { column: -1, row: 0 },
@@ -2004,6 +2005,7 @@ export class UnitManager {
       elapsed: 0,
       duration,
     };
+    unit.facingX = getMovementFacingX(unit.movementSegment);
   }
 
   getNearbyPassableTile(origin, radius) {
@@ -2706,7 +2708,7 @@ function easeInOut(value) {
 }
 
 function getVisualMovementProgress(unit, progress) {
-  if ((unit.body || unit.definition) === "duneVanguard") {
+  if (usesContinuousSpriteMovement(unit)) {
     return progress;
   }
 
@@ -2714,11 +2716,33 @@ function getVisualMovementProgress(unit, progress) {
 }
 
 function getMovementDurationMultiplier(unit) {
-  if ((unit.body || unit.definition) === "duneVanguard") {
+  const body = unit.body || unit.definition;
+
+  if (body === "duneVanguard") {
     return SPRITE_WARRIOR_MOVE_MULTIPLIER;
   }
 
+  if (body === "duneSettler") {
+    return SPRITE_SETTLER_MOVE_MULTIPLIER;
+  }
+
   return 1;
+}
+
+function usesContinuousSpriteMovement(unit) {
+  const body = unit.body || unit.definition;
+
+  return body === "duneVanguard" || body === "duneSettler";
+}
+
+function getMovementFacingX(segment) {
+  const isoX = segment.to.column - segment.from.column - (segment.to.row - segment.from.row);
+
+  if (isoX === 0) {
+    return 1;
+  }
+
+  return isoX < 0 ? -1 : 1;
 }
 
 function lerp(a, b, amount) {

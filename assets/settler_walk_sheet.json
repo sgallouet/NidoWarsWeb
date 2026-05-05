@@ -13,59 +13,59 @@
   "cells": [
     {
       "frame": 0,
-      "opaque_pixels": 7928,
+      "opaque_pixels": 7185,
       "edge_pixels": 0,
       "residue_pixels": 0,
       "diff_from_previous": null
     },
     {
       "frame": 1,
-      "opaque_pixels": 7824,
+      "opaque_pixels": 7495,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 7407
+      "diff_from_previous": 7777
     },
     {
       "frame": 2,
-      "opaque_pixels": 7810,
-      "edge_pixels": 0,
-      "residue_pixels": 0,
-      "diff_from_previous": 8773
-    },
-    {
-      "frame": 3,
-      "opaque_pixels": 7585,
-      "edge_pixels": 0,
-      "residue_pixels": 0,
-      "diff_from_previous": 7150
-    },
-    {
-      "frame": 4,
-      "opaque_pixels": 7593,
-      "edge_pixels": 0,
-      "residue_pixels": 0,
-      "diff_from_previous": 6407
-    },
-    {
-      "frame": 5,
-      "opaque_pixels": 7750,
-      "edge_pixels": 0,
-      "residue_pixels": 0,
-      "diff_from_previous": 8468
-    },
-    {
-      "frame": 6,
       "opaque_pixels": 7551,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 8531
+      "diff_from_previous": 7457
+    },
+    {
+      "frame": 3,
+      "opaque_pixels": 7083,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 7650
+    },
+    {
+      "frame": 4,
+      "opaque_pixels": 7106,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 7196
+    },
+    {
+      "frame": 5,
+      "opaque_pixels": 7487,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 7653
+    },
+    {
+      "frame": 6,
+      "opaque_pixels": 6979,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 7859
     },
     {
       "frame": 7,
-      "opaque_pixels": 7775,
+      "opaque_pixels": 7101,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 8723
+      "diff_from_previous": 7620
     }
   ],
   "preview": "artifacts\\settler_walk_preview.webp"

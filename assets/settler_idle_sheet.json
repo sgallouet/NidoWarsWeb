@@ -13,59 +13,59 @@
   "cells": [
     {
       "frame": 0,
-      "opaque_pixels": 8320,
+      "opaque_pixels": 7577,
       "edge_pixels": 0,
       "residue_pixels": 0,
       "diff_from_previous": null
     },
     {
       "frame": 1,
-      "opaque_pixels": 8373,
+      "opaque_pixels": 7713,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 5510
+      "diff_from_previous": 7446
     },
     {
       "frame": 2,
-      "opaque_pixels": 8415,
+      "opaque_pixels": 7697,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 5588
+      "diff_from_previous": 7277
     },
     {
       "frame": 3,
-      "opaque_pixels": 8406,
+      "opaque_pixels": 7809,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 5894
+      "diff_from_previous": 7593
     },
     {
       "frame": 4,
-      "opaque_pixels": 8255,
+      "opaque_pixels": 7617,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 5448
+      "diff_from_previous": 7657
     },
     {
       "frame": 5,
-      "opaque_pixels": 8323,
+      "opaque_pixels": 7567,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 4983
+      "diff_from_previous": 7479
     },
     {
       "frame": 6,
-      "opaque_pixels": 8437,
+      "opaque_pixels": 7618,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 5263
+      "diff_from_previous": 7218
     },
     {
       "frame": 7,
-      "opaque_pixels": 8327,
+      "opaque_pixels": 7524,
       "edge_pixels": 0,
       "residue_pixels": 0,
-      "diff_from_previous": 6563
+      "diff_from_previous": 7388
     }
   ],
   "preview": "artifacts\\settler_idle_preview.webp"

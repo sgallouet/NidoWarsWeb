@@ -15,6 +15,7 @@ Use this skill to produce game-ready isometric unit animation sheets that match 
 - Frames per row: `8`
 - Camera: three-quarter isometric game sprite, same facing and scale family as the warrior unit
 - Runtime draw size: usually `66x66` in canvas, so details must read when downscaled
+- Character outline: every accepted unit sheet needs a crisp near-black outside contour like the warrior, plus small interior dark strokes where useful
 - Background while generating: flat chroma key, preferably `#00ff00`, with no floor, shadow, text, UI, frame numbers, or borders
 - Preview format: transparent animated WebP, `110-140ms` per frame
 
@@ -37,13 +38,13 @@ Use the existing unit art as style anchors, then describe the new unit plainly:
 Create a game asset sprite sheet: 8-frame horizontal [ACTION] animation for the same isometric canvas game as the armored warrior reference.
 
 Character: [UNIT DESCRIPTION].
-Style lock: same artist as the warrior unit, hand-painted pixel-art fantasy sprite, crisp dark outlines, compact readable silhouette, muted earth palette, soft directional highlights, tiny high-contrast facial details, no painterly blur, no modern cartoon style, no 3D render.
+Style lock: same artist as the warrior unit, hand-painted pixel-art fantasy sprite, crisp near-black outside outline, compact readable silhouette, muted earth palette, soft directional highlights, tiny high-contrast facial details, no painterly blur, no modern cartoon style, no 3D render.
 Camera and framing: three-quarter isometric unit sprite facing the same direction as the warrior, full body visible in every frame, feet stay on the same baseline, staff/tool stays attached to the hands, centered in each square frame.
 Animation: [ACTION MOTION], 8 distinct frames forming a loop, subtle body weight shift, readable feet/leg movement, no teleporting.
 Output: one row of 8 equal square frames, flat #00ff00 background, no shadow, no floor, no text, no watermark.
 ```
 
-For settler/worker units, keep the design poorer and lighter than the warrior: ragged cloth, thin limbs, dark messy hair or simple hood, bare or wrapped feet, wooden staff/tool, hunched but readable posture.
+For settler/worker units, keep the design poorer, lighter, and visibly shorter than the warrior: ragged cloth, thin limbs, dark messy hair or simple hood, bare or wrapped feet, wooden staff/tool, hunched but readable posture. In the final `186x186` cells, worker alpha bounds should be below the warrior's source height of about `158px`; target roughly `136-145px` tall when the worker is meant to be smaller.
 
 ## Cleanup And Preview
 
@@ -57,7 +58,15 @@ python skills/isometric-unit-animation/scripts/prepare_isometric_sheet.py \
   --frames 8 \
   --cell 186 \
   --baseline-y 180 \
+  --outline-radius 2 \
   --duration 125
+```
+
+For worker/settler sheets, add:
+
+```bash
+  --max-subject-height 142 \
+  --outline-radius 2
 ```
 
 Use `--key "#ff00ff"` if green is part of the character. Use `--crop "left,top,right,bottom"` only when generation adds labels, margins, or extra rows that the automatic split cannot handle.
@@ -71,6 +80,8 @@ Block acceptance when:
 - Any frame is sparse, cropped, or touches the source cell edge unexpectedly.
 - Adjacent frames are nearly identical for a movement animation.
 - The character changes outfit, palette, body proportions, tool, face, or facing direction.
+- The silhouette lacks the warrior-style dark outside contour and blends into the map background.
+- Worker/settler output is as tall as or taller than the warrior once fitted into `186x186` cells.
 - Feet drift vertically in a way that will look like floating once the game shadow is drawn.
 - The WebP preview leaves trails, accumulates frames, or loses transparency.
 

@@ -8,7 +8,7 @@ Use these notes when generating or evaluating unit animation art for this projec
 - Source cell: `186x186`; runtime draw size is about `66x66`, so details must survive downscaling.
 - Facing: three-quarter isometric, body angled slightly to the viewer's right.
 - Silhouette: compact full-body sprite with oversized readable head/torso, planted feet, and no cast shadow in the asset.
-- Linework: crisp dark outline with small interior dark strokes; not clean vector art and not soft painting.
+- Linework: crisp near-black outside outline with small interior dark strokes; not clean vector art and not soft painting. The contour is required because units must separate clearly from busy map tiles.
 - Color: muted fantasy earth tones with controlled highlights. Browns, steel gray, dull blue cloth, leather, warm skin, and off-white metal highlights.
 - Rendering: hand-painted pixel-art feel with hard edges and limited palette, but not strict 1-bit retro pixel art.
 - Motion: subtle but visible frame-to-frame change. Identity stays locked; animation changes pose, not costume.
@@ -20,6 +20,8 @@ Use these notes when generating or evaluating unit animation art for this projec
 - Thin arms and legs, tired face, dark messy hair or simple cloth hood.
 - Simple wooden walking staff, hoe, or hand tool. Keep tools attached across every frame.
 - Hunched, weary posture is welcome, but the top of the head, feet, and staff must stay inside every cell.
+- Must be visibly shorter than the warrior after fitting. In `186x186` source cells, target the worker silhouette at roughly `136-145px` tall, below the warrior's roughly `158px` source height.
+- Must still keep the same near-black outside contour as the warrior; do not accept soft transparent edges that disappear against grass, sand, or forest.
 
 ## Rejection Checklist
 
@@ -29,6 +31,8 @@ Reject or regenerate when the sprite looks like:
 - A portrait illustration pasted into a sprite cell.
 - A top-down or side-view character instead of isometric three-quarter.
 - A soft AI painting with blurred edges.
+- Missing or weak dark outline around the full silhouette.
+- A worker/settler that is as tall as or taller than the armored warrior.
 - A tiny retro sprite with too few details to match the warrior.
 - A sheet where the staff/tool floats, changes length wildly, or swaps hands.
 - A movement loop where only the whole image shifts without actual body animation.
