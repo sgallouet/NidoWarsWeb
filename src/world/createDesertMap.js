@@ -73,6 +73,10 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
     columns,
     rows,
     version: 0,
+    terrainVersion: 0,
+    structureVersion: 0,
+    dirtyTerrainTileIds: new Set(),
+    dirtyStructureTileIds: new Set(),
     tiles,
     tilesByDrawOrder: [...tiles].sort((a, b) => a.column + a.row - (b.column + b.row)),
     getTile(column, row) {
@@ -82,8 +86,68 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
 
       return tiles[row * columns + column];
     },
-    touchTile() {
+    touchTile(tile = null) {
+      this.touchTerrain(tile);
+    },
+    touchTerrain(tile = null) {
       this.version += 1;
+      this.terrainVersion += 1;
+      this.queueDirtyTiles(this.dirtyTerrainTileIds, tile, 2);
+    },
+    touchStructure(tile = null) {
+      this.version += 1;
+      this.structureVersion += 1;
+      this.queueDirtyTiles(this.dirtyStructureTileIds, tile, 4);
+    },
+    touchStructureTiles(changedTiles) {
+      if (!changedTiles || changedTiles.length === 0) {
+        return;
+      }
+
+      this.version += 1;
+      this.structureVersion += 1;
+      for (const tile of changedTiles) {
+        this.queueDirtyTiles(this.dirtyStructureTileIds, tile, 1);
+      }
+    },
+    consumeDirtyTerrainTiles() {
+      return this.consumeDirtyTiles(this.dirtyTerrainTileIds);
+    },
+    consumeDirtyStructureTiles() {
+      return this.consumeDirtyTiles(this.dirtyStructureTileIds);
+    },
+    queueDirtyTiles(target, tile, radius) {
+      if (!tile) {
+        for (const candidate of tiles) {
+          target.add(candidate.id);
+        }
+        return;
+      }
+
+      for (let row = tile.row - radius; row <= tile.row + radius; row += 1) {
+        for (let column = tile.column - radius; column <= tile.column + radius; column += 1) {
+          const candidate = this.getTile(column, row);
+
+          if (candidate) {
+            target.add(candidate.id);
+          }
+        }
+      }
+    },
+    consumeDirtyTiles(source) {
+      const dirtyTiles = [];
+
+      for (const tileId of source) {
+        const [column, row] = tileId.split(":").map(Number);
+        const tile = this.getTile(column, row);
+
+        if (tile) {
+          dirtyTiles.push(tile);
+        }
+      }
+
+      source.clear();
+      return dirtyTiles;
     },
   };
 

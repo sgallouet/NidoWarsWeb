@@ -18,6 +18,7 @@ export class CanvasRenderer {
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
     this.terrainCache = null;
+    this.structureCache = null;
     this.fogCache = null;
   }
 
@@ -64,6 +65,7 @@ export class CanvasRenderer {
     const visibleTiles = this.getVisibleTiles(world);
 
     this.paintWorld(ctx, world);
+    this.paintStructures(ctx, world);
     this.paintConstructions(ctx, visibleTiles, elapsed);
     this.paintResourceNodes(ctx, world, resourceNodes, elapsed);
     this.paintHerbs(ctx, world, herbs);
@@ -316,6 +318,12 @@ export class CanvasRenderer {
     this.drawCacheSlice(ctx, cache);
   }
 
+  paintStructures(ctx, world) {
+    const cache = this.getStructureCache(world);
+
+    this.drawCacheSlice(ctx, cache);
+  }
+
   paintConstructions(ctx, visibleTiles, elapsed) {
     for (const tile of visibleTiles) {
       if (!tile.construction) {
@@ -379,6 +387,7 @@ export class CanvasRenderer {
     const terrainWeight = 0.78;
 
     await this.prepareTerrainCache(world, (progress) => onProgress(progress * terrainWeight));
+    this.prepareStructureCache(world);
     await this.prepareFogCache(world, fogOfWar, (progress) =>
       onProgress(terrainWeight + progress * (1 - terrainWeight)),
     );
@@ -412,6 +421,7 @@ export class CanvasRenderer {
       bounds: surface.bounds,
       key,
     };
+    world.consumeDirtyTerrainTiles?.();
   }
 
   createTerrainSurface(world) {
@@ -454,12 +464,11 @@ export class CanvasRenderer {
       this.config.tileHeight,
     );
 
-    this.tilePainter.paint(ctx, {
+    this.tilePainter.paintTerrain(ctx, {
       tile,
       x: point.x,
       y: point.y,
       elapsed: 0,
-      isHovered: false,
     });
   }
 
@@ -468,13 +477,156 @@ export class CanvasRenderer {
 
     if (!this.terrainCache || this.terrainCache.key !== key) {
       this.terrainCache = this.renderTerrainToCache(world);
+      world.consumeDirtyTerrainTiles?.();
+      return this.terrainCache;
+    }
+
+    const dirtyTiles = world.consumeDirtyTerrainTiles?.() || [];
+
+    if (dirtyTiles.length > 0) {
+      this.patchTerrainCache(world, dirtyTiles);
     }
 
     return this.terrainCache;
   }
 
   getTerrainCacheKey(world) {
-    return `${world.seed}:${world.columns}x${world.rows}:${world.version || 0}:${this.config.tileWidth}:${this.config.tileHeight}`;
+    return `${world.seed}:${world.columns}x${world.rows}:${this.config.tileWidth}:${this.config.tileHeight}`;
+  }
+
+  prepareStructureCache(world) {
+    const cache = this.renderStructureCache(world);
+
+    this.structureCache = cache;
+    world.consumeDirtyStructureTiles?.();
+  }
+
+  renderStructureCache(world) {
+    const surface = this.createTerrainSurface(world);
+
+    for (const tile of world.tilesByDrawOrder) {
+      this.paintStructureTile(surface.ctx, tile);
+    }
+
+    return {
+      canvas: surface.canvas,
+      bounds: surface.bounds,
+      key: this.getStructureCacheKey(world),
+    };
+  }
+
+  paintStructureTile(ctx, tile) {
+    const point = gridToWorld(
+      tile.column,
+      tile.row,
+      this.config.tileWidth,
+      this.config.tileHeight,
+    );
+
+    this.tilePainter.paintStructure(ctx, {
+      tile,
+      x: point.x,
+      y: point.y,
+      elapsed: 0,
+    });
+  }
+
+  getStructureCache(world) {
+    const key = this.getStructureCacheKey(world);
+
+    if (!this.structureCache || this.structureCache.key !== key) {
+      this.structureCache = this.renderStructureCache(world);
+      world.consumeDirtyStructureTiles?.();
+      return this.structureCache;
+    }
+
+    const dirtyTiles = world.consumeDirtyStructureTiles?.() || [];
+
+    if (dirtyTiles.length > 0) {
+      this.patchStructureCache(world, dirtyTiles);
+    }
+
+    return this.structureCache;
+  }
+
+  getStructureCacheKey(world) {
+    return `${world.seed}:${world.columns}x${world.rows}:${this.config.tileWidth}:${this.config.tileHeight}`;
+  }
+
+  patchTerrainCache(world, dirtyTiles) {
+    this.patchTileCache({
+      cache: this.terrainCache,
+      dirtyTiles: this.expandDirtyTiles(world, dirtyTiles, 2),
+      paintTile: (ctx, tile) => this.paintTerrainTile(ctx, tile),
+    });
+    this.structureCache = null;
+    world.touchStructureTiles?.(dirtyTiles);
+  }
+
+  patchStructureCache(world, dirtyTiles) {
+    this.patchTileCache({
+      cache: this.structureCache,
+      dirtyTiles: this.expandDirtyTiles(world, dirtyTiles, 2),
+      paintTile: (ctx, tile) => this.paintStructureTile(ctx, tile),
+    });
+  }
+
+  expandDirtyTiles(world, dirtyTiles, radius) {
+    const expanded = new Map();
+
+    for (const tile of dirtyTiles) {
+      for (let row = tile.row - radius; row <= tile.row + radius; row += 1) {
+        for (let column = tile.column - radius; column <= tile.column + radius; column += 1) {
+          const candidate = world.getTile(column, row);
+
+          if (candidate) {
+            expanded.set(candidate.id, candidate);
+          }
+        }
+      }
+    }
+
+    return [...expanded.values()];
+  }
+
+  patchTileCache({ cache, dirtyTiles, paintTile }) {
+    const ctx = cache.canvas.getContext("2d");
+    const orderedTiles = [...dirtyTiles].sort((a, b) => a.column + a.row - (b.column + b.row));
+
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.translate(-cache.bounds.x, -cache.bounds.y);
+
+    for (const tile of orderedTiles) {
+      const rect = this.getTilePatchRect(tile);
+
+      ctx.clearRect(rect.x, rect.y, rect.width, rect.height);
+    }
+
+    for (const tile of orderedTiles) {
+      paintTile(ctx, tile);
+    }
+
+    ctx.restore();
+  }
+
+  getTilePatchRect(tile) {
+    const point = gridToWorld(
+      tile.column,
+      tile.row,
+      this.config.tileWidth,
+      this.config.tileHeight,
+    );
+    const paddingX = 18;
+    const topPadding = 48;
+    const bottomPadding = 34;
+
+    return {
+      x: point.x - this.config.tileWidth / 2 - paddingX,
+      y: point.y - topPadding,
+      width: this.config.tileWidth + paddingX * 2,
+      height: this.config.tileHeight + topPadding + bottomPadding,
+    };
   }
 
   paintHover(ctx, hoveredTile) {

@@ -743,9 +743,8 @@ export class Game {
       this.resources[resource] -= amount;
     }
 
-    tile.canBuild = false;
-    this.world.touchTile(tile);
     this.refreshBuildSitesAndRoads();
+    this.world.touchStructure(tile);
     this.hud.setResources(this.resources);
     this.setBuildMenuOpen(false);
   }
@@ -783,8 +782,8 @@ export class Game {
     tile.isEmpty = true;
     tile.building = null;
     tile.cleanReservedBy = null;
+    this.world.touchTerrain(tile);
     this.refreshBuildSitesAndRoads();
-    this.world.touchTile(tile);
     return true;
   }
 
@@ -806,11 +805,9 @@ export class Game {
       remainingMs: CONSTRUCTION_MS,
       durationMs: CONSTRUCTION_MS,
     };
-    tile.canBuild = false;
-    tile.hasRoad = false;
     tile.roadConnector = roadConnector ? { column: roadConnector.column, row: roadConnector.row } : null;
     this.refreshBuildSitesAndRoads();
-    this.world.touchTile(tile);
+    this.world.touchStructure(tile);
     return true;
   }
 
@@ -831,14 +828,12 @@ export class Game {
       tile.building = tile.construction.buildingId;
       tile.construction = null;
       tile.isEmpty = false;
-      tile.canBuild = false;
-      tile.hasRoad = false;
+      this.world.touchStructure(tile);
       changed = true;
     }
 
     if (changed) {
       this.refreshBuildSitesAndRoads();
-      this.world.touchTile();
     }
   }
 
@@ -887,6 +882,11 @@ export class Game {
 
   refreshBuildSitesAndRoads() {
     const roadConnectorIds = this.getAssignedRoadConnectorIds();
+    const previousState = new Map();
+
+    for (const tile of this.world.tiles) {
+      previousState.set(tile.id, getStructureStateKey(tile));
+    }
 
     for (const tile of this.world.tiles) {
       tile.canBuild = false;
@@ -911,6 +911,16 @@ export class Game {
         tile.roadConnections = this.getRoadConnections(tile);
       }
     }
+
+    const changedTiles = [];
+
+    for (const tile of this.world.tiles) {
+      if (previousState.get(tile.id) !== getStructureStateKey(tile)) {
+        changedTiles.push(tile);
+      }
+    }
+
+    this.world.touchStructureTiles(changedTiles);
   }
 
   getRoadConnections(tile) {
@@ -1137,6 +1147,22 @@ function getEmptyTileType(tile) {
   }
 
   return "grass";
+}
+
+function getStructureStateKey(tile) {
+  const road = tile.roadConnections || {};
+
+  return [
+    tile.canBuild ? 1 : 0,
+    tile.hasRoad ? 1 : 0,
+    tile.building || "",
+    tile.construction?.buildingId || "",
+    tile.buildReservedBy || "",
+    road.columnPlus ? 1 : 0,
+    road.columnMinus ? 1 : 0,
+    road.rowPlus ? 1 : 0,
+    road.rowMinus ? 1 : 0,
+  ].join(":");
 }
 
 function createHeroRoster(dayIndex) {

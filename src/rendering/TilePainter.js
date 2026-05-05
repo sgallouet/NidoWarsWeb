@@ -7,25 +7,34 @@ export class TilePainter {
   }
 
   paint(ctx, { tile, x, y, elapsed, isHovered }) {
+    this.paintTerrain(ctx, { tile, x, y, elapsed });
+    this.paintStructure(ctx, { tile, x, y, elapsed });
+
+    if (isHovered) {
+      this.paintHover(ctx, this.getCorners(x, y));
+    }
+  }
+
+  paintTerrain(ctx, { tile, x, y, elapsed }) {
     const corners = this.getCorners(x, y);
 
     this.paintShadow(ctx, corners, tile);
     this.paintTop(ctx, corners, tile);
     this.paintTexture(ctx, corners, tile);
+    this.paintFeature(ctx, corners, tile, elapsed);
+  }
+
+  paintStructure(ctx, { tile, x, y, elapsed }) {
+    const corners = this.getCorners(x, y);
+
     if (tile.hasRoad) {
       this.paintRoad(ctx, corners, tile);
-    } else {
-      this.paintFeature(ctx, corners, tile, elapsed);
     }
     if (tile.canBuild) {
       this.paintBuildSite(ctx, corners, tile, elapsed);
     }
     if (tile.building) {
       this.paintBuilding(ctx, corners, tile, elapsed);
-    }
-
-    if (isHovered) {
-      this.paintHover(ctx, corners);
     }
   }
 
