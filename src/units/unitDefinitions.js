@@ -360,6 +360,7 @@ function createUnit({ id, definition, name, tile }) {
     visualRow: tile.row,
     movementQueue: [],
     movementSegment: null,
+    pendingPathJobId: null,
     order: template.faction === "player" ? "patrol" : "monsterPatrol",
     orderIcon: null,
     speech: null,

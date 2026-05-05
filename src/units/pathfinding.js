@@ -8,21 +8,40 @@ const DIRECTIONS = [
 ];
 
 export function findPath({ world, start, destination, blockedKeys = new Set() }) {
-  const destinationKey = toKey(destination.column, destination.row);
-  const reachable = findReachableTiles({
+  const search = createPathSearch({
     world,
     start,
-    maxDistance: Infinity,
+    destination,
     blockedKeys,
-    stopKey: destinationKey,
   });
 
-  return buildPath(reachable, destination);
+  search.run();
+  return search.getPath();
 }
 
 export function findReachableTiles({ world, start, maxDistance, blockedKeys, stopKey = null }) {
+  const search = createPathSearch({
+    world,
+    start,
+    maxDistance,
+    blockedKeys,
+    stopKey,
+  });
+
+  search.run();
+  return search.reachableTiles;
+}
+
+export function createPathSearch({
+  world,
+  start,
+  destination = null,
+  maxDistance = Infinity,
+  blockedKeys = new Set(),
+  stopKey = destination ? toKey(destination.column, destination.row) : null,
+}) {
   const startKey = toKey(start.column, start.row);
-  const frontier = [{ column: start.column, row: start.row, distance: 0 }];
+  const frontier = new MinHeap((a, b) => a.distance - b.distance);
   const visited = new Map([
     [
       startKey,
@@ -34,19 +53,52 @@ export function findReachableTiles({ world, start, maxDistance, blockedKeys, sto
       },
     ],
   ]);
+  let isDone = false;
 
-  while (frontier.length > 0) {
-    frontier.sort((a, b) => a.distance - b.distance);
-    const current = frontier.shift();
+  frontier.push({ column: start.column, row: start.row, distance: 0 });
+
+  return {
+    get done() {
+      return isDone;
+    },
+    get reachableTiles() {
+      return visited;
+    },
+    run() {
+      this.step(() => true);
+    },
+    step(shouldContinue = () => true) {
+      while (!isDone && frontier.size > 0 && shouldContinue()) {
+        stepSearch();
+      }
+
+      if (frontier.size === 0) {
+        isDone = true;
+      }
+
+      return isDone;
+    },
+    getPath() {
+      if (!destination) {
+        return [];
+      }
+
+      return buildPath(visited, destination);
+    },
+  };
+
+  function stepSearch() {
+    const current = frontier.pop();
     const currentKey = toKey(current.column, current.row);
     const currentNode = visited.get(currentKey);
 
     if (stopKey && currentKey === stopKey) {
-      break;
+      isDone = true;
+      return;
     }
 
     if (current.distance > currentNode.distance || currentNode.distance >= maxDistance) {
-      continue;
+      return;
     }
 
     for (const direction of DIRECTIONS) {
@@ -79,11 +131,9 @@ export function findReachableTiles({ world, start, maxDistance, blockedKeys, sto
         distance: nextDistance,
         previous: currentKey,
       });
-      frontier.push({ ...next, distance: nextDistance });
+      frontier.push({ column: next.column, row: next.row, distance: nextDistance });
     }
   }
-
-  return visited;
 }
 
 export function buildPath(reachableTiles, destination) {
@@ -153,4 +203,79 @@ export function getRandomPassableTileNear(world, origin, radius, blockedKeys = n
 
 export function toKey(column, row) {
   return `${column}:${row}`;
+}
+
+class MinHeap {
+  constructor(compare) {
+    this.compare = compare;
+    this.items = [];
+  }
+
+  get size() {
+    return this.items.length;
+  }
+
+  push(item) {
+    this.items.push(item);
+    this.siftUp(this.items.length - 1);
+  }
+
+  pop() {
+    const first = this.items[0];
+    const last = this.items.pop();
+
+    if (this.items.length > 0) {
+      this.items[0] = last;
+      this.siftDown(0);
+    }
+
+    return first;
+  }
+
+  siftUp(index) {
+    let child = index;
+
+    while (child > 0) {
+      const parent = Math.floor((child - 1) / 2);
+
+      if (this.compare(this.items[child], this.items[parent]) >= 0) {
+        return;
+      }
+
+      this.swap(child, parent);
+      child = parent;
+    }
+  }
+
+  siftDown(index) {
+    let parent = index;
+
+    while (true) {
+      const left = parent * 2 + 1;
+      const right = left + 1;
+      let smallest = parent;
+
+      if (left < this.items.length && this.compare(this.items[left], this.items[smallest]) < 0) {
+        smallest = left;
+      }
+
+      if (right < this.items.length && this.compare(this.items[right], this.items[smallest]) < 0) {
+        smallest = right;
+      }
+
+      if (smallest === parent) {
+        return;
+      }
+
+      this.swap(parent, smallest);
+      parent = smallest;
+    }
+  }
+
+  swap(first, second) {
+    const item = this.items[first];
+
+    this.items[first] = this.items[second];
+    this.items[second] = item;
+  }
 }

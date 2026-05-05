@@ -1,4 +1,5 @@
 import { findNearestPassableTile, findPath, getRandomPassableTileNear, toKey } from "./pathfinding.js";
+import { PathJobQueue } from "./PathJobQueue.js";
 import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
 import { HERB_WORK_MS } from "../world/HerbManager.js";
 import { getResourceDefinition } from "../world/ResourceNodeManager.js";
@@ -62,6 +63,7 @@ export class UnitManager {
     this.threatPlayerUnits = [];
     this.threatScaryMonsters = [];
     this.nightAmount = 0;
+    this.pathJobs = new PathJobQueue({ world, budgetMs: 1.6 });
 
     for (const unit of this.units) {
       unit.home = { column: campTile.column, row: campTile.row };
@@ -79,9 +81,10 @@ export class UnitManager {
     this.updateCorpses(delta);
     this.updateThreats();
     this.assignPendingOrders();
+    this.pathJobs.update();
 
     for (const unit of this.units) {
-      if (unit.movementSegment || unit.movementQueue.length > 0) {
+      if (unit.pendingPathJobId || unit.movementSegment || unit.movementQueue.length > 0) {
         continue;
       }
 
@@ -753,7 +756,9 @@ export class UnitManager {
     this.cheerQuestReturn(guildTile, result, returningHeroes);
   }
 
-  assignUnitPath(unit, destination, { order, orderIcon, markerId = null, stage = null }) {
+  assignUnitPath(unit, destination, options) {
+    this.cancelQueuedPath(unit);
+
     const path = unit.canFly
       ? buildAirPath(unit, destination)
       : findPath({
@@ -763,6 +768,52 @@ export class UnitManager {
           blockedKeys: this.getBlockedKeys(unit.id),
         });
 
+    return this.applyUnitPath(unit, destination, path, options);
+  }
+
+  queueUnitPath(unit, destination, options) {
+    if (unit.canFly) {
+      return this.assignUnitPath(unit, destination, options);
+    }
+
+    this.cancelQueuedPath(unit);
+
+    const jobId = this.pathJobs.queue({
+      start: unit,
+      destination,
+      blockedKeys: this.getBlockedKeys(unit.id),
+      onComplete: (path) => {
+        if (unit.pendingPathJobId !== jobId || unit.defeated) {
+          return;
+        }
+
+        unit.pendingPathJobId = null;
+        this.applyUnitPath(unit, destination, path, options);
+      },
+      onFail: () => {
+        if (unit.pendingPathJobId !== jobId) {
+          return;
+        }
+
+        unit.pendingPathJobId = null;
+        unit.pauseMs = Math.max(unit.pauseMs || 0, 250);
+      },
+    });
+
+    unit.pendingPathJobId = jobId;
+    return true;
+  }
+
+  cancelQueuedPath(unit) {
+    if (!unit.pendingPathJobId) {
+      return;
+    }
+
+    this.pathJobs.cancel(unit.pendingPathJobId);
+    unit.pendingPathJobId = null;
+  }
+
+  applyUnitPath(unit, destination, path, { order, orderIcon, markerId = null, stage = null }) {
     if (path.length < 2 && (unit.column !== destination.column || unit.row !== destination.row)) {
       return false;
     }
@@ -810,6 +861,7 @@ export class UnitManager {
   }
 
   assignEscort(unit, carrier, markerId) {
+    this.cancelQueuedPath(unit);
     unit.order = "escort";
     unit.orderIcon = "shield";
     unit.markerId = markerId;
@@ -1267,7 +1319,7 @@ export class UnitManager {
 
     const escortTile = this.getNearbyPassableTile(carrier, 1) || this.world.getTile(carrier.column, carrier.row);
 
-    this.assignUnitPath(unit, escortTile, {
+    this.queueUnitPath(unit, escortTile, {
       order: "escort",
       orderIcon: "shield",
       markerId: unit.markerId,
@@ -1297,7 +1349,7 @@ export class UnitManager {
 
     const guardTile = this.getNearbyPassableTile(worker, 1) || this.world.getTile(worker.column, worker.row);
 
-    this.assignUnitPath(unit, guardTile, {
+    this.queueUnitPath(unit, guardTile, {
       order: "guard",
       orderIcon: "shield",
       stage: "follow",
@@ -1320,6 +1372,7 @@ export class UnitManager {
       return false;
     }
 
+    this.cancelQueuedPath(guard);
     guard.order = "guard";
     guard.orderIcon = "shield";
     guard.guardTargetId = worker.id;
@@ -1378,6 +1431,7 @@ export class UnitManager {
       monster.orderIcon = "alert";
       monster.targetUnitId = targetUnit.id;
       monster.targetMonsterId = null;
+      this.cancelQueuedPath(monster);
       monster.movementQueue = [];
       monster.movementSegment = null;
       say(monster, "!", "alert", 900);
@@ -1432,6 +1486,7 @@ export class UnitManager {
     unit.targetUnitId = null;
     unit.markerId = null;
     unit.stage = null;
+    this.cancelQueuedPath(unit);
     unit.movementQueue = [];
     unit.movementSegment = null;
     say(unit, "!", "alert", 900);
@@ -1714,7 +1769,7 @@ export class UnitManager {
       return;
     }
 
-    this.assignUnitPath(unit, destination, {
+    this.queueUnitPath(unit, destination, {
       order: "patrol",
       orderIcon: null,
     });
@@ -1738,7 +1793,7 @@ export class UnitManager {
       return;
     }
 
-    this.assignUnitPath(unit, destination, {
+    this.queueUnitPath(unit, destination, {
       order: "monsterPatrol",
       orderIcon: null,
     });
@@ -1746,6 +1801,8 @@ export class UnitManager {
   }
 
   setPatrol(unit) {
+    this.cancelQueuedPath(unit);
+
     if (unit.targetHerbId) {
       this.herbManager.release(unit.targetHerbId, unit.id);
     }
@@ -1815,6 +1872,7 @@ export class UnitManager {
       const unit = this.units[readIndex];
 
       if (unit.defeated) {
+        this.cancelQueuedPath(unit);
         continue;
       }
 
@@ -1826,6 +1884,7 @@ export class UnitManager {
   }
 
   abandonAssignments(unit) {
+    this.cancelQueuedPath(unit);
     this.removeMarker(unit.markerId);
 
     if (unit.targetHerbId) {
@@ -2044,7 +2103,7 @@ export class UnitManager {
     const destination = this.getHeroHobbyTile(unit);
 
     if (destination) {
-      this.assignUnitPath(unit, destination, {
+      this.queueUnitPath(unit, destination, {
         order: "heroActivity",
         orderIcon: getHeroHobbyIcon(unit.heroHobby),
         stage: "toActivity",
@@ -2090,7 +2149,7 @@ export class UnitManager {
     const restTile = this.findHeroRestTile(homeTile, unit.id) || homeTile;
 
     if (tileDistance(unit, restTile) > 0) {
-      this.assignUnitPath(unit, restTile, {
+      this.queueUnitPath(unit, restTile, {
         order: "heroRest",
         orderIcon: "rest",
         stage: "toHome",
@@ -2442,6 +2501,7 @@ function createHeroUnit(hero, spawnTile, homeTile) {
     visualRow: spawnTile.row,
     movementQueue: [],
     movementSegment: null,
+    pendingPathJobId: null,
     order: "patrol",
     orderIcon: null,
     speech: null,
