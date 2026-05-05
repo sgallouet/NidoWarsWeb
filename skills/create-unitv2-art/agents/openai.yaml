@@ -1,4 +1,4 @@
 interface:
   display_name: "Create UnitV2 Art"
-  short_description: "Design and validate Nido Wars UnitV2 animated units"
+  short_description: "Create high-quality authored UnitV2 game animations"
   default_prompt: "Use $create-unitv2-art to design and integrate a new UnitV2 animated unit for Nido Wars."

@@ -12,6 +12,7 @@ Use:
 - 3-6 core palette colors per unit
 - dark contact lines where they improve separation
 - runtime shadows, not baked shadows
+- authored atlas frames for body motion
 
 Avoid:
 
@@ -20,6 +21,8 @@ Avoid:
 - floor patches, labels, frame numbers, UI, or baked selection rings
 - huge source cells when a compact rig or atlas will do
 - tiny high-detail noise that vanishes at gameplay zoom
+- single-sprite transform animation
+- direct reference cutouts moved across frames
 
 ## Skeleton Enemy Direction
 
@@ -33,3 +36,5 @@ For a skeleton enemy, prefer an angular bone rig with:
 - clacking high-knee walk
 - short chop or swipe attack
 - collapse into scattered bones for death
+
+If a skeleton reference image is supplied, keep the skull/ribs/sword identity but produce new posed frames that blend with warrior/settler art. Do not simply crop the reference and rotate or slide it.

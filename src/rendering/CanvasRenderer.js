@@ -894,6 +894,7 @@ export class CanvasRenderer {
       const point = this.getTileCenter(tile);
 
       this.treasurePainter.paint(ctx, {
+        treasure,
         x: point.x,
         y: point.y,
         elapsed,

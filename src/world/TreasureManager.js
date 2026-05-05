@@ -1,11 +1,21 @@
 import { isTilePassable } from "./tileTypes.js";
 
 const DEFAULT_TREASURE_VALUE = 25;
+const STATIC_TREASURE_AGE_MS = 2000;
 
 export class TreasureManager {
   constructor({ world, count, reservedKeys = new Set() }) {
     this.world = world;
     this.treasures = createTreasures({ world, count, reservedKeys });
+    this.nextDropId = 1;
+  }
+
+  update(delta) {
+    for (const treasure of this.treasures) {
+      if (treasure.status !== "collected" && treasure.ageMs < STATIC_TREASURE_AGE_MS) {
+        treasure.ageMs += delta;
+      }
+    }
   }
 
   getTreasureAt(column, row) {
@@ -45,12 +55,17 @@ export class TreasureManager {
     const treasure = this.getById(treasureId);
 
     if (!treasure || treasure.status !== "carried") {
-      return 0;
+      return { gold: 0, items: [] };
     }
 
     treasure.status = "collected";
     treasure.carriedBy = null;
-    return treasure.value;
+    return {
+      gold: treasure.value || 0,
+      items: treasure.items || [],
+      label: treasure.label || "Treasure",
+      category: treasure.category || "chest",
+    };
   }
 
   release(treasureId) {
@@ -68,6 +83,30 @@ export class TreasureManager {
 
   getVisibleTreasures() {
     return this.treasures.filter((treasure) => treasure.status !== "collected");
+  }
+
+  addLootDrop({ tile, loot }) {
+    if (!tile || !loot || (loot.gold <= 0 && (!loot.items || loot.items.length === 0))) {
+      return null;
+    }
+
+    const treasure = {
+      id: `loot-${this.nextDropId}`,
+      column: tile.column,
+      row: tile.row,
+      value: loot.gold || 0,
+      items: loot.items || [],
+      label: loot.label || loot.items?.[0]?.name || "Loot",
+      category: "loot",
+      status: "available",
+      carriedBy: null,
+      ageMs: 0,
+      burstSeed: Math.random(),
+    };
+
+    this.nextDropId += 1;
+    this.treasures.push(treasure);
+    return treasure;
   }
 }
 
@@ -91,8 +130,13 @@ function createTreasures({ world, count, reservedKeys }) {
       column: tile.column,
       row: tile.row,
       value: DEFAULT_TREASURE_VALUE,
+      items: [],
+      label: "Treasure Chest",
+      category: "chest",
       status: "available",
       carriedBy: null,
+      ageMs: STATIC_TREASURE_AGE_MS,
+      burstSeed: Math.random(),
     });
     reservedKeys.add(tile.id);
   }

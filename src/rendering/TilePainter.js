@@ -684,6 +684,10 @@ function getBuildingTone(buildingId) {
     return { wall: "#6f5a38", roof: "#2e3f52", light: "#8fe8ef" };
   }
 
+  if (buildingId === "market") {
+    return { wall: "#75623f", roof: "#8a3f4f", light: "#f3d35f" };
+  }
+
   return { wall: "#9a7045", roof: "#6f3f2b", light: "#ffe28e" };
 }
 

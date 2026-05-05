@@ -5,6 +5,13 @@ import { getMovementStepDistanceMultiplier as getStepDistanceMultiplier } from "
 import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
 import { HERB_WORK_MS } from "../world/HerbManager.js";
 import { getResourceDefinition } from "../world/ResourceNodeManager.js";
+import {
+  applyHeroLootItem,
+  canHeroUseLootItem,
+  createMonsterLoot,
+  getLootItemFee,
+  getLootItemPrice,
+} from "../world/lootTables.js";
 
 const BASE_STEP_MS = 520;
 const CLEAN_WORK_MS = 3600;
@@ -17,6 +24,8 @@ const RESPONSE_RADIUS = 6;
 const ATTACK_INTERVAL_MS = 650;
 const HIT_FLASH_MS = 180;
 const COMBAT_TEXT_MS = 720;
+const WARRIOR_KNOCKBACK_MS = 180;
+const WARRIOR_KNOCKBACK_STAGGER_MS = 760;
 const RECOVERY_RADIUS = 2;
 const RECOVERY_TICK_MS = 1800;
 const RECOVERY_PAUSE_MS = 260;
@@ -24,6 +33,7 @@ const MONSTER_OUTER_ROAM_CAMP_RADIUS = 10;
 const MONSTER_OUTER_ROAM_ATTEMPTS = 36;
 const SPRITE_WARRIOR_MOVE_MULTIPLIER = 1.55;
 const SPRITE_SETTLER_MOVE_MULTIPLIER = 1.55;
+const HERO_MARKET_CHECK_MS = 2600;
 const ATTACK_OFFSETS = [
   { column: 1, row: 0 },
   { column: -1, row: 0 },
@@ -68,6 +78,8 @@ export class UnitManager {
     this.threatPlayerUnits = [];
     this.threatScaryMonsters = [];
     this.nightAmount = 0;
+    this.marketItems = [];
+    this.nextMarketListingId = 1;
     this.pathJobs = new PathJobQueue({ world, budgetMs: 1.6 });
 
     for (const unit of this.units) {
@@ -87,6 +99,7 @@ export class UnitManager {
 
     this.updateCorpses(delta);
     this.updateThreats();
+    this.updateHeroMarket(delta);
     this.assignPendingOrders();
     this.pathJobs.update();
 
@@ -894,6 +907,11 @@ export class UnitManager {
       return;
     }
 
+    if (unit.staggerMs > 0) {
+      unit.pauseMs = Math.max(unit.pauseMs || 0, 80);
+      return;
+    }
+
     if (unit.order === "attack") {
       this.updateAttack(unit);
       return;
@@ -1006,14 +1024,19 @@ export class UnitManager {
       return;
     }
 
-    const gold = this.treasureManager.deposit(unit.carryingTreasureId);
+    const deliveredLoot = this.treasureManager.deposit(unit.carryingTreasureId);
+    const gold = deliveredLoot.gold || 0;
 
     if (gold > 0) {
       this.onGoldDelivered(gold);
       showResourceText(unit, gold, "gold");
-      say(unit, "Gold secured!", "smile", 1200);
     }
 
+    if (deliveredLoot.items?.length > 0) {
+      this.handleDeliveredLootItems(unit, deliveredLoot.items);
+    }
+
+    say(unit, deliveredLoot.items?.length > 0 ? "Spoils secured!" : "Gold secured!", "smile", 1200);
     this.removeMarker(unit.markerId);
     unit.carryingTreasureId = null;
     unit.targetTreasureId = null;
@@ -1559,10 +1582,17 @@ export class UnitManager {
 
       if (target.health <= 0) {
         this.gainHeroExperience(unit, target.decorative ? 1 : 2);
+        const didDropLoot = this.handleMonsterLoot(target, unit);
         target.defeated = true;
-        say(unit, "Safe!", "smile", 900);
+        if (!didDropLoot) {
+          say(unit, "Safe!", "smile", 900);
+        } else if (!unit.isHero) {
+          say(unit, "Loot!", "gold", 1100);
+        }
         this.setPatrol(unit);
       }
+
+      this.applyWarriorKnockback(unit, target);
       return;
     }
 
@@ -1572,6 +1602,59 @@ export class UnitManager {
       this.sendToRecovery(target);
       this.setPatrol(unit);
     }
+  }
+
+  applyWarriorKnockback(unit, target) {
+    if (!shouldApplyWarriorKnockback(unit, target)) {
+      return false;
+    }
+
+    target.staggerMs = Math.max(target.staggerMs || 0, WARRIOR_KNOCKBACK_STAGGER_MS);
+    target.attackCooldownMs = Math.max(target.attackCooldownMs || 0, WARRIOR_KNOCKBACK_STAGGER_MS);
+
+    const offset = getKnockbackOffset(unit, target);
+    const destination = this.getKnockbackTile(target, offset);
+
+    if (!destination) {
+      return false;
+    }
+
+    this.cancelQueuedPath(target);
+    target.movementQueue = [];
+    target.movementSegment = {
+      from: {
+        column: target.visualColumn,
+        row: target.visualRow,
+      },
+      to: {
+        column: destination.column,
+        row: destination.row,
+      },
+      elapsed: 0,
+      duration: WARRIOR_KNOCKBACK_MS,
+    };
+    target.facingX = getMovementFacingX(target.movementSegment);
+    return true;
+  }
+
+  getKnockbackTile(target, offset) {
+    if (!offset.column && !offset.row) {
+      return null;
+    }
+
+    const destination = this.world.getTile(target.column + offset.column, target.row + offset.row);
+
+    if (
+      !destination ||
+      !isTilePassable(destination) ||
+      destination.building ||
+      destination.construction ||
+      this.getBlockedKeys(target.id).has(destination.id)
+    ) {
+      return null;
+    }
+
+    return destination;
   }
 
   applyDamage(target, amount, options = {}) {
@@ -1616,6 +1699,187 @@ export class UnitManager {
       harvested: false,
       reservedBy: null,
     });
+  }
+
+  handleMonsterLoot(monster, killer) {
+    const loot = createMonsterLoot(monster);
+
+    if (!loot) {
+      return false;
+    }
+
+    if (killer?.isHero) {
+      this.grantLootToHero(killer, loot);
+      return true;
+    }
+
+    const tile = this.findLootDropTile(monster);
+    const drop = this.treasureManager.addLootDrop({ tile, loot });
+
+    if (drop) {
+      showCombatText(monster, loot.items?.length > 0 ? "Loot!" : `+${loot.gold}`, "resource");
+    }
+
+    return Boolean(drop);
+  }
+
+  grantLootToHero(hero, loot) {
+    if (loot.gold > 0) {
+      hero.heroGold = (hero.heroGold || 0) + loot.gold;
+      showResourceText(hero, loot.gold, "gold");
+    }
+
+    let didEquip = false;
+    let didSell = false;
+    let didStash = false;
+
+    for (const item of loot.items || []) {
+      if (applyHeroLootItem(hero, item)) {
+        didEquip = true;
+        showCombatText(hero, item.kind === "weapon" ? `+${item.attackBonus} atk` : `+${item.healthBonus} hp`, "heal");
+        continue;
+      }
+
+      if (this.hasMarket()) {
+        this.listMarketItem(item, hero);
+        didSell = true;
+      } else {
+        hero.backpack = hero.backpack || [];
+        hero.backpack.push(item);
+        didStash = true;
+      }
+    }
+
+    if (didEquip) {
+      say(hero, "New gear!", "gold", 1400);
+    } else if (didSell) {
+      say(hero, "To market!", "gold", 1300);
+    } else if (didStash) {
+      say(hero, "Packed loot!", "gold", 1300);
+    } else if (loot.gold > 0) {
+      say(hero, "Mine!", "gold", 1100);
+    }
+  }
+
+  handleDeliveredLootItems(unit, items) {
+    let marketCount = 0;
+
+    for (const item of items) {
+      if (this.hasMarket()) {
+        this.listMarketItem(item, unit);
+        marketCount += 1;
+      } else {
+        this.vaultItems = this.vaultItems || [];
+        this.vaultItems.push(item);
+      }
+    }
+
+    if (marketCount > 0) {
+      say(unit, "Market goods!", "gold", 1300);
+    }
+  }
+
+  updateHeroMarket(delta) {
+    this.heroMarketCheckMs = Math.max(0, (this.heroMarketCheckMs || 0) - delta);
+
+    if (this.heroMarketCheckMs > 0) {
+      return;
+    }
+
+    this.heroMarketCheckMs = HERO_MARKET_CHECK_MS;
+
+    if (!this.hasMarket() || this.marketItems.length === 0) {
+      return;
+    }
+
+    for (const hero of this.units) {
+      if (
+        !hero.isHero ||
+        hero.isAwayOnQuest ||
+        hero.defeated ||
+        hero.order === "recover" ||
+        hero.heroGold <= 0
+      ) {
+        continue;
+      }
+
+      const listingIndex = this.marketItems.findIndex(
+        (listing) => canHeroUseLootItem(hero, listing.item) && (hero.heroGold || 0) >= listing.price,
+      );
+
+      if (listingIndex < 0) {
+        continue;
+      }
+
+      const [listing] = this.marketItems.splice(listingIndex, 1);
+
+      hero.heroGold -= listing.price;
+      applyHeroLootItem(hero, listing.item);
+      const fee = getLootItemFee({ saleValue: listing.price });
+
+      this.onGoldDelivered(fee);
+      showResourceText(hero, fee, "gold");
+      say(hero, "Market upgrade!", "gold", 1400);
+      break;
+    }
+  }
+
+  listMarketItem(item, seller) {
+    const listing = {
+      id: `market-item-${this.nextMarketListingId}`,
+      item,
+      price: getLootItemPrice(item),
+      sellerId: seller?.id || "village",
+    };
+
+    this.nextMarketListingId += 1;
+    this.marketItems.push(listing);
+
+    const fee = getLootItemFee(item);
+
+    this.onGoldDelivered(fee);
+
+    if (seller) {
+      showResourceText(seller, fee, "gold");
+    }
+
+    return listing;
+  }
+
+  hasMarket() {
+    return this.world.tiles.some((tile) => tile.building === "market");
+  }
+
+  findLootDropTile(origin) {
+    const blockedKeys = this.getUnitTileKeys();
+    const candidates = [];
+
+    for (let radius = 0; radius <= 2; radius += 1) {
+      for (let row = origin.row - radius; row <= origin.row + radius; row += 1) {
+        for (let column = origin.column - radius; column <= origin.column + radius; column += 1) {
+          const tile = this.world.getTile(column, row);
+
+          if (
+            !tile ||
+            blockedKeys.has(tile.id) ||
+            tile.building ||
+            tile.construction ||
+            !isTilePassable(tile) ||
+            this.treasureManager.getTreasureAt(tile.column, tile.row)
+          ) {
+            continue;
+          }
+
+          candidates.push(tile);
+        }
+      }
+
+      if (candidates.length > 0) {
+        return candidates[Math.floor(Math.random() * candidates.length)];
+      }
+    }
+
+    return this.world.getTile(origin.column, origin.row) || this.campTile;
   }
 
   updateCorpses(delta) {
@@ -2532,6 +2796,7 @@ function tickUnitEffects(unit, delta) {
   unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
   unit.attackFlashMs = Math.max(0, (unit.attackFlashMs || 0) - delta);
   unit.hitFlashMs = Math.max(0, (unit.hitFlashMs || 0) - delta);
+  unit.staggerMs = Math.max(0, (unit.staggerMs || 0) - delta);
 
   if (unit.combatText) {
     unit.combatText.remainingMs -= delta;
@@ -2577,6 +2842,30 @@ function getAttackRange(unit) {
   return Math.max(1, unit.attackRange || 1);
 }
 
+function shouldApplyWarriorKnockback(unit, target) {
+  return (
+    unit.faction === "player" &&
+    unit.role === "Warrior" &&
+    unit.attackStyle !== "ranged" &&
+    target.faction === "monster" &&
+    target.health > 0 &&
+    !target.defeated &&
+    !target.decorative &&
+    !target.canFly
+  );
+}
+
+function getKnockbackOffset(unit, target) {
+  const visualColumnDelta = target.visualColumn - unit.visualColumn || target.column - unit.column;
+  const visualRowDelta = target.visualRow - unit.visualRow || target.row - unit.row;
+
+  if (Math.abs(visualColumnDelta) >= Math.abs(visualRowDelta)) {
+    return { column: Math.sign(visualColumnDelta), row: 0 };
+  }
+
+  return { column: 0, row: Math.sign(visualRowDelta) };
+}
+
 function createHeroUnit(hero, spawnTile, homeTile) {
   const template = getHeroClassTemplate(hero.classId);
 
@@ -2593,6 +2882,9 @@ function createHeroUnit(hero, spawnTile, homeTile) {
     heroLevel: 1,
     heroXp: 0,
     heroNextLevelXp: 3,
+    heroGold: 0,
+    equipment: {},
+    backpack: [],
     heroHomeTileId: homeTile.id,
     column: spawnTile.column,
     row: spawnTile.row,
@@ -2616,8 +2908,11 @@ function createHeroUnit(hero, spawnTile, homeTile) {
     targetUnitId: null,
     attackCooldownMs: 0,
     attackFlashMs: 0,
+    staggerMs: 0,
     attackStyle: template.attackStyle || "melee",
     attackRange: template.attackRange || 1,
+    baseAttackDamage: template.attackDamage || 1,
+    attackDamage: template.attackDamage || 1,
     maxHealth: template.health,
     health: template.health,
     recoverMs: 0,

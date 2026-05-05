@@ -64,6 +64,19 @@ export const BUILDINGS = [
     maintenance: { fish: 2, wood: 1 },
     tone: "guild",
   },
+  {
+    id: "market",
+    name: "Market",
+    effect: "Lets heroes trade unused monster loot and pays the village a broker fee.",
+    effectTokens: [
+      { text: "Heroes sell extra loot here. The village earns a " },
+      { text: "10%", tone: "gain" },
+      { text: " transaction fee." },
+    ],
+    cost: { wood: 16, rock: 10, gold: 3 },
+    maintenance: { fish: 1, wood: 1 },
+    tone: "market",
+  },
 ];
 
 export function getBuildingById(id) {

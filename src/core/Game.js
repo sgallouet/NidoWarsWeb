@@ -210,6 +210,7 @@ export class Game {
       if (!this.isIntroActive) {
         this.units.update(delta, dayNight);
       }
+      this.treasures.update(delta);
       this.updateConstructions(delta);
       this.updateQuests(delta);
     }
@@ -433,10 +434,10 @@ export class Game {
       return;
     }
 
-    const corpse = this.units.getCorpseAt(tile.column, tile.row);
+    const treasure = this.treasures.getTreasureAt(tile.column, tile.row);
 
-    if (corpse) {
-      this.units.commandHarvestCorpse(corpse);
+    if (treasure) {
+      this.units.commandGatherTreasure(treasure);
       return;
     }
 
@@ -455,10 +456,10 @@ export class Game {
       return;
     }
 
-    const treasure = this.treasures.getTreasureAt(tile.column, tile.row);
+    const corpse = this.units.getCorpseAt(tile.column, tile.row);
 
-    if (treasure) {
-      this.units.commandGatherTreasure(treasure);
+    if (corpse) {
+      this.units.commandHarvestCorpse(corpse);
       return;
     }
 
