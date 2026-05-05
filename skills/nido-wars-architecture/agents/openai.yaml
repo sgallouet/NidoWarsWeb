@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nido Wars Architecture"
+  short_description: "Work safely in the Nido Wars realtime web game"
+  default_prompt: "Use $nido-wars-architecture before adding a gameplay, rendering, UI, or performance feature to Nido Wars."

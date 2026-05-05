@@ -1,6 +1,6 @@
 # Nido Wars Web
 
-Nido Wars is starting as a browser-based realtime strategy prototype. This slice focuses on a polished, scalable world renderer and lightweight RTS simulation: a 60 x 60 isometric island with a player fire camp, patrolling units, biome monsters, fog, water, herbs, fish, berries, and treasure hauling.
+Nido Wars is starting as a browser-based realtime strategy prototype. This slice focuses on a polished, scalable world renderer and lightweight RTS simulation: a 72 x 72 isometric island with a player fire camp, patrolling units, biome monsters, fog, water, herbs, fish, berries, and treasure hauling.
 
 ## Run
 
@@ -8,7 +8,7 @@ Nido Wars is starting as a browser-based realtime strategy prototype. This slice
 npm run dev
 ```
 
-Then open `http://127.0.0.1:4173`.
+Then open `http://127.0.0.1:4174`.
 
 The project currently uses no runtime dependencies. It is plain browser JavaScript split into focused modules so the foundation can grow into a larger game without early framework lock-in.
 
@@ -23,7 +23,7 @@ The project currently uses no runtime dependencies. It is plain browser JavaScri
 
 ## Current Slice
 
-- 60 x 60 randomly seeded isometric island.
+- 72 x 72 randomly seeded isometric island.
 - Five regions: snow mountain, desert expanse, temperate wilds, volcanic scar, and paradise reach.
 - Sand, dunes, grass, forest, flowers, snow, ice, ash, obsidian, lava, rock shelves, scrub, salt flats, oasis tiles, and Grand Lake water.
 - Fire camp base with player warriors patrolling nearby.
@@ -47,4 +47,4 @@ The project currently uses no runtime dependencies. It is plain browser JavaScri
 
 ## AI Guidance
 
-Claude project guidance lives in `CLAUDE.md` and `.claude/skills/nido-wars-architecture/SKILL.md`.
+Codex project guidance lives in `AGENTS.md` and `skills/nido-wars-architecture/SKILL.md`.
