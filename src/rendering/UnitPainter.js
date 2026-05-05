@@ -1,5 +1,7 @@
 const WARRIOR_SPRITE_SRC = "./assets/warrior_idle_sheet.png";
 const WARRIOR_WALK_SPRITE_SRC = "./assets/warrior_walk_sheet.png";
+const SETTLER_SPRITE_SRC = "./assets/settler_idle_sheet.png";
+const SETTLER_WALK_SPRITE_SRC = "./assets/settler_walk_sheet.png";
 const WARRIOR_SPRITE_SOURCE_SIZE = 186;
 const WARRIOR_SPRITE_DRAW_SIZE = 66;
 const WARRIOR_SPRITE_FRAME_COUNT = 8;
@@ -8,6 +10,12 @@ const WARRIOR_WALK_FRAME_COUNT = 8;
 const WARRIOR_WALK_FRAME_MS = 110;
 const WARRIOR_SPRITE_FOOT_SOURCE_X = 85;
 const WARRIOR_SPRITE_FOOT_SOURCE_Y = 177;
+const SETTLER_SPRITE_SOURCE_SIZE = 186;
+const SETTLER_SPRITE_DRAW_SIZE = 66;
+const SETTLER_SPRITE_FRAME_COUNT = 8;
+const SETTLER_SPRITE_FRAME_MS = 140;
+const SETTLER_WALK_FRAME_COUNT = 8;
+const SETTLER_WALK_FRAME_MS = 125;
 
 export class UnitPainter {
   constructor({ tileWidth, tileHeight }) {
@@ -15,6 +23,8 @@ export class UnitPainter {
     this.tileHeight = tileHeight;
     this.warriorSpriteSheet = loadImage(WARRIOR_SPRITE_SRC);
     this.warriorWalkSpriteSheet = loadImage(WARRIOR_WALK_SPRITE_SRC);
+    this.settlerSpriteSheet = loadImage(SETTLER_SPRITE_SRC);
+    this.settlerWalkSpriteSheet = loadImage(SETTLER_WALK_SPRITE_SRC);
   }
 
   paint(ctx, { unit, x, y, elapsed, dayNight }) {
@@ -25,10 +35,11 @@ export class UnitPainter {
     const scale = unit.scale || 1;
     const nightAmount = dayNight?.nightAmount || 0;
     const usesWarriorSprite = this.usesWarriorSprite(unit);
+    const usesSettlerSprite = this.usesSettlerSprite(unit);
     const carryingHeavy = hasCarriedLoad(unit);
     const strain = carryingHeavy ? Math.sin(elapsed * 0.014) * 2.4 : 0;
     const struggleTilt = carryingHeavy ? -0.08 + Math.sin(elapsed * 0.011) * 0.035 : 0;
-    const bob = usesWarriorSprite ? 0 : Math.sin(elapsed * 0.006 + unit.column * 0.4) * (carryingHeavy ? 2.1 : 1.4);
+    const bob = usesWarriorSprite || usesSettlerSprite ? 0 : Math.sin(elapsed * 0.006 + unit.column * 0.4) * (carryingHeavy ? 2.1 : 1.4);
     const drawY = y + bob;
 
     this.paintGroundShadow(ctx, x, y, unit, scale);
@@ -41,7 +52,7 @@ export class UnitPainter {
     if (unit.attackStyle === "ranged" && unit.attackFlashMs > 0) {
       this.paintArrowShot(ctx, unit);
     }
-    if (unit.waveMs > 0 && !usesWarriorSprite) {
+    if (unit.waveMs > 0 && !usesWarriorSprite && !usesSettlerSprite) {
       this.paintGreetingWave(ctx, unit, elapsed);
     }
     if (unit.faction === "player" && nightAmount > 0.08) {
@@ -98,7 +109,7 @@ export class UnitPainter {
     } else if (body === "duneVanguard") {
       this.paintWarrior(ctx, x, y, unit, elapsed);
     } else if (body === "duneSettler") {
-      this.paintSettler(ctx, x, y, unit);
+      this.paintSettler(ctx, x, y, unit, elapsed);
     } else if (body === "glassStalker") {
       this.paintGlassStalker(ctx, x, y, unit, elapsed);
     } else if (body === "thornback") {
@@ -458,7 +469,11 @@ export class UnitPainter {
     ctx.restore();
   }
 
-  paintSettler(ctx, x, y, unit) {
+  paintSettler(ctx, x, y, unit, elapsed) {
+    if (this.paintSettlerSprite(ctx, x, y, unit, elapsed)) {
+      return;
+    }
+
     const { colors } = unit;
 
     ctx.save();
@@ -518,6 +533,48 @@ export class UnitPainter {
     ctx.fillStyle = "#182624";
     ctx.fillRect(x + 2, y - 35, 2, 2);
     ctx.restore();
+  }
+
+  paintSettlerSprite(ctx, x, y, unit, elapsed) {
+    if (!isImageReady(this.settlerSpriteSheet)) {
+      return false;
+    }
+
+    const isWalking = this.isSettlerWalking(unit);
+    const spriteSheet = isWalking && isImageReady(this.settlerWalkSpriteSheet)
+      ? this.settlerWalkSpriteSheet
+      : this.settlerSpriteSheet;
+    const frameCount = isWalking && spriteSheet === this.settlerWalkSpriteSheet
+      ? SETTLER_WALK_FRAME_COUNT
+      : SETTLER_SPRITE_FRAME_COUNT;
+    const frameMs = isWalking && spriteSheet === this.settlerWalkSpriteSheet
+      ? SETTLER_WALK_FRAME_MS
+      : SETTLER_SPRITE_FRAME_MS;
+    const frameIndex = Math.floor(elapsed / frameMs) % frameCount;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(
+      spriteSheet,
+      frameIndex * SETTLER_SPRITE_SOURCE_SIZE,
+      0,
+      SETTLER_SPRITE_SOURCE_SIZE,
+      SETTLER_SPRITE_SOURCE_SIZE,
+      x - SETTLER_SPRITE_DRAW_SIZE / 2,
+      y - SETTLER_SPRITE_DRAW_SIZE + 8,
+      SETTLER_SPRITE_DRAW_SIZE,
+      SETTLER_SPRITE_DRAW_SIZE,
+    );
+    ctx.restore();
+    return true;
+  }
+
+  usesSettlerSprite(unit) {
+    return (unit.body || unit.definition) === "duneSettler" && isImageReady(this.settlerSpriteSheet);
+  }
+
+  isSettlerWalking(unit) {
+    return Boolean(unit.movementSegment || unit.movementQueue?.length);
   }
 
   paintEmberMaw(ctx, x, y, unit) {

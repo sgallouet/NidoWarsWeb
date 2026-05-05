@@ -1,0 +1,72 @@
+{
+  "ok": true,
+  "input": "assets\\settler_idle_keyed.png",
+  "output": "assets\\settler_idle_sheet.png",
+  "size": [
+    1488,
+    186
+  ],
+  "frames": 8,
+  "cell": 186,
+  "key": null,
+  "warnings": [],
+  "cells": [
+    {
+      "frame": 0,
+      "opaque_pixels": 8320,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": null
+    },
+    {
+      "frame": 1,
+      "opaque_pixels": 8373,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 5510
+    },
+    {
+      "frame": 2,
+      "opaque_pixels": 8415,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 5588
+    },
+    {
+      "frame": 3,
+      "opaque_pixels": 8406,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 5894
+    },
+    {
+      "frame": 4,
+      "opaque_pixels": 8255,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 5448
+    },
+    {
+      "frame": 5,
+      "opaque_pixels": 8323,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 4983
+    },
+    {
+      "frame": 6,
+      "opaque_pixels": 8437,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 5263
+    },
+    {
+      "frame": 7,
+      "opaque_pixels": 8327,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 6563
+    }
+  ],
+  "preview": "artifacts\\settler_idle_preview.webp"
+}

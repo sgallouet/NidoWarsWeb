@@ -1,0 +1,4 @@
+interface:
+  display_name: "Isometric Unit Animation"
+  short_description: "Create consistent isometric unit sprites"
+  default_prompt: "Use $isometric-unit-animation to create an idle and walking sprite sheet for this game unit."

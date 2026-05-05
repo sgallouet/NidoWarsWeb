@@ -1,0 +1,72 @@
+{
+  "ok": true,
+  "input": "assets\\settler_walk_keyed.png",
+  "output": "assets\\settler_walk_sheet.png",
+  "size": [
+    1488,
+    186
+  ],
+  "frames": 8,
+  "cell": 186,
+  "key": null,
+  "warnings": [],
+  "cells": [
+    {
+      "frame": 0,
+      "opaque_pixels": 7928,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": null
+    },
+    {
+      "frame": 1,
+      "opaque_pixels": 7824,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 7407
+    },
+    {
+      "frame": 2,
+      "opaque_pixels": 7810,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 8773
+    },
+    {
+      "frame": 3,
+      "opaque_pixels": 7585,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 7150
+    },
+    {
+      "frame": 4,
+      "opaque_pixels": 7593,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 6407
+    },
+    {
+      "frame": 5,
+      "opaque_pixels": 7750,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 8468
+    },
+    {
+      "frame": 6,
+      "opaque_pixels": 7551,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 8531
+    },
+    {
+      "frame": 7,
+      "opaque_pixels": 7775,
+      "edge_pixels": 0,
+      "residue_pixels": 0,
+      "diff_from_previous": 8723
+    }
+  ],
+  "preview": "artifacts\\settler_walk_preview.webp"
+}
