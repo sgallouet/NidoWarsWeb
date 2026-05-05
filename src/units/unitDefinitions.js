@@ -3,6 +3,19 @@ import { isTilePassable } from "../world/tileTypes.js";
 const BASE_MAP_COLUMNS = 60;
 const BASE_MAP_ROWS = 60;
 const MONSTER_START_EXCLUSION_RADIUS = 36;
+const START_THREAT_COUNT = 10;
+const START_THREAT_MIN_RADIUS = 9;
+const START_THREAT_MAX_RADIUS = 19;
+const START_THREAT_DEFINITIONS = [
+  "skeletonEnemy",
+  "emberMaw",
+  "glassStalker",
+  "skeletonEnemy",
+  "thornback",
+  "groveStalker",
+  "emberMaw",
+  "skeletonEnemy",
+];
 
 export const UNIT_DEFINITIONS = {
   duneVanguard: {
@@ -118,6 +131,30 @@ export const UNIT_DEFINITIONS = {
       shadow: "#476a54",
     },
   },
+  skeletonEnemy: {
+    label: "Bone Clacker",
+    faction: "monster",
+    temperament: "scary",
+    role: "Undead",
+    speed: 1.42,
+    patrolRadius: 18,
+    patrolMode: "outerRoam",
+    roamMinCampDistance: 11,
+    health: 3,
+    attackDamage: 1,
+    body: "skeletonEnemy",
+    art: {
+      system: "unitV2",
+      key: "skeletonEnemy",
+    },
+    scale: 1,
+    colors: {
+      primary: "#d8d0b6",
+      secondary: "#8e8878",
+      accent: "#8c4f35",
+      shadow: "#2c251f",
+    },
+  },
   glassStalker: {
     label: "Glass Stalker",
     faction: "monster",
@@ -188,7 +225,12 @@ export const UNIT_DEFINITIONS = {
 };
 
 export function findCampTile(world) {
-  return findNearestOpenTile(world, Math.floor(world.columns / 2), Math.floor(world.rows / 2), new Set());
+  const campCenter = world.campCenter || {
+    column: Math.floor(world.columns / 2),
+    row: Math.floor(world.rows / 2),
+  };
+
+  return findNearestOpenTile(world, campCenter.column, campCenter.row, new Set());
 }
 
 export function createStartingUnits(world, campTile) {
@@ -242,6 +284,11 @@ export function createStartingUnits(world, campTile) {
     reserveBiome(world, "temperate", occupied, scaleColumn(world, 25), scaleRow(world, 31)),
     reserveBiome(world, "snow", occupied, scaleColumn(world, 16), scaleRow(world, 12)),
   ];
+  const skeletonSpawn = reserveOpenOutsideCamp(world, occupied, scaleColumn(world, 7), scaleRow(world, 36), {
+    minDistanceFrom: campTile,
+    minDistance: 18,
+  });
+  const startThreats = createStartThreatUnits(world, campTile, occupied);
 
   return [
     createUnit({
@@ -306,6 +353,13 @@ export function createStartingUnits(world, campTile) {
       ),
     }),
     createUnit({
+      id: "monster-skeleton-01",
+      definition: "skeletonEnemy",
+      name: "Bone Clacker",
+      tile: skeletonSpawn,
+    }),
+    ...startThreats,
+    createUnit({
       id: "critter-bloom-01",
       definition: "bloomWisp",
       name: "Bloom Wisp",
@@ -346,11 +400,43 @@ function scaleRow(world, row) {
   return Math.min(world.rows - 1, Math.round((row / BASE_MAP_ROWS) * world.rows));
 }
 
-function createUnit({ id, definition, name, tile }) {
+function createStartThreatUnits(world, campTile, occupied) {
+  const spawnTiles = reserveRandomOpenRing(
+    world,
+    occupied,
+    campTile,
+    START_THREAT_COUNT,
+    START_THREAT_MIN_RADIUS,
+    START_THREAT_MAX_RADIUS,
+  );
+  const definitionOffset = Math.floor(Math.random() * START_THREAT_DEFINITIONS.length);
+
+  return spawnTiles.map((tile, index) => {
+    const definition = START_THREAT_DEFINITIONS[(index + definitionOffset) % START_THREAT_DEFINITIONS.length];
+    const template = UNIT_DEFINITIONS[definition];
+
+    return createUnit({
+      id: `monster-start-${index + 1}`,
+      definition,
+      name: template.label,
+      tile,
+      overrides: {
+        patrolMode: "localRoam",
+        patrolRadius: 5 + Math.floor(Math.random() * 3),
+        roamMinCampDistance: START_THREAT_MIN_RADIUS - 1,
+        home: { column: tile.column, row: tile.row },
+      },
+    });
+  });
+}
+
+function createUnit({ id, definition, name, tile, overrides = {} }) {
   const template = UNIT_DEFINITIONS[definition];
+  const home = overrides.home || (template.faction === "monster" ? { column: tile.column, row: tile.row } : null);
 
   return {
     ...template,
+    ...overrides,
     id,
     definition,
     name,
@@ -381,7 +467,7 @@ function createUnit({ id, definition, name, tile }) {
     recoverMs: 0,
     hitFlashMs: 0,
     combatText: null,
-    home: null,
+    home,
   };
 }
 
@@ -412,6 +498,49 @@ function reserveBiome(world, biome, occupied, fallbackColumn, fallbackRow, optio
   const nearest = findNearestBiomeTile(world, biome, fallbackColumn, fallbackRow, occupied, options);
   occupied.add(nearest.id);
   return nearest;
+}
+
+function reserveOpenOutsideCamp(world, occupied, fallbackColumn, fallbackRow, options = {}) {
+  const nearest = findNearestOpenTile(world, fallbackColumn, fallbackRow, occupied, options);
+  occupied.add(nearest.id);
+  return nearest;
+}
+
+function reserveRandomOpenRing(world, occupied, center, count, minDistance, maxDistance) {
+  const candidates = [];
+
+  for (let row = center.row - maxDistance; row <= center.row + maxDistance; row += 1) {
+    for (let column = center.column - maxDistance; column <= center.column + maxDistance; column += 1) {
+      const tile = world.getTile(column, row);
+      const distance = tile ? distanceTo(tile, center) : 0;
+
+      if (
+        !tile ||
+        occupied.has(tile.id) ||
+        !isTilePassable(tile) ||
+        tile.building ||
+        tile.construction ||
+        distance < minDistance ||
+        distance > maxDistance
+      ) {
+        continue;
+      }
+
+      candidates.push(tile);
+    }
+  }
+
+  const reserved = [];
+
+  while (reserved.length < count && candidates.length > 0) {
+    const index = Math.floor(Math.random() * candidates.length);
+    const [tile] = candidates.splice(index, 1);
+
+    occupied.add(tile.id);
+    reserved.push(tile);
+  }
+
+  return reserved;
 }
 
 function findNearestBiomeTile(world, biome, originColumn, originRow, occupied, options = {}) {

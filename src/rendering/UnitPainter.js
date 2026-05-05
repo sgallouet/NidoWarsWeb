@@ -1,3 +1,5 @@
+import { UnitV2Painter } from "./UnitV2Painter.js";
+
 const WARRIOR_SPRITE_SRC = "./assets/warrior_idle_sheet.png";
 const WARRIOR_WALK_SPRITE_SRC = "./assets/warrior_walk_sheet.png";
 const SETTLER_SPRITE_SRC = "./assets/settler_idle_sheet.png";
@@ -21,6 +23,7 @@ export class UnitPainter {
   constructor({ tileWidth, tileHeight }) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
+    this.unitV2Painter = new UnitV2Painter();
     this.warriorSpriteSheet = loadImage(WARRIOR_SPRITE_SRC);
     this.warriorWalkSpriteSheet = loadImage(WARRIOR_WALK_SPRITE_SRC);
     this.settlerSpriteSheet = loadImage(SETTLER_SPRITE_SRC);
@@ -36,10 +39,14 @@ export class UnitPainter {
     const nightAmount = dayNight?.nightAmount || 0;
     const usesWarriorSprite = this.usesWarriorSprite(unit);
     const usesSettlerSprite = this.usesSettlerSprite(unit);
+    const usesUnitV2 = this.usesUnitV2(unit);
     const carryingHeavy = hasCarriedLoad(unit);
     const strain = carryingHeavy ? Math.sin(elapsed * 0.014) * 2.4 : 0;
     const struggleTilt = carryingHeavy ? -0.08 + Math.sin(elapsed * 0.011) * 0.035 : 0;
-    const bob = usesWarriorSprite || usesSettlerSprite ? 0 : Math.sin(elapsed * 0.006 + unit.column * 0.4) * (carryingHeavy ? 2.1 : 1.4);
+    const bob =
+      usesWarriorSprite || usesSettlerSprite || usesUnitV2
+        ? 0
+        : Math.sin(elapsed * 0.006 + unit.column * 0.4) * (carryingHeavy ? 2.1 : 1.4);
     const drawY = y + bob;
 
     this.paintGroundShadow(ctx, x, y, unit, scale);
@@ -52,7 +59,7 @@ export class UnitPainter {
     if (unit.attackStyle === "ranged" && unit.attackFlashMs > 0) {
       this.paintArrowShot(ctx, unit);
     }
-    if (unit.waveMs > 0 && !usesWarriorSprite && !usesSettlerSprite) {
+    if (unit.waveMs > 0 && !usesWarriorSprite && !usesSettlerSprite && !usesUnitV2) {
       this.paintGreetingWave(ctx, unit, elapsed);
     }
     if (unit.faction === "player" && nightAmount > 0.08) {
@@ -104,6 +111,10 @@ export class UnitPainter {
   paintUnitBody(ctx, unit, x, y, elapsed) {
     const body = unit.body || unit.definition;
 
+    if (this.unitV2Painter.paint(ctx, unit, x, y, elapsed)) {
+      return;
+    }
+
     if (body === "ranger") {
       this.paintRanger(ctx, x, y, unit, elapsed);
     } else if (body === "duneVanguard") {
@@ -126,6 +137,16 @@ export class UnitPainter {
   paintCorpse(ctx, { corpse, x, y, elapsed }) {
     const scale = corpse.scale || 1;
     const settle = Math.sin(elapsed * 0.001 + corpse.column) * 0.6;
+
+    if (this.usesUnitV2(corpse)) {
+      this.unitV2Painter.paintShadow(ctx, x, y, corpse, scale);
+      ctx.save();
+      ctx.translate(x + settle, y + 5);
+      ctx.scale(scale * 0.92, scale * 0.92);
+      this.unitV2Painter.paint(ctx, { ...corpse, unitV2ForcedAction: "death" }, 0, 0, elapsed);
+      ctx.restore();
+      return;
+    }
 
     ctx.save();
     ctx.fillStyle = "rgba(18, 12, 10, 0.34)";
@@ -154,6 +175,11 @@ export class UnitPainter {
   }
 
   paintGroundShadow(ctx, x, y, unit, scale) {
+    if (this.usesUnitV2(unit)) {
+      this.unitV2Painter.paintShadow(ctx, x, y, unit, scale);
+      return;
+    }
+
     if (this.usesWarriorSprite(unit)) {
       this.paintWarriorShadow(ctx, x, y, scale);
       return;
@@ -577,6 +603,10 @@ export class UnitPainter {
 
   usesSettlerSprite(unit) {
     return (unit.body || unit.definition) === "duneSettler" && isImageReady(this.settlerSpriteSheet);
+  }
+
+  usesUnitV2(unit) {
+    return this.unitV2Painter.usesUnitV2(unit);
   }
 
   isSettlerWalking(unit) {

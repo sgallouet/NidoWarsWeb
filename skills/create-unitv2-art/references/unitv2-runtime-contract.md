@@ -1,0 +1,54 @@
+# UnitV2 Runtime Contract
+
+## Manifest
+
+Each UnitV2 entry should be serializable and cheap to read from the render loop.
+
+Required fields:
+
+- `key`: stable id used by unit definitions
+- `label`: human-readable art label
+- `anchor`: `{ x, y }` foot anchor in local canvas coordinates
+- `bounds`: `{ width, height }` approximate runtime art footprint
+- `palette`: named colors used by the painter
+- `animations`: object keyed by action name
+
+Animation fields:
+
+- `frameMs`: positive frame duration
+- `frames`: array of frame descriptors, or `channels` for procedural motion
+- `loop`: boolean, default `true`
+
+Frame descriptors should be small: body offsets, rotations, squash, weapon pose, eye glow, and contact flags. Avoid storing large nested geometry per frame.
+
+## Runtime Mapping
+
+Use unit state to select action:
+
+- `death`: corpse rendering
+- `hit`: `hitFlashMs > 0`
+- `attack`: `attackFlashMs > 0` or `order === "attack"` while in range
+- `walk`: has `movementSegment` or queued movement
+- `recover`: player wounded/recovering
+- `carry`: carrying treasure, herbs, resources, or meat
+- `build`, `clean`, `gather`, `work`: active worker orders
+- `idle`: fallback
+
+Enemies can start with `idle`, `walk`, `attack`, `hit`, and `death`.
+
+## Painter Contract
+
+`UnitV2Painter` should:
+
+- draw a runtime canvas shadow from the anchor
+- mirror with `facingX` instead of duplicating frames
+- derive animation frame by `elapsed / frameMs`
+- avoid allocations in hot paths where simple locals work
+- draw from manifest state only; do not decide AI behavior
+
+## Data Ownership
+
+- Unit stats and spawn data: `src/units/unitDefinitions.js`
+- Unit behavior: `src/units/UnitManager.js`
+- UnitV2 art manifests: `src/units/unitV2Art.js`
+- UnitV2 rendering: `src/rendering/UnitV2Painter.js`

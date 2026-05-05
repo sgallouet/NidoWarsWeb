@@ -1,5 +1,7 @@
 import { findNearestPassableTile, findPath, getRandomPassableTileNear, toKey } from "./pathfinding.js";
 import { PathJobQueue } from "./PathJobQueue.js";
+import { UNIT_V2_ART } from "./unitV2Art.js";
+import { getMovementStepDistanceMultiplier as getStepDistanceMultiplier } from "./movementGeometry.js";
 import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
 import { HERB_WORK_MS } from "../world/HerbManager.js";
 import { getResourceDefinition } from "../world/ResourceNodeManager.js";
@@ -18,6 +20,8 @@ const COMBAT_TEXT_MS = 720;
 const RECOVERY_RADIUS = 2;
 const RECOVERY_TICK_MS = 1800;
 const RECOVERY_PAUSE_MS = 260;
+const MONSTER_OUTER_ROAM_CAMP_RADIUS = 10;
+const MONSTER_OUTER_ROAM_ATTEMPTS = 36;
 const SPRITE_WARRIOR_MOVE_MULTIPLIER = 1.55;
 const SPRITE_SETTLER_MOVE_MULTIPLIER = 1.55;
 const ATTACK_OFFSETS = [
@@ -67,7 +71,9 @@ export class UnitManager {
     this.pathJobs = new PathJobQueue({ world, budgetMs: 1.6 });
 
     for (const unit of this.units) {
-      unit.home = { column: campTile.column, row: campTile.row };
+      if (!unit.home) {
+        unit.home = { column: campTile.column, row: campTile.row };
+      }
     }
   }
 
@@ -814,6 +820,11 @@ export class UnitManager {
     unit.pendingPathJobId = null;
   }
 
+  stopAfterCurrentStep(unit) {
+    this.cancelQueuedPath(unit);
+    unit.movementQueue = [];
+  }
+
   applyUnitPath(unit, destination, path, { order, orderIcon, markerId = null, stage = null }) {
     if (path.length < 2 && (unit.column !== destination.column || unit.row !== destination.row)) {
       return false;
@@ -1432,9 +1443,7 @@ export class UnitManager {
       monster.orderIcon = "alert";
       monster.targetUnitId = targetUnit.id;
       monster.targetMonsterId = null;
-      this.cancelQueuedPath(monster);
-      monster.movementQueue = [];
-      monster.movementSegment = null;
+      this.stopAfterCurrentStep(monster);
       say(monster, "!", "alert", 900);
     }
   }
@@ -1487,9 +1496,7 @@ export class UnitManager {
     unit.targetUnitId = null;
     unit.markerId = null;
     unit.stage = null;
-    this.cancelQueuedPath(unit);
-    unit.movementQueue = [];
-    unit.movementSegment = null;
+    this.stopAfterCurrentStep(unit);
     say(unit, "!", "alert", 900);
   }
 
@@ -1536,7 +1543,12 @@ export class UnitManager {
     }
 
     unit.attackCooldownMs = ATTACK_INTERVAL_MS;
-    unit.attackFlashMs = unit.attackStyle === "ranged" ? 260 : 140;
+    unit.attackFlashMs =
+      unit.art?.system === "unitV2"
+        ? getUnitV2AnimationMs(unit, "attack", 360)
+        : unit.attackStyle === "ranged"
+          ? 260
+          : 140;
     unit.attackVector = {
       column: target.visualColumn - unit.visualColumn,
       row: target.visualRow - unit.visualRow,
@@ -1591,6 +1603,7 @@ export class UnitManager {
       id: `corpse-${unit.id}`,
       definition: unit.definition,
       body: unit.body,
+      art: unit.art,
       colors: unit.colors,
       faction: unit.faction,
       scale: unit.scale || 1,
@@ -1778,6 +1791,32 @@ export class UnitManager {
   }
 
   patrolMonster(unit) {
+    if (unit.patrolMode === "localRoam") {
+      const localDestination = this.getLocalRoamTile(unit);
+
+      if (localDestination) {
+        this.queueUnitPath(unit, localDestination, {
+          order: "monsterPatrol",
+          orderIcon: null,
+        });
+        unit.pauseMs = 550 + Math.random() * 1100;
+        return;
+      }
+    }
+
+    if (unit.patrolMode === "outerRoam") {
+      const roamingDestination = this.getOuterRoamTile(unit);
+
+      if (roamingDestination) {
+        this.queueUnitPath(unit, roamingDestination, {
+          order: "monsterPatrol",
+          orderIcon: null,
+        });
+        unit.pauseMs = 450 + Math.random() * 900;
+        return;
+      }
+    }
+
     const destination =
       (unit.canFly
         ? this.getRandomFlyTileNear(unit, unit.patrolRadius)
@@ -1799,6 +1838,58 @@ export class UnitManager {
       orderIcon: null,
     });
     unit.pauseMs = 700 + Math.random() * 1200;
+  }
+
+  getLocalRoamTile(unit) {
+    const blockedKeys = this.getBlockedKeys(unit.id);
+    const origin = unit.home || unit;
+    const minCampDistance = unit.roamMinCampDistance || 0;
+
+    for (let attempt = 0; attempt < MONSTER_OUTER_ROAM_ATTEMPTS; attempt += 1) {
+      const tile = getRandomPassableTileNear(this.world, origin, unit.patrolRadius, blockedKeys);
+
+      if (!tile || tileDistance(tile, this.campTile) < minCampDistance) {
+        continue;
+      }
+
+      return tile;
+    }
+
+    const fallback = getRandomPassableTileNear(
+      this.world,
+      unit,
+      Math.max(2, Math.floor(unit.patrolRadius / 2)),
+      blockedKeys,
+    );
+
+    return fallback && tileDistance(fallback, this.campTile) >= minCampDistance ? fallback : null;
+  }
+
+  getOuterRoamTile(unit) {
+    const blockedKeys = this.getBlockedKeys(unit.id);
+    const minDistance = unit.roamMinCampDistance || MONSTER_OUTER_ROAM_CAMP_RADIUS;
+
+    for (let attempt = 0; attempt < MONSTER_OUTER_ROAM_ATTEMPTS; attempt += 1) {
+      const tile = this.world.getTile(
+        Math.floor(Math.random() * this.world.columns),
+        Math.floor(Math.random() * this.world.rows),
+      );
+
+      if (
+        !tile ||
+        blockedKeys.has(tile.id) ||
+        !isTilePassable(tile) ||
+        tileDistance(tile, this.campTile) < minDistance
+      ) {
+        continue;
+      }
+
+      return tile;
+    }
+
+    const fallback = getRandomPassableTileNear(this.world, unit, unit.patrolRadius, blockedKeys);
+
+    return fallback && tileDistance(fallback, this.campTile) >= minDistance ? fallback : null;
   }
 
   setPatrol(unit) {
@@ -1992,8 +2083,14 @@ export class UnitManager {
     const carryMultiplier = hasCarriedLoad(unit) ? 2 : 1;
     const nightMultiplier = unit.faction === "player" ? 1 + this.nightAmount * 0.3 : 1;
     const terrainCost = unit.canFly ? 1 : getTileMovementCost(destinationTile);
+    const stepDistanceMultiplier = getUnitStepDistanceMultiplier(unit, nextTile);
     const duration =
-      (BASE_STEP_MS * terrainCost * carryMultiplier * nightMultiplier * getMovementDurationMultiplier(unit)) /
+      (BASE_STEP_MS *
+        terrainCost *
+        stepDistanceMultiplier *
+        carryMultiplier *
+        nightMultiplier *
+        getMovementDurationMultiplier(unit)) /
       unit.speed;
 
     unit.movementSegment = {
@@ -2729,10 +2826,20 @@ function getMovementDurationMultiplier(unit) {
   return 1;
 }
 
+function getUnitStepDistanceMultiplier(unit, destination) {
+  return getStepDistanceMultiplier(destination.column - unit.column, destination.row - unit.row);
+}
+
+function getUnitV2AnimationMs(unit, action, fallback) {
+  const animation = UNIT_V2_ART[unit.art?.key]?.animations?.[action];
+
+  return animation?.frames?.length && animation.frameMs ? animation.frames.length * animation.frameMs : fallback;
+}
+
 function usesContinuousSpriteMovement(unit) {
   const body = unit.body || unit.definition;
 
-  return body === "duneVanguard" || body === "duneSettler";
+  return body === "duneVanguard" || body === "duneSettler" || unit.art?.system === "unitV2";
 }
 
 function getMovementFacingX(segment) {

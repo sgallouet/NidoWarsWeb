@@ -1,4 +1,4 @@
-1/ units can move diagonal (make sure the speed is consistant whiever direction they go)
+1/ units can move diagonal (make sure the speed is consistant per pixel whichever direction they go)
 2/ by night the settler go sleep by the fire, unless they have a house and then they can sleep there. (if they sleep by the fire then next day they look tired and work 20% slower)
 3/ by night army of skeleton come to attack the village (each night +25% skeleton rounded to the bottom)
 4/ Guild house rule change: hero in the morning can go to that house and get simple quest (like kill 3 rabbits - reward is shared 30% by the player 70% by the unit) - the player decide which quest is activated
@@ -8,3 +8,4 @@
 8/ warrior unit have 8hp, skeleton have 3hp
 9/ warrior attack push back enemy a little bit in a way that a warrior can solo 1 skeleton without taking damage - it should not look akward
 10/ ranger attack have a miss chance based on distance (1 tile distnace 0 miss chance, 3 tile 50%)
+11/ make the player start zone in the desert zone

@@ -1,9 +1,26 @@
 import { TILE_TYPES } from "../world/tileTypes.js";
 
+const DESERT_TILE_SPRITE_SRC = "./assets/desert_tile_sprite.png";
+
 export class TilePainter {
   constructor({ tileWidth, tileHeight }) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
+    this.desertTileSprite = null;
+    this.desertTileSpriteLoad = Promise.resolve();
+
+    if (typeof Image !== "undefined") {
+      this.desertTileSprite = new Image();
+      this.desertTileSpriteLoad = new Promise((resolve) => {
+        this.desertTileSprite.addEventListener("load", resolve, { once: true });
+        this.desertTileSprite.addEventListener("error", resolve, { once: true });
+      });
+      this.desertTileSprite.src = DESERT_TILE_SPRITE_SRC;
+    }
+  }
+
+  loadAssets() {
+    return this.desertTileSpriteLoad;
   }
 
   paint(ctx, { tile, x, y, elapsed, isHovered }) {
@@ -67,6 +84,11 @@ export class TilePainter {
   }
 
   paintTop(ctx, corners, tile) {
+    if (this.isDesertSpriteTile(tile) && this.isDesertSpriteReady()) {
+      this.paintDesertSpriteTop(ctx, corners, tile);
+      return;
+    }
+
     const type = TILE_TYPES[tile.type];
     const gradient = ctx.createLinearGradient(corners.top.x, corners.top.y, corners.bottom.x, corners.bottom.y);
 
@@ -88,7 +110,11 @@ export class TilePainter {
     drawDiamond(ctx, corners);
     ctx.clip();
 
-    if (tile.type === "water" || tile.type === "lava") {
+    if (this.isDesertSpriteTile(tile) && this.isDesertSpriteReady()) {
+      if (tile.type === "dune") {
+        this.paintDuneLines(ctx, corners, tile);
+      }
+    } else if (tile.type === "water" || tile.type === "lava") {
       this.paintWaterRipples(ctx, corners, tile);
     } else if (tile.type === "snow" || tile.type === "ice") {
       this.paintSnowCrystals(ctx, corners, tile);
@@ -101,6 +127,47 @@ export class TilePainter {
     }
 
     ctx.restore();
+  }
+
+  paintDesertSpriteTop(ctx, corners, tile) {
+    const image = this.desertTileSprite;
+    const shouldFlip = seeded(tile.seed, 97) > 0.5;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+
+    if (shouldFlip) {
+      ctx.translate(corners.left.x + this.tileWidth, corners.top.y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(image, 0, 0, this.tileWidth, this.tileHeight);
+    } else {
+      ctx.drawImage(image, corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
+    }
+
+    drawDiamond(ctx, corners);
+    ctx.clip();
+
+    if (tile.lightness > 0) {
+      ctx.fillStyle = `rgba(255, 238, 188, ${Math.min(0.18, tile.lightness * 2.6)})`;
+      ctx.fillRect(corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
+    } else if (tile.lightness < 0) {
+      ctx.fillStyle = `rgba(61, 35, 18, ${Math.min(0.16, Math.abs(tile.lightness) * 2.3)})`;
+      ctx.fillRect(corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
+    }
+
+    ctx.strokeStyle = "rgba(68, 42, 21, 0.24)";
+    ctx.lineWidth = 1;
+    drawDiamond(ctx, corners);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  isDesertSpriteTile(tile) {
+    return tile.type === "sand" || tile.type === "dune";
+  }
+
+  isDesertSpriteReady() {
+    return Boolean(this.desertTileSprite?.complete && this.desertTileSprite.naturalWidth > 0);
   }
 
   paintDuneLines(ctx, corners, tile) {

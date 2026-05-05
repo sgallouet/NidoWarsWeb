@@ -1,10 +1,15 @@
 import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
+import { getMovementStepDistanceMultiplier } from "./movementGeometry.js";
 
 const DIRECTIONS = [
-  { column: 1, row: 0 },
-  { column: -1, row: 0 },
-  { column: 0, row: 1 },
-  { column: 0, row: -1 },
+  { column: 1, row: 0, distanceMultiplier: 1 },
+  { column: -1, row: 0, distanceMultiplier: 1 },
+  { column: 0, row: 1, distanceMultiplier: 1 },
+  { column: 0, row: -1, distanceMultiplier: 1 },
+  { column: 1, row: 1, distanceMultiplier: getMovementStepDistanceMultiplier(1, 1) },
+  { column: 1, row: -1, distanceMultiplier: getMovementStepDistanceMultiplier(1, -1) },
+  { column: -1, row: 1, distanceMultiplier: getMovementStepDistanceMultiplier(-1, 1) },
+  { column: -1, row: -1, distanceMultiplier: getMovementStepDistanceMultiplier(-1, -1) },
 ];
 
 export function findPath({ world, start, destination, blockedKeys = new Set() }) {
@@ -113,7 +118,11 @@ export function createPathSearch({
         continue;
       }
 
-      const nextDistance = currentNode.distance + getTileMovementCost(tile);
+      if (!canMoveBetween(current, direction, blockedKeys)) {
+        continue;
+      }
+
+      const nextDistance = currentNode.distance + getTileMovementCost(tile) * direction.distanceMultiplier;
 
       if (nextDistance > maxDistance) {
         continue;
@@ -133,6 +142,24 @@ export function createPathSearch({
       });
       frontier.push({ column: next.column, row: next.row, distance: nextDistance });
     }
+  }
+
+  function canMoveBetween(current, direction, blockedKeys) {
+    if (direction.column === 0 || direction.row === 0) {
+      return true;
+    }
+
+    const horizontal = world.getTile(current.column + direction.column, current.row);
+    const vertical = world.getTile(current.column, current.row + direction.row);
+
+    return (
+      horizontal &&
+      vertical &&
+      isTilePassable(horizontal) &&
+      isTilePassable(vertical) &&
+      !blockedKeys.has(toKey(horizontal.column, horizontal.row)) &&
+      !blockedKeys.has(toKey(vertical.column, vertical.row))
+    );
   }
 }
 

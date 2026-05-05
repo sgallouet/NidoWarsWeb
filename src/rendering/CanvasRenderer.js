@@ -386,6 +386,7 @@ export class CanvasRenderer {
   async prepareWorld(world, fogOfWar, onProgress = () => {}) {
     const terrainWeight = 0.78;
 
+    await this.tilePainter.loadAssets();
     await this.prepareTerrainCache(world, (progress) => onProgress(progress * terrainWeight));
     this.prepareStructureCache(world);
     await this.prepareFogCache(world, fogOfWar, (progress) =>

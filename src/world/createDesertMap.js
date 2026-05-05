@@ -7,13 +7,18 @@ const BIOME_CENTERS = [
   { id: "volcanic", label: "Volcanic Scar", column: 0.2, row: 0.82 },
   { id: "paradise", label: "Paradise Reach", column: 0.82, row: 0.78 },
 ];
+const START_BIOME_ID = "desert";
+const START_CLEARING_TYPES = {
+  desert: "sand",
+  paradise: "grass",
+  snow: "snow",
+  temperate: "grass",
+  volcanic: "ash",
+};
 
 export function createDesertMap({ columns, rows, seed = Date.now() }) {
   const tiles = [];
-  const campCenter = {
-    column: Math.floor(columns / 2),
-    row: Math.floor(rows / 2),
-  };
+  const campCenter = getBiomeTileCenter(START_BIOME_ID, columns, rows);
   const lakeCenter = {
     column: Math.floor(columns * 0.36 + hash(seed, 12, 4) * 5),
     row: Math.floor(rows * 0.68 + hash(seed, 7, 17) * 4),
@@ -44,7 +49,7 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
       const isStartingPlain = campDistance <= 4.2;
 
       if (isStartingPlain) {
-        type = "grass";
+        type = getStartingClearingType();
       }
 
       tiles.push({
@@ -75,6 +80,7 @@ export function createDesertMap({ columns, rows, seed = Date.now() }) {
     version: 0,
     terrainVersion: 0,
     structureVersion: 0,
+    campCenter,
     dirtyTerrainTileIds: new Set(),
     dirtyStructureTileIds: new Set(),
     tiles,
@@ -359,7 +365,7 @@ function getBridgeType(biome) {
 
 function chooseBiome({ column, row, columns, rows, seed, campCenter }) {
   if (distanceTo(column, row, campCenter.column, campCenter.row) <= 7.5) {
-    return BIOME_CENTERS.find((biome) => biome.id === "temperate");
+    return getBiomeCenter(START_BIOME_ID);
   }
 
   const normalizedColumn = column / Math.max(1, columns - 1);
@@ -380,6 +386,23 @@ function chooseBiome({ column, row, columns, rows, seed, campCenter }) {
   }
 
   return bestBiome;
+}
+
+function getBiomeTileCenter(biomeId, columns, rows) {
+  const biome = getBiomeCenter(biomeId);
+
+  return {
+    column: Math.round(biome.column * Math.max(0, columns - 1)),
+    row: Math.round(biome.row * Math.max(0, rows - 1)),
+  };
+}
+
+function getBiomeCenter(biomeId) {
+  return BIOME_CENTERS.find((biome) => biome.id === biomeId) || BIOME_CENTERS[0];
+}
+
+function getStartingClearingType() {
+  return START_CLEARING_TYPES[START_BIOME_ID] || "grass";
 }
 
 function chooseType({ biome, duneBand, ridge, dryness, mineral, roughness, lakeDistance, forceOpenCamp }) {
