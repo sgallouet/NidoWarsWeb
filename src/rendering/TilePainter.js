@@ -4,7 +4,8 @@ import { DESERT_TILE_ART } from "../content/tiles/desert/art.js";
 import { CAMPGROUND_TILE_ART } from "../content/tiles/campground/art.js";
 
 const DESERT_TILE_SPRITE_SRC = DESERT_TILE_ART.sprite;
-const CAMPGROUND_GROUND_SRC = CAMPGROUND_TILE_ART.ground;
+const CAMPGROUND_GROUND = CAMPGROUND_TILE_ART.ground;
+const CAMPGROUND_GROUND_SRC = CAMPGROUND_GROUND.src;
 const CAMPGROUND_DECORATIONS_SRC = CAMPGROUND_TILE_ART.decorations;
 const CAMPGROUND_DECORATION_WIDTH = 28;
 const CAMPGROUND_DECORATION_HEIGHT = 22;
@@ -37,7 +38,9 @@ export class TilePainter {
   paintTerrain(ctx, { tile, x, y, elapsed }) {
     const corners = this.getCorners(x, y);
 
-    this.paintShadow(ctx, corners, tile);
+    if (!this.isCampgroundTile(tile)) {
+      this.paintShadow(ctx, corners, tile);
+    }
     this.paintTop(ctx, corners, tile);
     this.paintTexture(ctx, corners, tile);
     this.paintFeature(ctx, corners, tile, elapsed);
@@ -113,6 +116,10 @@ export class TilePainter {
   }
 
   paintTexture(ctx, corners, tile) {
+    if (this.isCampgroundTile(tile) && this.isCampgroundSpriteReady()) {
+      return;
+    }
+
     ctx.save();
     drawDiamond(ctx, corners);
     ctx.clip();
@@ -138,30 +145,29 @@ export class TilePainter {
 
   paintCampgroundTop(ctx, corners, tile) {
     const image = this.campgroundSprite;
-    const shouldFlip = seeded(tile.seed, 11) > 0.5;
+    const frameIndex = Math.floor(seeded(tile.seed, 17) * CAMPGROUND_GROUND.frameCount);
+    const overlap = 1.5;
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-
-    if (shouldFlip) {
-      ctx.translate(corners.left.x + this.tileWidth, corners.top.y);
-      ctx.scale(-1, 1);
-      ctx.drawImage(image, 0, 0, this.tileWidth, this.tileHeight);
-    } else {
-      ctx.drawImage(image, corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
-    }
-
-    drawDiamond(ctx, corners);
+    drawDiamond(ctx, {
+      top: { x: corners.top.x, y: corners.top.y - overlap },
+      right: { x: corners.right.x + overlap, y: corners.right.y },
+      bottom: { x: corners.bottom.x, y: corners.bottom.y + overlap },
+      left: { x: corners.left.x - overlap, y: corners.left.y },
+    });
     ctx.clip();
-
-    if (tile.lightness > 0) {
-      ctx.fillStyle = `rgba(174, 116, 61, ${Math.min(0.12, tile.lightness * 1.9)})`;
-      ctx.fillRect(corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
-    } else if (tile.lightness < 0) {
-      ctx.fillStyle = `rgba(24, 16, 10, ${Math.min(0.12, Math.abs(tile.lightness) * 2.1)})`;
-      ctx.fillRect(corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
-    }
-
+    ctx.drawImage(
+      image,
+      frameIndex * CAMPGROUND_GROUND.frameWidth,
+      0,
+      CAMPGROUND_GROUND.frameWidth,
+      CAMPGROUND_GROUND.frameHeight,
+      corners.left.x - overlap,
+      corners.top.y - overlap,
+      this.tileWidth + overlap * 2,
+      this.tileHeight + overlap * 2,
+    );
     ctx.restore();
   }
 

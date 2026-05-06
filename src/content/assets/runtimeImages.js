@@ -11,7 +11,8 @@ export const RUNTIME_IMAGE_ASSETS = [
   ...Object.values(PLAYER_UNIT_ART).flatMap((art) => [art.idleSheet, art.walkSheet]),
   ...Object.values(UNIT_V2_ART).map((art) => art.atlas?.src),
   DESERT_TILE_ART.sprite,
-  CAMPGROUND_TILE_ART.ground,
+  CAMPGROUND_TILE_ART.ground.src,
   CAMPGROUND_TILE_ART.decorations,
   FIRECAMP_ART.fireplace,
+  FIRECAMP_ART.fireplaceSheet.src,
 ].filter(Boolean);

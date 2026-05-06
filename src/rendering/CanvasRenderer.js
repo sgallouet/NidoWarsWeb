@@ -8,6 +8,7 @@ import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { gridToWorld, worldToGrid } from "./isoMath.js";
 
 const FIRECAMP_SPRITE_SRC = FIRECAMP_ART.fireplace;
+const FIRECAMP_SHEET = FIRECAMP_ART.fireplaceSheet;
 
 export class CanvasRenderer {
   constructor({ canvas, camera, config }) {
@@ -22,6 +23,7 @@ export class CanvasRenderer {
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
     this.firecampSprite = null;
+    this.firecampSheet = null;
     this.terrainCache = null;
     this.structureCache = null;
     this.fogCache = null;
@@ -30,6 +32,7 @@ export class CanvasRenderer {
   setImageCache(imageCache) {
     this.imageCache = imageCache;
     this.firecampSprite = getLoadedImage(imageCache, FIRECAMP_SPRITE_SRC);
+    this.firecampSheet = getLoadedImage(imageCache, FIRECAMP_SHEET.src);
     this.tilePainter.setImageCache(imageCache);
     this.herbPainter.setImageCache(imageCache);
     this.resourceNodePainter.setImageCache(imageCache);
@@ -667,12 +670,38 @@ export class CanvasRenderer {
 
     const point = this.getTileCenter(campTile);
 
+    if (this.firecampSheet) {
+      this.paintFirecampSheet(ctx, point, elapsed);
+      return;
+    }
+
     if (this.firecampSprite) {
       this.paintFirecampSprite(ctx, point);
       return;
     }
 
     this.paintProceduralCamp(ctx, point, elapsed);
+  }
+
+  paintFirecampSheet(ctx, point, elapsed) {
+    const width = this.config.tileWidth * 3;
+    const height = this.config.tileHeight * 3;
+    const frameIndex = Math.floor(elapsed / FIRECAMP_SHEET.frameDurationMs) % FIRECAMP_SHEET.frameCount;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      this.firecampSheet,
+      frameIndex * FIRECAMP_SHEET.frameWidth,
+      0,
+      FIRECAMP_SHEET.frameWidth,
+      FIRECAMP_SHEET.frameHeight,
+      point.x - width / 2,
+      point.y - height / 2,
+      width,
+      height,
+    );
+    ctx.restore();
   }
 
   paintFirecampSprite(ctx, point) {
