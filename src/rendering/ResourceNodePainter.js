@@ -1,15 +1,20 @@
 import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { RESOURCE_ICONS, RESOURCE_NODE_ART } from "../content/resources/definitions.js";
 
+const TREE_VARIANT_COUNT = 24;
+const TREE_MAX_SIZE = 112;
+
 export class ResourceNodePainter {
   constructor() {
     this.treeImage = null;
     this.rockImage = null;
+    this.treeVariants = new Map();
   }
 
   setImageCache(imageCache) {
     this.treeImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.wood) || getLoadedImage(imageCache, RESOURCE_ICONS.wood);
     this.rockImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.rock) || getLoadedImage(imageCache, RESOURCE_ICONS.rock);
+    this.treeVariants.clear();
   }
 
   paint(ctx, { node, x, y, elapsed, activeWorkerCount = 0 }) {
@@ -120,16 +125,12 @@ export class ResourceNodePainter {
 
   paintTreeSprite(ctx, x, y, node, elapsed, activeWorkerCount) {
     const seed = getNodeSeed(node);
-    const variant = seeded(seed, 13);
-    const size = 98 + variant * 12;
+    const variant = this.getTreeVariant(seed);
+    const size = variant.size;
     const anchorY = y + 19;
     const isBeingCut = activeWorkerCount > 0;
     const cutPulse = isBeingCut ? Math.max(0, Math.sin(elapsed * 0.028 + seed * 0.01)) : 0;
-    const wind = Math.sin(elapsed * 0.0018 + seed) * 0.008;
     const impactTilt = cutPulse * 0.035 * (seeded(seed, 29) > 0.5 ? 1 : -1);
-    const tintHue = (seeded(seed, 47) - 0.5) * 18;
-    const saturation = 0.92 + seeded(seed, 59) * 0.22;
-    const brightness = 0.88 + seeded(seed, 71) * 0.2;
 
     ctx.save();
     ctx.fillStyle = "rgba(25, 18, 13, 0.26)";
@@ -137,17 +138,55 @@ export class ResourceNodePainter {
     ctx.ellipse(x, y + 13, 25, 8, -0.03, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.translate(x, anchorY);
-    ctx.rotate(wind + impactTilt);
-    ctx.imageSmoothingEnabled = true;
-    ctx.filter = `hue-rotate(${tintHue}deg) saturate(${saturation}) brightness(${brightness})`;
-    ctx.drawImage(this.treeImage, -size / 2, -size, size, size);
-    ctx.filter = "none";
+    if (isBeingCut) {
+      ctx.translate(x, anchorY);
+      ctx.rotate(impactTilt);
+      ctx.drawImage(variant.canvas, -size / 2, -size, size, size);
+    } else {
+      ctx.drawImage(variant.canvas, x - size / 2, anchorY - size, size, size);
+    }
+
     ctx.restore();
 
     if (isBeingCut) {
       this.paintChopFeedback(ctx, x, y, node, elapsed, activeWorkerCount, cutPulse);
     }
+  }
+
+  getTreeVariant(seed) {
+    const variantKey = Math.floor(seeded(seed, 13) * TREE_VARIANT_COUNT);
+    const cached = this.treeVariants.get(variantKey);
+
+    if (cached) {
+      return cached;
+    }
+
+    const canvas = document.createElement("canvas");
+    const size = 98 + (variantKey / Math.max(1, TREE_VARIANT_COUNT - 1)) * 12;
+    const tintHue = (seeded(variantKey, 47) - 0.5) * 18;
+    const saturation = 0.92 + seeded(variantKey, 59) * 0.22;
+    const brightness = 0.88 + seeded(variantKey, 71) * 0.2;
+
+    canvas.width = TREE_MAX_SIZE;
+    canvas.height = TREE_MAX_SIZE;
+
+    const variantCtx = canvas.getContext("2d");
+
+    variantCtx.imageSmoothingEnabled = true;
+    variantCtx.filter = `hue-rotate(${tintHue}deg) saturate(${saturation}) brightness(${brightness})`;
+    variantCtx.drawImage(
+      this.treeImage,
+      (TREE_MAX_SIZE - size) / 2,
+      TREE_MAX_SIZE - size,
+      size,
+      size,
+    );
+    variantCtx.filter = "none";
+
+    const variant = { canvas, size: TREE_MAX_SIZE };
+
+    this.treeVariants.set(variantKey, variant);
+    return variant;
   }
 
   paintChopFeedback(ctx, x, y, node, elapsed, activeWorkerCount, cutPulse) {

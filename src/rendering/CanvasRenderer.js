@@ -80,19 +80,20 @@ export class CanvasRenderer {
     ctx.translate(-this.camera.x, -this.camera.y);
 
     const visibleTiles = this.getVisibleTiles(world);
+    const dynamicRect = this.getVisibleWorldRect(this.config.tileWidth * 2.5);
 
     this.paintWorld(ctx, world);
     this.paintStructures(ctx, world);
     this.paintConstructions(ctx, visibleTiles, elapsed);
-    this.paintResourceNodes(ctx, world, resourceNodes, units, elapsed);
-    this.paintHerbs(ctx, world, herbs);
-    this.paintTreasures(ctx, world, treasures, elapsed);
+    this.paintResourceNodes(ctx, world, resourceNodes, units, elapsed, dynamicRect);
+    this.paintHerbs(ctx, world, herbs, dynamicRect);
+    this.paintTreasures(ctx, world, treasures, elapsed, dynamicRect);
     this.paintCamp(ctx, campTile, elapsed);
     this.paintFog(ctx, world, fogOfWar, visibleTiles);
     this.paintHover(ctx, hoveredTile);
     this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
-    this.paintCorpses(ctx, world, corpses, elapsed);
-    this.paintUnits(ctx, world, units, elapsed, dayNight, intro);
+    this.paintCorpses(ctx, world, corpses, elapsed, dynamicRect);
+    this.paintUnits(ctx, world, units, elapsed, dayNight, intro, dynamicRect);
     this.paintNightLayer(ctx, world, dayNight);
     this.paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed);
 
@@ -899,7 +900,7 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintUnits(ctx, world, units, elapsed, dayNight, intro) {
+  paintUnits(ctx, world, units, elapsed, dayNight, intro, visibleRect) {
     const introScale = getIntroUnitScale(intro);
 
     if (introScale <= 0) {
@@ -917,6 +918,11 @@ export class CanvasRenderer {
         this.config.tileWidth,
         this.config.tileHeight,
       );
+
+      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+        continue;
+      }
+
       const paintUnit =
         introScale === 1
           ? unit
@@ -935,7 +941,7 @@ export class CanvasRenderer {
     }
   }
 
-  paintCorpses(ctx, world, corpses = [], elapsed) {
+  paintCorpses(ctx, world, corpses = [], elapsed, visibleRect) {
     const sortedCorpses = [...corpses].sort(
       (a, b) => a.visualColumn + a.visualRow - (b.visualColumn + b.visualRow),
     );
@@ -952,6 +958,10 @@ export class CanvasRenderer {
         this.config.tileHeight,
       );
 
+      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+        continue;
+      }
+
       this.unitPainter.paintCorpse(ctx, {
         corpse,
         x: point.x,
@@ -961,7 +971,7 @@ export class CanvasRenderer {
     }
   }
 
-  paintTreasures(ctx, world, treasures, elapsed) {
+  paintTreasures(ctx, world, treasures, elapsed, visibleRect) {
     for (const treasure of treasures) {
       if (treasure.status === "carried") {
         continue;
@@ -969,6 +979,10 @@ export class CanvasRenderer {
 
       const tile = world.getTile(treasure.column, treasure.row);
       const point = this.getTileCenter(tile);
+
+      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+        continue;
+      }
 
       this.treasurePainter.paint(ctx, {
         treasure,
@@ -979,10 +993,14 @@ export class CanvasRenderer {
     }
   }
 
-  paintHerbs(ctx, world, herbs) {
+  paintHerbs(ctx, world, herbs, visibleRect) {
     for (const herb of herbs) {
       const tile = world.getTile(herb.column, herb.row);
       const point = this.getTileCenter(tile);
+
+      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+        continue;
+      }
 
       this.herbPainter.paint(ctx, {
         x: point.x,
@@ -992,7 +1010,7 @@ export class CanvasRenderer {
     }
   }
 
-  paintResourceNodes(ctx, world, resourceNodes, units, elapsed) {
+  paintResourceNodes(ctx, world, resourceNodes, units, elapsed, visibleRect) {
     if (!resourceNodes) {
       return;
     }
@@ -1002,6 +1020,11 @@ export class CanvasRenderer {
     for (const node of resourceNodes) {
       const tile = world.getTile(node.column, node.row);
       const point = this.getTileCenter(tile);
+      const padding = node.type === "wood" ? this.config.tileWidth * 1.8 : this.config.tileWidth;
+
+      if (!isPointInRect(point.x, point.y, visibleRect, padding)) {
+        continue;
+      }
 
       this.resourceNodePainter.paint(ctx, {
         node,
@@ -1187,14 +1210,32 @@ export class CanvasRenderer {
       worldToGrid(rect.x, rect.y + rect.height, this.config.tileWidth, this.config.tileHeight),
       worldToGrid(rect.x + rect.width, rect.y + rect.height, this.config.tileWidth, this.config.tileHeight),
     ];
-    const minColumn = clampInt(Math.floor(Math.min(...corners.map((corner) => corner.column))) - 4, 0, world.columns - 1);
-    const maxColumn = clampInt(Math.ceil(Math.max(...corners.map((corner) => corner.column))) + 4, 0, world.columns - 1);
-    const minRow = clampInt(Math.floor(Math.min(...corners.map((corner) => corner.row))) - 4, 0, world.rows - 1);
-    const maxRow = clampInt(Math.ceil(Math.max(...corners.map((corner) => corner.row))) + 4, 0, world.rows - 1);
+    let minCornerColumn = Number.POSITIVE_INFINITY;
+    let maxCornerColumn = Number.NEGATIVE_INFINITY;
+    let minCornerRow = Number.POSITIVE_INFINITY;
+    let maxCornerRow = Number.NEGATIVE_INFINITY;
+
+    for (const corner of corners) {
+      minCornerColumn = Math.min(minCornerColumn, corner.column);
+      maxCornerColumn = Math.max(maxCornerColumn, corner.column);
+      minCornerRow = Math.min(minCornerRow, corner.row);
+      maxCornerRow = Math.max(maxCornerRow, corner.row);
+    }
+
+    const minColumn = clampInt(Math.floor(minCornerColumn) - 4, 0, world.columns - 1);
+    const maxColumn = clampInt(Math.ceil(maxCornerColumn) + 4, 0, world.columns - 1);
+    const minRow = clampInt(Math.floor(minCornerRow) - 4, 0, world.rows - 1);
+    const maxRow = clampInt(Math.ceil(maxCornerRow) + 4, 0, world.rows - 1);
     const tiles = [];
 
-    for (let row = minRow; row <= maxRow; row += 1) {
-      for (let column = minColumn; column <= maxColumn; column += 1) {
+    for (let diagonal = minColumn + minRow; diagonal <= maxColumn + maxRow; diagonal += 1) {
+      for (let row = minRow; row <= maxRow; row += 1) {
+        const column = diagonal - row;
+
+        if (column < minColumn || column > maxColumn) {
+          continue;
+        }
+
         const tile = world.getTile(column, row);
 
         if (tile) {
@@ -1203,7 +1244,7 @@ export class CanvasRenderer {
       }
     }
 
-    return tiles.sort((a, b) => a.column + a.row - (b.column + b.row));
+    return tiles;
   }
 
   getTileCorners(tile, inflate = 0) {
@@ -1377,6 +1418,15 @@ function drawDiamond(ctx, corners) {
   ctx.lineTo(corners.bottom.x, corners.bottom.y);
   ctx.lineTo(corners.left.x, corners.left.y);
   ctx.closePath();
+}
+
+function isPointInRect(x, y, rect, padding = 0) {
+  return (
+    x >= rect.x - padding &&
+    x <= rect.x + rect.width + padding &&
+    y >= rect.y - padding &&
+    y <= rect.y + rect.height + padding
+  );
 }
 
 function getWorldBounds(world, config) {
