@@ -27,6 +27,7 @@ export function createAppShell(target = document.body) {
     <main class="game-shell" data-app-root>
       <canvas id="game-canvas" aria-label="Nido Wars realtime desert island map"></canvas>
       ${renderCycleHud()}
+      ${renderHeroDock()}
       ${renderResourceHud()}
       ${renderPerformanceMonitor()}
       ${renderChromeButtons()}
@@ -49,6 +50,12 @@ function renderCycleHud() {
         </span>
       </div>
     </section>
+  `;
+}
+
+function renderHeroDock() {
+  return `
+    <nav class="hero-dock" data-ui="hero-dock" aria-label="Hired heroes"></nav>
   `;
 }
 
@@ -171,9 +178,17 @@ function renderHeroProfile() {
           <h2 id="hero-profile-name" data-ui="hero-profile-name"></h2>
           <dl>
             <div><dt>Level</dt><dd data-ui="hero-profile-level"></dd></div>
+            <div><dt>Health</dt><dd data-ui="hero-profile-health"></dd></div>
+            <div><dt>XP</dt><dd data-ui="hero-profile-xp"></dd></div>
             <div><dt>Power</dt><dd data-ui="hero-profile-power"></dd></div>
+            <div><dt>Gold</dt><dd data-ui="hero-profile-gold"></dd></div>
+            <div><dt>State</dt><dd data-ui="hero-profile-state"></dd></div>
             <div><dt>Hobby</dt><dd data-ui="hero-profile-hobby"></dd></div>
           </dl>
+          <div class="hero-profile-inventory">
+            <h3>Inventory</h3>
+            <ul data-ui="hero-profile-inventory"></ul>
+          </div>
         </div>
       </article>
     </section>

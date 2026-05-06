@@ -48,6 +48,7 @@ const HERO_CLASSES = [
     pitch: "Smashes monsters up close and soaks brutal hits.",
     tone: "watch",
     portrait: HERO_PORTRAITS.barbarian,
+    head: HERO_PORTRAITS.barbarianHead,
   },
   {
     classId: "priest",
@@ -58,6 +59,7 @@ const HERO_CLASSES = [
     pitch: "Keeps distance and burns threats with sacred light.",
     tone: "hero",
     portrait: HERO_PORTRAITS.priest,
+    head: HERO_PORTRAITS.priestHead,
   },
 ];
 

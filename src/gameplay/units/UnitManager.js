@@ -3146,6 +3146,7 @@ function createHeroUnit(hero, spawnTile, homeTile) {
     heroClass: hero.className,
     heroHobby: hero.hobby,
     heroPortrait: hero.portrait || null,
+    heroHead: hero.head || null,
     heroLevel: 1,
     heroXp: 0,
     heroNextLevelXp: 3,

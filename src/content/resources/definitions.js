@@ -40,6 +40,11 @@ export const RESOURCE_DEFINITIONS = {
     maxWorkers: 4,
     workMs: 15000,
     tileTypes: new Set(["forest", "campground"]),
+    startAreaSpawn: {
+      minDistance: 4.5,
+      maxDistance: 17,
+      portion: 0.45,
+    },
   },
   rock: {
     label: "Rock Deposit",

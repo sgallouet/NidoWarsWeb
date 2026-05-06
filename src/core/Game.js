@@ -41,7 +41,8 @@ export class Game {
     this.campTile = findCampTile(this.world);
     this.campTile.blocksMovement = true;
     const startingUnits = createStartingUnits(this.world, this.campTile);
-    const reservedSpawnKeys = this.getStartingReservedKeys(startingUnits);
+    const startingReservedKeys = this.getStartingReservedKeys(startingUnits);
+    const reservedSpawnKeys = new Set(startingReservedKeys);
     this.treasures = new TreasureManager({
       world: this.world,
       count: 36,
@@ -57,10 +58,11 @@ export class Game {
       counts: {
         fish: 54,
         berries: 72,
-        wood: 60,
+        wood: 260,
         rock: 60,
       },
       reservedKeys: reservedSpawnKeys,
+      startAreaReservedKeys: startingReservedKeys,
     });
     this.units = new UnitManager({
       world: this.world,
@@ -91,6 +93,7 @@ export class Game {
     this.helpButton = root.querySelector('[data-ui="help-toggle"]');
     this.helpPanel = root.querySelector('[data-ui="help-panel"]');
     this.helpCloseButton = root.querySelector('[data-ui="help-close"]');
+    this.heroDock = root.querySelector('[data-ui="hero-dock"]');
     this.buildMenu = root.querySelector('[data-ui="build-menu"]');
     this.buildGrid = root.querySelector('[data-ui="build-grid"]');
     this.buildCloseButton = root.querySelector('[data-ui="build-close"]');
@@ -103,8 +106,13 @@ export class Game {
     this.heroProfileName = root.querySelector('[data-ui="hero-profile-name"]');
     this.heroProfileClass = root.querySelector('[data-ui="hero-profile-class"]');
     this.heroProfileLevel = root.querySelector('[data-ui="hero-profile-level"]');
+    this.heroProfileHealth = root.querySelector('[data-ui="hero-profile-health"]');
+    this.heroProfileXp = root.querySelector('[data-ui="hero-profile-xp"]');
     this.heroProfilePower = root.querySelector('[data-ui="hero-profile-power"]');
+    this.heroProfileGold = root.querySelector('[data-ui="hero-profile-gold"]');
+    this.heroProfileState = root.querySelector('[data-ui="hero-profile-state"]');
     this.heroProfileHobby = root.querySelector('[data-ui="hero-profile-hobby"]');
+    this.heroProfileInventory = root.querySelector('[data-ui="hero-profile-inventory"]');
     this.loadingPanel = root.querySelector('[data-ui="loading-panel"]');
     this.loadingFill = root.querySelector('[data-ui="loading-fill"]');
     this.loadingValue = root.querySelector('[data-ui="loading-value"]');
@@ -134,6 +142,7 @@ export class Game {
     this.nextQuestRunId = 1;
     this.pausedElapsed = 0;
     this.hudRefreshMs = 0;
+    this.heroDockStateKey = "";
     this.lastHudTileId = null;
     this.input = new InputController({
       canvas,
@@ -160,8 +169,10 @@ export class Game {
     this.refreshBuildSitesAndRoads();
     this.hud.setUnitSummary(this.units.units);
     this.setupHelpOverlay();
+    this.setupHeroDock();
     this.setupBuildMenu();
     this.setupHeroProfile();
+    this.renderHeroDock();
     this.setLoadingProgress(0);
     this.setLoadingVisible(true);
 
@@ -252,6 +263,7 @@ export class Game {
       this.hudRefreshMs = 0;
       this.hud.setUnitSummary(this.units.units);
       this.hud.setCycle(dayNight);
+      this.renderHeroDock();
     }
 
     this.renderer.render({
@@ -327,6 +339,57 @@ export class Game {
     } else {
       this.helpButton.focus();
     }
+  }
+
+  setupHeroDock() {
+    if (!this.heroDock) {
+      return;
+    }
+
+    this.heroDock.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-hero-unit-id]");
+
+      if (!button) {
+        return;
+      }
+
+      this.focusHero(button.dataset.heroUnitId);
+    });
+  }
+
+  focusHero(heroUnitId) {
+    const hero = this.units.units.find((unit) => unit.id === heroUnitId && unit.isHero);
+
+    if (!hero || hero.isAwayOnQuest) {
+      return;
+    }
+
+    this.setHeroProfileOpen(false);
+    this.setBuildMenuOpen(false);
+    this.camera.frameTile(hero, this.renderer.viewport);
+  }
+
+  getHeroUnits() {
+    return this.units.units.filter((unit) => unit.isHero);
+  }
+
+  renderHeroDock() {
+    if (!this.heroDock) {
+      return;
+    }
+
+    const heroes = this.getHeroUnits();
+    const nextKey = heroes
+      .map((hero) => [hero.id, hero.heroHead, hero.name, hero.health, hero.maxHealth, hero.isAwayOnQuest ? 1 : 0].join(":"))
+      .join("|");
+
+    if (nextKey === this.heroDockStateKey) {
+      return;
+    }
+
+    this.heroDockStateKey = nextKey;
+    this.heroDock.hidden = heroes.length === 0;
+    this.heroDock.innerHTML = heroes.map((hero) => renderHeroDockButton(hero)).join("");
   }
 
   setupBuildMenu() {
@@ -513,12 +576,32 @@ export class Game {
       this.heroProfileLevel.textContent = `Lv ${unit.heroLevel || 1}`;
     }
 
+    if (this.heroProfileHealth) {
+      this.heroProfileHealth.textContent = `${unit.health || 0}/${unit.maxHealth || unit.health || 0}`;
+    }
+
+    if (this.heroProfileXp) {
+      this.heroProfileXp.textContent = `${unit.heroXp || 0}/${unit.heroNextLevelXp || 1}`;
+    }
+
     if (this.heroProfilePower) {
       this.heroProfilePower.textContent = String(getHeroQuestPower(unit));
     }
 
+    if (this.heroProfileGold) {
+      this.heroProfileGold.textContent = String(unit.heroGold || 0);
+    }
+
+    if (this.heroProfileState) {
+      this.heroProfileState.textContent = formatHeroState(unit);
+    }
+
     if (this.heroProfileHobby) {
       this.heroProfileHobby.textContent = capitalize(unit.heroHobby || "patrol");
+    }
+
+    if (this.heroProfileInventory) {
+      this.heroProfileInventory.innerHTML = formatHeroInventory(unit);
     }
   }
 
@@ -534,6 +617,13 @@ export class Game {
       return;
     }
 
+    const unit = this.units.getUnitAt(tile.column, tile.row);
+
+    if (unit?.isHero) {
+      this.setHeroProfileOpen(true, unit);
+      return;
+    }
+
     if (tile.building === "tavern") {
       this.setHeroMenuOpen(true, tile);
       return;
@@ -546,13 +636,6 @@ export class Game {
 
     if (tile.canBuild && !tile.building && !tile.construction) {
       this.setBuildMenuOpen(true, tile);
-      return;
-    }
-
-    const unit = this.units.getUnitAt(tile.column, tile.row);
-
-    if (unit?.isHero) {
-      this.setHeroProfileOpen(true, unit);
       return;
     }
 
@@ -699,6 +782,7 @@ export class Game {
     this.units.addHero(hero, spawnTile, tavernTile);
     this.hud.setResources(this.resources);
     this.hud.setUnitSummary(this.units.units);
+    this.renderHeroDock();
     this.renderHeroCards();
   }
 
@@ -1277,6 +1361,74 @@ function formatHeroEffect(hero) {
     " - ",
     escapeHtml(hero.pitch),
   ].join("");
+}
+
+function renderHeroDockButton(hero) {
+  const health = Math.max(0, hero.health || 0);
+  const maxHealth = Math.max(1, hero.maxHealth || health || 1);
+  const healthPercent = Math.round((health / maxHealth) * 100);
+  const label = `${hero.name}, ${hero.heroClass || "Hero"}, ${formatHeroState(hero)}`;
+  const image = hero.heroHead
+    ? `<img src="${escapeHtml(hero.heroHead)}" alt="" />`
+    : `<span>${escapeHtml((hero.name || "?").charAt(0))}</span>`;
+
+  return `
+    <button
+      type="button"
+      class="hero-dock-button ${hero.isAwayOnQuest ? "is-away" : ""}"
+      data-hero-unit-id="${escapeHtml(hero.id)}"
+      aria-label="${escapeHtml(label)}"
+      ${hero.isAwayOnQuest ? "disabled" : ""}
+    >
+      ${image}
+      <small style="--hero-health: ${healthPercent}%"></small>
+    </button>
+  `;
+}
+
+function formatHeroState(hero) {
+  if (hero.isAwayOnQuest) {
+    return "Quest";
+  }
+
+  if (hero.defeated) {
+    return "Down";
+  }
+
+  if (hero.order === "recover" || hero.order === "heroRest") {
+    return "Resting";
+  }
+
+  if (hero.order === "attack") {
+    return "Fighting";
+  }
+
+  if (hero.order === "heroActivity") {
+    return capitalize(hero.heroHobby || "active");
+  }
+
+  return "Patrol";
+}
+
+function formatHeroInventory(hero) {
+  const equipped = Object.entries(hero.equipment || {})
+    .filter(([, item]) => item)
+    .map(([slot, item]) => ({ ...item, slot }));
+  const backpack = hero.backpack || [];
+  const items = [...equipped, ...backpack];
+
+  if (!items.length) {
+    return `<li class="is-empty">No loot yet</li>`;
+  }
+
+  return items
+    .map((item) => {
+      const stat = item.attackBonus ? `+${item.attackBonus} atk` : item.healthBonus ? `+${item.healthBonus} hp` : "loot";
+      const slot = item.slot || item.kind || "item";
+
+      return `<li><span>${escapeHtml(item.name || "Unknown")}</span><small>${escapeHtml(slot)} / ${escapeHtml(stat)}</small></li>`;
+    })
+    .join("");
 }
 
 function renderActiveQuestCard(quest) {
