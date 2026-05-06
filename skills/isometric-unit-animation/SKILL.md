@@ -9,6 +9,10 @@ description: Create, clean, validate, and preview isometric game unit animation 
 
 Use this skill to produce game-ready isometric unit animation sheets that match the current Nido Wars unit art. The default output is an 8-frame horizontal PNG sheet with `186x186` source cells plus a transparent animated WebP preview.
 
+## Epic Asset Rule
+
+Every concept image, generated strip, cleaned sprite sheet, preview, and regeneration dependency must be copied under `D:\Codex\NidoWarsWeb` before any code, script, manifest, or doc references it. Keep active unit sources in `src/content/units/<unit-id>/art/source/`. Do not leave usable paths pointing at `Downloads`, temp folders, external drives, or remote URLs because those files are not committed and may disappear.
+
 ## Defaults
 
 - Cell size: `186x186`

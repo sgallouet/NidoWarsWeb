@@ -11,36 +11,70 @@ ROOT = Path(__file__).resolve().parents[1]
 
 UNITS = {
     "skeleton-enemy": {
-        "source": Path("C:/Users/Simon/Downloads/Skeleton.png"),
+        "source": ROOT / "src/content/units/skeleton-enemy/art/source/unitv2_atlas_source.png",
         "atlas": ROOT / "src/content/units/skeleton-enemy/art/unitv2_atlas.png",
         "groups": [("idle", 4), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
     },
     "ranger": {
-        "source": Path("C:/Users/Simon/Downloads/Ranger.png"),
+        "source": ROOT / "src/content/units/ranger/art/source/unitv2_atlas_source.png",
         "atlas": ROOT / "src/content/units/ranger/art/unitv2_atlas.png",
         "groups": [("idle", 4), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
     },
     "monster-enemy": {
-        "source": Path("C:/Users/Simon/Downloads/Monster1.png"),
+        "source": ROOT / "src/content/units/monster-enemy/art/source/unitv2_atlas_source.png",
         "atlas": ROOT / "src/content/units/monster-enemy/art/unitv2_atlas.png",
         "remove_checker": True,
         "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
     },
     "camp-wolf": {
-        "source": Path("C:/Users/Simon/Downloads/Wolf (1).png"),
+        "source": ROOT / "src/content/units/camp-wolf/art/source/unitv2_atlas_source.png",
         "atlas": ROOT / "src/content/units/camp-wolf/art/unitv2_atlas.png",
         "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
     },
     "quadruped-monster": {
-        "source": Path("C:/Users/Simon/Downloads/ChatGPT Image May 6, 2026, 01_16_37 PM (1).png"),
+        "source": ROOT / "src/content/units/quadruped-monster/art/source/unitv2_atlas_source.png",
         "atlas": ROOT / "src/content/units/quadruped-monster/art/unitv2_atlas.png",
         "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
     },
     "dune-vanguard": {
-        "source": Path("C:/Users/Simon/Downloads/ChatGPT Image May 6, 2026, 02_42_17 PM (1).png"),
+        "source": ROOT / "src/content/units/dune-vanguard/art/source/unitv2_atlas_source.png",
         "atlas": ROOT / "src/content/units/dune-vanguard/art/unitv2_atlas.png",
-        "preview_aliases": {"guard": "attack"},
-        "groups": [("idle", 4), ("walk", 6), ("attack", 5), ("hit", 2), ("death", 5)],
+        "groups": [("idle", 8), ("walk", 8), ("attack", 7), ("hit", 2), ("guard", 5), ("death", 6)],
+    },
+    "barbarian": {
+        "source": ROOT / "src/content/units/barbarian/art/source/unitv2_atlas_source.png",
+        "atlas": ROOT / "src/content/units/barbarian/art/unitv2_atlas.png",
+        "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
+    },
+    "light-priest": {
+        "source": ROOT / "src/content/units/light-priest/art/source/unitv2_atlas_source.png",
+        "atlas": ROOT / "src/content/units/light-priest/art/unitv2_atlas.png",
+        "groups": [("idle", 3), ("walk", 5), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
+        "manual_frames": [
+            ("idle-1", (30, 5, 212, 222), (107.2, 222)),
+            ("idle-2", (220, 5, 399, 222), (293.1, 222)),
+            ("idle-3", (405, 6, 581, 222), (478.5, 222)),
+            ("walk-1", (15, 242, 211, 435), (105.1, 435)),
+            ("walk-2", (214, 247, 401, 437), (327.9, 437)),
+            ("walk-3", (421, 247, 614, 431), (536.4, 431)),
+            ("walk-4", (628, 240, 806, 435), (697.5, 435)),
+            ("walk-5", (836, 243, 1021, 437), (906.7, 437)),
+            ("guard-1", (18, 459, 191, 657), (98.2, 657)),
+            ("guard-2", (209, 458, 391, 656), (298.5, 656)),
+            ("guard-3", (420, 465, 605, 655), (497.6, 655)),
+            ("attack-1", (11, 665, 179, 882), (77.9, 882)),
+            ("attack-2", (202, 665, 382, 883), (266.8, 883)),
+            ("attack-3", (390, 676, 607, 885), (461.0, 885)),
+            ("attack-4", (606, 691, 899, 885), (679.9, 885)),
+            ("attack-5", (875, 715, 1148, 886), (963.0, 886)),
+            ("hit-1", (24, 903, 189, 1069), (76.9, 1069)),
+            ("hit-2", (231, 915, 376, 1069), (290.1, 1069)),
+            ("death-1", (13, 1101, 204, 1230), (96.6, 1230)),
+            ("death-2", (221, 1094, 423, 1228), (315.2, 1228)),
+            ("death-3", (422, 1118, 613, 1228), (516.1, 1228)),
+            ("death-4", (643, 1163, 887, 1233), (764.2, 1233)),
+            ("death-5", (917, 1154, 1161, 1230), (1071.1, 1230)),
+        ],
     },
 }
 
@@ -62,7 +96,7 @@ def main() -> None:
     parser.add_argument(
         "--from-source",
         action="store_true",
-        help="Rebuild unitv2_atlas.png from the configured external source before generating QA artifacts.",
+        help="Rebuild unitv2_atlas.png from the configured repo-local source before generating QA artifacts.",
     )
     args = parser.parse_args()
     unit_ids = UNITS.keys() if args.unit == "all" else [args.unit]
@@ -70,8 +104,7 @@ def main() -> None:
     for unit_id in unit_ids:
         config = UNITS[unit_id]
         atlas = load_atlas(config, from_source=args.from_source)
-        frames = detect_frames(atlas)
-        named_frames = name_frames(frames, config["groups"])
+        named_frames = make_manual_frames(config) if config.get("manual_frames") else name_frames(detect_frames(atlas), config["groups"])
         write_debug_image(unit_id, atlas, named_frames)
         write_webp_previews(unit_id, atlas, named_frames, config.get("preview_aliases", {}))
         print(f"{unit_id}: {len(named_frames)} frames")
@@ -222,6 +255,20 @@ def name_frames(frames: list[dict], groups: list[tuple[str, int]]) -> list[tuple
             named.append((f"{group_name}-{frame_number + 1}", frames[index]))
             index += 1
     return named
+
+
+def make_manual_frames(config: dict) -> list[tuple[str, dict]]:
+    return [
+        (
+            label,
+            {
+                "source": source,
+                "anchor": anchor,
+                "area": (source[2] - source[0]) * (source[3] - source[1]),
+            },
+        )
+        for label, source, anchor in config["manual_frames"]
+    ]
 
 
 def write_debug_image(unit_id: str, atlas: Image.Image, frames: list[tuple[str, dict]]) -> None:

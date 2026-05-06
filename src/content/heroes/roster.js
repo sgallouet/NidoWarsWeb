@@ -1,3 +1,5 @@
+import { HERO_PORTRAITS } from "./portraits.js";
+
 const HERO_NAMES = ["Mira", "Borin", "Sava", "Keth", "Nara", "Oryn", "Talia", "Voss", "Elun", "Rook"];
 
 const HERO_CLASSES = [
@@ -36,6 +38,26 @@ const HERO_CLASSES = [
     cost: { gold: 3, herbs: 3 },
     pitch: "Wanders berry and herb country while the sun is up.",
     tone: "food",
+  },
+  {
+    classId: "barbarian",
+    className: "Barbarian",
+    hobby: "hunting",
+    hobbyLabel: "Hunting",
+    cost: { gold: 6, meat: 4, rock: 4 },
+    pitch: "Smashes monsters up close and soaks brutal hits.",
+    tone: "watch",
+    portrait: HERO_PORTRAITS.barbarian,
+  },
+  {
+    classId: "priest",
+    className: "Light Priest",
+    hobby: "foraging",
+    hobbyLabel: "Foraging",
+    cost: { gold: 5, herbs: 4, berries: 3 },
+    pitch: "Keeps distance and burns threats with sacred light.",
+    tone: "hero",
+    portrait: HERO_PORTRAITS.priest,
   },
 ];
 

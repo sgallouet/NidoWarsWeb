@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Tile Art"
+  short_description: "Create seamless Nido Wars terrain tile art"
+  default_prompt: "Use $create-tile-art to create, tune, and integrate seamless Nido Wars terrain tile art."

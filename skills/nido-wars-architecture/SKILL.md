@@ -18,6 +18,7 @@ Use this skill to keep Nido Wars clean, small-file, dependency-light, and fast. 
 
 ## Non-Negotiables
 
+- Epic asset rule: every asset the game uses, every source image needed to regenerate runtime art, and every debug/preview input that matters must be copied under `D:\Codex\NidoWarsWeb` in the owning `src/content/...` folder before it is referenced by code, scripts, manifests, skills, or docs. Never leave active paths pointing at Downloads, temp folders, external drives, URLs, or other uncommitted locations; those files can disappear and are not part of git.
 - Keep the live canvas game as the first screen. Do not replace it with a landing page, hero section, or explanatory UI.
 - Treat steady 60 FPS as a product feature. Prefer readable motion and cached drawing over decorative complexity.
 - Keep files small and owned. Any runtime file growing beyond roughly 300-400 lines is a design smell; beyond 600 lines is a red flag that should trigger extraction.

@@ -97,12 +97,21 @@ export class Game {
     this.buildTitle = root.querySelector('[data-ui="build-title"]');
     this.buildCaption = root.querySelector('[data-ui="build-caption"]');
     this.buildTileLabel = root.querySelector('[data-ui="build-tile"]');
+    this.heroProfile = root.querySelector('[data-ui="hero-profile"]');
+    this.heroProfileCloseButton = root.querySelector('[data-ui="hero-profile-close"]');
+    this.heroProfileImage = root.querySelector('[data-ui="hero-profile-image"]');
+    this.heroProfileName = root.querySelector('[data-ui="hero-profile-name"]');
+    this.heroProfileClass = root.querySelector('[data-ui="hero-profile-class"]');
+    this.heroProfileLevel = root.querySelector('[data-ui="hero-profile-level"]');
+    this.heroProfilePower = root.querySelector('[data-ui="hero-profile-power"]');
+    this.heroProfileHobby = root.querySelector('[data-ui="hero-profile-hobby"]');
     this.loadingPanel = root.querySelector('[data-ui="loading-panel"]');
     this.loadingFill = root.querySelector('[data-ui="loading-fill"]');
     this.loadingValue = root.querySelector('[data-ui="loading-value"]');
     this.isPaused = false;
     this.isHelpOpen = false;
     this.isBuildMenuOpen = false;
+    this.isHeroProfileOpen = false;
     this.isIntroActive = true;
     this.didIntroGreeting = false;
     this.didRevealIntroUi = false;
@@ -116,6 +125,7 @@ export class Game {
     this.selectedBuildTile = null;
     this.selectedTavernTile = null;
     this.selectedGuildTile = null;
+    this.selectedHeroUnit = null;
     this.dayIndex = 0;
     this.heroRoster = createHeroRoster(this.dayIndex);
     this.questRoster = createQuestRoster(this.dayIndex);
@@ -151,6 +161,7 @@ export class Game {
     this.hud.setUnitSummary(this.units.units);
     this.setupHelpOverlay();
     this.setupBuildMenu();
+    this.setupHeroProfile();
     this.setLoadingProgress(0);
     this.setLoadingVisible(true);
 
@@ -336,6 +347,24 @@ export class Game {
     });
   }
 
+  setupHeroProfile() {
+    if (!this.heroProfile || !this.heroProfileCloseButton) {
+      return;
+    }
+
+    this.heroProfileCloseButton.addEventListener("click", () => this.setHeroProfileOpen(false));
+    this.heroProfile.addEventListener("click", (event) => {
+      if (event.target === this.heroProfile) {
+        this.setHeroProfileOpen(false);
+      }
+    });
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && this.isHeroProfileOpen) {
+        this.setHeroProfileOpen(false);
+      }
+    });
+  }
+
   setBuildMenuOpen(isOpen, tile = null) {
     if (!this.buildMenu) {
       return;
@@ -439,7 +468,58 @@ export class Game {
   }
 
   syncPauseState() {
-    this.isPaused = this.isHelpOpen || this.isBuildMenuOpen;
+    this.isPaused = this.isHelpOpen || this.isBuildMenuOpen || this.isHeroProfileOpen;
+  }
+
+  setHeroProfileOpen(isOpen, unit = null) {
+    if (!this.heroProfile) {
+      return;
+    }
+
+    this.isHeroProfileOpen = isOpen;
+    this.selectedHeroUnit = isOpen ? unit : null;
+    if (isOpen) {
+      this.pausedElapsed = this.loop.elapsed;
+      this.renderHeroProfile(unit);
+    }
+    this.syncPauseState();
+    this.heroProfile.hidden = !isOpen;
+
+    if (isOpen) {
+      this.heroProfileCloseButton?.focus();
+    }
+  }
+
+  renderHeroProfile(unit) {
+    if (!unit) {
+      return;
+    }
+
+    if (this.heroProfileImage) {
+      this.heroProfileImage.src = unit.heroPortrait || "";
+      this.heroProfileImage.alt = unit.heroPortrait ? `${unit.name} portrait` : "";
+      this.heroProfileImage.hidden = !unit.heroPortrait;
+    }
+
+    if (this.heroProfileName) {
+      this.heroProfileName.textContent = unit.name;
+    }
+
+    if (this.heroProfileClass) {
+      this.heroProfileClass.textContent = unit.heroClass || unit.role || "Hero";
+    }
+
+    if (this.heroProfileLevel) {
+      this.heroProfileLevel.textContent = `Lv ${unit.heroLevel || 1}`;
+    }
+
+    if (this.heroProfilePower) {
+      this.heroProfilePower.textContent = String(getHeroQuestPower(unit));
+    }
+
+    if (this.heroProfileHobby) {
+      this.heroProfileHobby.textContent = capitalize(unit.heroHobby || "patrol");
+    }
   }
 
   handleTileClick(tile) {
@@ -466,6 +546,13 @@ export class Game {
 
     if (tile.canBuild && !tile.building && !tile.construction) {
       this.setBuildMenuOpen(true, tile);
+      return;
+    }
+
+    const unit = this.units.getUnitAt(tile.column, tile.row);
+
+    if (unit?.isHero) {
+      this.setHeroProfileOpen(true, unit);
       return;
     }
 
@@ -562,9 +649,10 @@ export class Game {
       const canAfford = this.canAfford(hero.cost);
       const cost = formatResourcePips(hero.cost);
       const hireLabel = hero.hired ? "Hired" : canAfford ? "Hire" : "Need resources";
+      const portraitStyle = hero.portrait ? ` style="--hero-portrait: url('${escapeHtml(hero.portrait)}')"` : "";
 
       card.innerHTML = `
-        <div class="build-card-art hero-card-art" aria-hidden="true"><span></span></div>
+        <div class="build-card-art hero-card-art${hero.portrait ? " has-portrait" : ""}" aria-hidden="true"${portraitStyle}><span></span></div>
         <div class="build-card-body">
           <div class="build-card-title">
             <span class="build-card-kind">${escapeHtml(hero.className)}</span>

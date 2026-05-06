@@ -3,21 +3,23 @@ import { RESOURCE_ICONS, RESOURCE_NODE_ART } from "../content/resources/definiti
 
 export class ResourceNodePainter {
   constructor() {
+    this.treeImage = null;
     this.rockImage = null;
   }
 
   setImageCache(imageCache) {
+    this.treeImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.wood) || getLoadedImage(imageCache, RESOURCE_ICONS.wood);
     this.rockImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.rock) || getLoadedImage(imageCache, RESOURCE_ICONS.rock);
   }
 
-  paint(ctx, { node, x, y, elapsed }) {
+  paint(ctx, { node, x, y, elapsed, activeWorkerCount = 0 }) {
     if (node.type === "fish") {
       this.paintFishShoal(ctx, x, y, elapsed, node);
       return;
     }
 
     if (node.type === "wood") {
-      this.paintTimberTree(ctx, x, y, node);
+      this.paintTimberTree(ctx, x, y, node, elapsed, activeWorkerCount);
       return;
     }
 
@@ -73,7 +75,12 @@ export class ResourceNodePainter {
     ctx.restore();
   }
 
-  paintTimberTree(ctx, x, y, node) {
+  paintTimberTree(ctx, x, y, node, elapsed, activeWorkerCount = 0) {
+    if (this.treeImage) {
+      this.paintTreeSprite(ctx, x, y, node, elapsed, activeWorkerCount);
+      return;
+    }
+
     const sway = (node.seed || node.column + node.row) % 2 === 0 ? -1 : 1;
 
     ctx.save();
@@ -108,6 +115,71 @@ export class ResourceNodePainter {
     ctx.lineTo(x + 18, y - 8);
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
+  }
+
+  paintTreeSprite(ctx, x, y, node, elapsed, activeWorkerCount) {
+    const seed = getNodeSeed(node);
+    const variant = seeded(seed, 13);
+    const size = 98 + variant * 12;
+    const anchorY = y + 19;
+    const isBeingCut = activeWorkerCount > 0;
+    const cutPulse = isBeingCut ? Math.max(0, Math.sin(elapsed * 0.028 + seed * 0.01)) : 0;
+    const wind = Math.sin(elapsed * 0.0018 + seed) * 0.008;
+    const impactTilt = cutPulse * 0.035 * (seeded(seed, 29) > 0.5 ? 1 : -1);
+    const tintHue = (seeded(seed, 47) - 0.5) * 18;
+    const saturation = 0.92 + seeded(seed, 59) * 0.22;
+    const brightness = 0.88 + seeded(seed, 71) * 0.2;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(25, 18, 13, 0.26)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 13, 25, 8, -0.03, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.translate(x, anchorY);
+    ctx.rotate(wind + impactTilt);
+    ctx.imageSmoothingEnabled = true;
+    ctx.filter = `hue-rotate(${tintHue}deg) saturate(${saturation}) brightness(${brightness})`;
+    ctx.drawImage(this.treeImage, -size / 2, -size, size, size);
+    ctx.filter = "none";
+    ctx.restore();
+
+    if (isBeingCut) {
+      this.paintChopFeedback(ctx, x, y, node, elapsed, activeWorkerCount, cutPulse);
+    }
+  }
+
+  paintChopFeedback(ctx, x, y, node, elapsed, activeWorkerCount, cutPulse) {
+    const seed = getNodeSeed(node);
+    const side = seeded(seed, 83) > 0.5 ? 1 : -1;
+    const trunkX = x + side * (7 + activeWorkerCount * 1.6);
+    const trunkY = y - 9 + Math.sin(elapsed * 0.018 + seed) * 1.4;
+    const chipCount = 3 + Math.min(2, activeWorkerCount);
+
+    ctx.save();
+    ctx.globalAlpha = 0.68 + cutPulse * 0.25;
+    ctx.fillStyle = "#f0c26b";
+    ctx.beginPath();
+    ctx.moveTo(trunkX, trunkY - 5);
+    ctx.lineTo(trunkX + side * 10, trunkY - 8);
+    ctx.lineTo(trunkX + side * 7, trunkY + 1);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = "#d49b51";
+    for (let i = 0; i < chipCount; i += 1) {
+      const phase = (elapsed * 0.006 + i * 0.27 + seeded(seed, i + 101)) % 1;
+      const spread = 10 + i * 3;
+      const chipX = trunkX + side * (6 + phase * spread);
+      const chipY = trunkY - 5 - Math.sin(phase * Math.PI) * (10 + i * 1.8) + phase * 7;
+      const radius = 1.5 + seeded(seed, i + 131) * 1.4;
+
+      ctx.beginPath();
+      ctx.ellipse(chipX, chipY, radius * 1.5, radius, phase * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 
@@ -197,4 +269,14 @@ export class ResourceNodePainter {
     }
     ctx.restore();
   }
+}
+
+function getNodeSeed(node) {
+  return node.seed || node.column * 928371 + node.row * 364479 + node.id.length * 811;
+}
+
+function seeded(seed, salt) {
+  const value = Math.sin(seed * 12.9898 + salt * 78.233) * 43758.5453;
+
+  return value - Math.floor(value);
 }

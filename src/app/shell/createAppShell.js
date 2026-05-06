@@ -33,6 +33,7 @@ export function createAppShell(target = document.body) {
       ${renderLoadingOverlay()}
       ${renderHelpOverlay()}
       ${renderBuildOverlay()}
+      ${renderHeroProfile()}
     </main>
   `;
 
@@ -155,6 +156,26 @@ function renderBuildOverlay() {
         </div>
         <div class="build-grid" data-ui="build-grid"></div>
       </div>
+    </section>
+  `;
+}
+
+function renderHeroProfile() {
+  return `
+    <section class="hero-profile" data-ui="hero-profile" aria-label="Hero profile" hidden>
+      <article class="hero-profile-card" role="dialog" aria-modal="true" aria-labelledby="hero-profile-name">
+        <button class="hero-profile-close" type="button" data-ui="hero-profile-close" aria-label="Close hero profile">x</button>
+        <img class="hero-profile-image" data-ui="hero-profile-image" src="" alt="" />
+        <div class="hero-profile-body">
+          <span class="hero-profile-class" data-ui="hero-profile-class"></span>
+          <h2 id="hero-profile-name" data-ui="hero-profile-name"></h2>
+          <dl>
+            <div><dt>Level</dt><dd data-ui="hero-profile-level"></dd></div>
+            <div><dt>Power</dt><dd data-ui="hero-profile-power"></dd></div>
+            <div><dt>Hobby</dt><dd data-ui="hero-profile-hobby"></dd></div>
+          </dl>
+        </div>
+      </article>
     </section>
   `;
 }

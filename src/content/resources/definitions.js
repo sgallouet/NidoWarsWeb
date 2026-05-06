@@ -12,6 +12,7 @@ export const RESOURCE_ICONS = {
 
 export const RESOURCE_NODE_ART = {
   herbs: "./src/content/resources/herbs/node.png",
+  wood: "./src/content/resources/wood/node.png",
   rock: "./src/content/resources/rock/node.png",
 };
 
@@ -38,7 +39,7 @@ export const RESOURCE_DEFINITIONS = {
     value: 1,
     maxWorkers: 4,
     workMs: 15000,
-    tileTypes: new Set(["forest"]),
+    tileTypes: new Set(["forest", "campground"]),
   },
   rock: {
     label: "Rock Deposit",

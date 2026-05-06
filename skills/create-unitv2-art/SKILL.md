@@ -9,6 +9,10 @@ description: Create, validate, preview, and integrate Nido Wars UnitV2 animated 
 
 Use this skill to produce new Nido Wars unit art from first principles. Do not copy the legacy warrior/settler workflow of large single-action `186x186` row sheets, but do use warrior and settler as quality/style anchors. UnitV2 art is a compact, manifest-driven sprite/spritesheet system for the web app: canonical unit identity, explicit animation coverage, authored pose changes, deterministic validation, and animated WebP previews before game integration.
 
+## Epic Asset Rule
+
+Every atlas, portrait, source reference, generated runtime asset, preview input, and regeneration dependency must be copied under `D:\Codex\NidoWarsWeb` before it is referenced. Keep sources beside the owning content, such as `src/content/units/<unit-id>/art/source/` or `src/content/heroes/<hero-id>/source/`. Do not leave manifests, refresh scripts, QA helpers, or skill docs pointing at `Downloads`, temp folders, external drives, or remote URLs; those paths are not committed and may disappear.
+
 ## Read First
 
 - Read `references/unitv2-runtime-contract.md` before changing `src/gameplay/units` or `src/rendering`.
@@ -81,7 +85,7 @@ For the current local helper, run:
 python scripts/build-unitv2-frame-debug.py --unit <unit-id>
 ```
 
-This refreshes `frame_selection_debug.png` and `art/previews/*.webp` from the unit's current `art/unitv2_atlas.png`. Use `--from-source` only when intentionally rebuilding the atlas from the configured external source.
+This refreshes `frame_selection_debug.png` and `art/previews/*.webp` from the unit's current `art/unitv2_atlas.png`. Use `--from-source` only when intentionally rebuilding the atlas from the configured repo-local source under the unit's `art/source/` folder.
 
 Each imported UnitV2 unit should include a small double-clickable Windows shortcut:
 

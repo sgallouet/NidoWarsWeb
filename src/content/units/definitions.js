@@ -3,10 +3,12 @@ import { isTilePassable } from "../tiles/definitions.js";
 const BASE_MAP_COLUMNS = 60;
 const BASE_MAP_ROWS = 60;
 const MONSTER_START_EXCLUSION_RADIUS = 36;
-const START_THREAT_COUNT = 10;
-const START_THREAT_MIN_RADIUS = 9;
-const START_THREAT_MAX_RADIUS = 19;
+const START_THREAT_COUNT = 32;
+const START_THREAT_MIN_RADIUS = 12;
+const START_THREAT_MAX_RADIUS = 52;
+const PACK_MIN_CAMP_DISTANCE = 25;
 const START_THREAT_DEFINITIONS = [
+  "skeletonEnemy",
   "skeletonEnemy",
   "emberMaw",
   "glassStalker",
@@ -15,11 +17,14 @@ const START_THREAT_DEFINITIONS = [
   "groveStalker",
   "emberMaw",
   "skeletonEnemy",
+  "frostHorn",
+  "skeletonEnemy",
+  "cinderMaw",
 ];
 const QUADRUPED_PACKS = [
-  { biome: "temperate", column: 22, row: 42, count: 3 },
-  { biome: "desert", column: 49, row: 23, count: 3 },
-  { biome: "volcanic", column: 14, row: 47, count: 3 },
+  { biome: "temperate", column: 22, row: 42, count: 5 },
+  { biome: "desert", column: 49, row: 23, count: 5 },
+  { biome: "volcanic", column: 14, row: 47, count: 5 },
 ];
 
 export const UNIT_DEFINITIONS = {
@@ -77,12 +82,31 @@ export const UNIT_DEFINITIONS = {
       shadow: "#11161b",
     },
   },
+  ranger: {
+    label: "Ranger",
+    faction: "player",
+    role: "Archer",
+    speed: 1.1,
+    patrolRadius: 5,
+    health: 3,
+    attackDamage: 1,
+    art: {
+      system: "unitV2",
+      key: "ranger",
+    },
+    colors: {
+      primary: "#315a3f",
+      secondary: "#c29b55",
+      accent: "#dfeaa0",
+      shadow: "#1f3028",
+    },
+  },
   emberMaw: {
     label: "Ember Maw",
     faction: "monster",
     temperament: "scary",
     role: "Monster",
-    speed: 1.25,
+    speed: 1.45,
     patrolRadius: 6,
     health: 4,
     attackDamage: 1,
@@ -102,7 +126,7 @@ export const UNIT_DEFINITIONS = {
     faction: "monster",
     temperament: "scary",
     role: "Snow Monster",
-    speed: 1.1,
+    speed: 1.3,
     patrolRadius: 7,
     health: 5,
     attackDamage: 2,
@@ -123,7 +147,7 @@ export const UNIT_DEFINITIONS = {
     faction: "monster",
     temperament: "scary",
     role: "Forest Monster",
-    speed: 1.35,
+    speed: 1.55,
     patrolRadius: 7,
     health: 4,
     attackDamage: 1,
@@ -144,7 +168,7 @@ export const UNIT_DEFINITIONS = {
     faction: "monster",
     temperament: "scary",
     role: "Volcanic Monster",
-    speed: 1.25,
+    speed: 1.45,
     patrolRadius: 7,
     health: 5,
     attackDamage: 2,
@@ -165,7 +189,7 @@ export const UNIT_DEFINITIONS = {
     faction: "monster",
     temperament: "scary",
     role: "Pack Monster",
-    speed: 1.28,
+    speed: 1.55,
     patrolRadius: 6,
     patrolMode: "localRoam",
     roamMinCampDistance: 15,
@@ -204,8 +228,8 @@ export const UNIT_DEFINITIONS = {
     faction: "monster",
     temperament: "scary",
     role: "Undead",
-    speed: 0.45,
-    patrolRadius: 18,
+    speed: 1.25,
+    patrolRadius: 26,
     patrolMode: "outerRoam",
     roamMinCampDistance: 11,
     health: 2,
@@ -228,7 +252,7 @@ export const UNIT_DEFINITIONS = {
     faction: "monster",
     temperament: "scary",
     role: "Monster",
-    speed: 1.45,
+    speed: 1.65,
     patrolRadius: 7,
     health: 3,
     attackDamage: 1,
@@ -248,7 +272,7 @@ export const UNIT_DEFINITIONS = {
     faction: "monster",
     temperament: "scary",
     role: "Monster",
-    speed: 1.05,
+    speed: 1.3,
     patrolRadius: 5,
     health: 5,
     attackDamage: 2,
@@ -325,6 +349,7 @@ export function createStartingUnits(world, campTile) {
     reserve(campTile.column - 1, campTile.row),
     reserve(campTile.column + 1, campTile.row),
     reserve(campTile.column, campTile.row + 1),
+    reserve(campTile.column, campTile.row - 1),
   ];
   const wolfSpawns = [reserve(campTile.column - 2, campTile.row + 1), reserve(campTile.column + 2, campTile.row + 1)];
   const monsterSpawns = {
@@ -386,6 +411,12 @@ export function createStartingUnits(world, campTile) {
       definition: "duneSettler",
       name: "Vale",
       tile: playerSpawns[2],
+    }),
+    createUnit({
+      id: "archer-mira",
+      definition: "ranger",
+      name: "Mira",
+      tile: playerSpawns[3],
     }),
     createUnit({
       id: "wolf-nyx",
@@ -513,7 +544,7 @@ function createStartThreatUnits(world, campTile, occupied) {
       tile,
       overrides: {
         patrolMode: "localRoam",
-        patrolRadius: 5 + Math.floor(Math.random() * 3),
+        patrolRadius: 9 + Math.floor(Math.random() * 7),
         roamMinCampDistance: START_THREAT_MIN_RADIUS - 1,
         home: { column: tile.column, row: tile.row },
       },
@@ -525,11 +556,11 @@ function createQuadrupedPackUnits(world, campTile, occupied) {
   return QUADRUPED_PACKS.flatMap((pack, packIndex) => {
     const center = reserveBiome(world, pack.biome, occupied, scaleColumn(world, pack.column), scaleRow(world, pack.row), {
       minDistanceFrom: campTile,
-      minDistance: START_THREAT_MAX_RADIUS,
+      minDistance: PACK_MIN_CAMP_DISTANCE,
     });
     const spawnTiles = reservePackTiles(world, occupied, center, pack.count, {
       minDistanceFrom: campTile,
-      minDistance: START_THREAT_MAX_RADIUS,
+      minDistance: PACK_MIN_CAMP_DISTANCE,
     });
     const home = { column: center.column, row: center.row };
 
@@ -543,7 +574,7 @@ function createQuadrupedPackUnits(world, campTile, occupied) {
           home,
           patrolMode: "localRoam",
           patrolRadius: 5 + memberIndex,
-          roamMinCampDistance: START_THREAT_MAX_RADIUS,
+          roamMinCampDistance: PACK_MIN_CAMP_DISTANCE,
         },
       }),
     );

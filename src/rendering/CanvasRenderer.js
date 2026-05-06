@@ -84,7 +84,7 @@ export class CanvasRenderer {
     this.paintWorld(ctx, world);
     this.paintStructures(ctx, world);
     this.paintConstructions(ctx, visibleTiles, elapsed);
-    this.paintResourceNodes(ctx, world, resourceNodes, elapsed);
+    this.paintResourceNodes(ctx, world, resourceNodes, units, elapsed);
     this.paintHerbs(ctx, world, herbs);
     this.paintTreasures(ctx, world, treasures, elapsed);
     this.paintCamp(ctx, campTile, elapsed);
@@ -992,10 +992,12 @@ export class CanvasRenderer {
     }
   }
 
-  paintResourceNodes(ctx, world, resourceNodes, elapsed) {
+  paintResourceNodes(ctx, world, resourceNodes, units, elapsed) {
     if (!resourceNodes) {
       return;
     }
+
+    const workingNodeCounts = getWorkingResourceNodeCounts(units);
 
     for (const node of resourceNodes) {
       const tile = world.getTile(node.column, node.row);
@@ -1006,6 +1008,7 @@ export class CanvasRenderer {
         x: point.x,
         y: point.y,
         elapsed,
+        activeWorkerCount: workingNodeCounts.get(node.id) || 0,
       });
     }
   }
@@ -1299,6 +1302,20 @@ function getMarkerBackground(type) {
   }
 
   return "rgba(74, 48, 20, 0.92)";
+}
+
+function getWorkingResourceNodeCounts(units = []) {
+  const counts = new Map();
+
+  for (const unit of units) {
+    if (unit.stage !== "harvesting" || !unit.targetResourceNodeId) {
+      continue;
+    }
+
+    counts.set(unit.targetResourceNodeId, (counts.get(unit.targetResourceNodeId) || 0) + 1);
+  }
+
+  return counts;
 }
 
 function mixColor(fromHex, toHex, amount) {
