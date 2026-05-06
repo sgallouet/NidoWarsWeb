@@ -50,11 +50,16 @@ export class UnitV2Painter {
     const frame = getAnimationFrame(animation, getActionElapsed(unit, action, animation, elapsed));
     const facing = getFacing(unit);
     const atlas = art.atlas;
-    const cellSize = atlas.cellSize;
-    const drawWidth = atlas.drawWidth;
-    const drawHeight = atlas.drawHeight;
-    const anchorX = atlas.anchor.x / cellSize;
-    const anchorY = atlas.anchor.y / cellSize;
+    const cellSize = atlas.cellSize || 112;
+    const source = getFrameSource(frame, cellSize);
+    const sourceWidth = source.right - source.left;
+    const sourceHeight = source.bottom - source.top;
+    const drawScale = atlas.drawScale || (atlas.drawWidth || cellSize) / cellSize;
+    const drawWidth = sourceWidth * drawScale;
+    const drawHeight = sourceHeight * drawScale;
+    const anchor = frame.anchor || atlas.anchor || { x: cellSize / 2, y: cellSize };
+    const drawAnchorX = (anchor.x - source.left) * drawScale;
+    const drawAnchorY = (anchor.y - source.top) * drawScale;
 
     ctx.save();
     ctx.imageSmoothingEnabled = true;
@@ -62,12 +67,12 @@ export class UnitV2Painter {
     ctx.scale(facing, 1);
     ctx.drawImage(
       image,
-      frame.column * cellSize,
-      frame.row * cellSize,
-      cellSize,
-      cellSize,
-      -drawWidth * anchorX,
-      -drawHeight * anchorY,
+      source.left,
+      source.top,
+      sourceWidth,
+      sourceHeight,
+      -drawAnchorX,
+      -drawAnchorY,
       drawWidth,
       drawHeight,
     );
@@ -86,6 +91,19 @@ function getAnimationFrame(animation, elapsed) {
   const frameIndex = animation.loop === false ? Math.min(frames.length - 1, rawIndex) : rawIndex % frames.length;
 
   return frames[frameIndex] || frames[0] || {};
+}
+
+function getFrameSource(frame, cellSize) {
+  if (frame.source) {
+    return frame.source;
+  }
+
+  return {
+    left: (frame.column || 0) * cellSize,
+    top: (frame.row || 0) * cellSize,
+    right: ((frame.column || 0) + 1) * cellSize,
+    bottom: ((frame.row || 0) + 1) * cellSize,
+  };
 }
 
 function getActionElapsed(unit, action, animation, elapsed) {

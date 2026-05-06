@@ -64,7 +64,7 @@ export class UnitPainter {
     ctx.rotate(struggleTilt);
     ctx.scale(scale, scale);
     this.paintUnitBody(ctx, unit, 0, 0, elapsed);
-    if (unit.attackStyle === "ranged" && unit.attackFlashMs > 0) {
+    if (unit.attackStyle === "ranged" && unit.attackFlashMs > 0 && !usesUnitV2) {
       this.paintArrowShot(ctx, unit);
     }
     if (unit.waveMs > 0 && !usesWarriorSprite && !usesSettlerSprite && !usesUnitV2) {

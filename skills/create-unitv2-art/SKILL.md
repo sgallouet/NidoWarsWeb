@@ -24,10 +24,12 @@ Use this skill to produce new Nido Wars unit art from first principles. Do not c
 4. Choose the smallest complete animation set for the role. Enemies usually need `idle`, `walk`, `guard`, `attack`, `hit`, and `death`; workers need the work/carry/recover states they can enter.
 5. Generate or author distinct animation frames. Character body frames must be newly posed/redrawn; do not animate by only translating, rotating, scaling, skewing, tinting, or cropping one source sprite.
 6. Pack accepted frames into one compact atlas with manifest metadata. Use procedural channels only for secondary effects such as glow, dust, or bob, never as the primary body animation.
-7. Export transparent animated WebP previews for each action being accepted. Use no UI, labels, shadows, floor, or frame numbers.
-8. Validate the UnitV2 manifest, style/scale fit, and preview coverage before wiring into gameplay.
-9. Integrate through `src/content/units/<unit-id>/` definitions/art manifests and `UnitPainter`/focused UnitV2 painter code. Keep AI rules in unit runtime systems, not in art files.
-10. Smoke-test in the browser at desktop and phone viewports. Watch the frame graph while several units move.
+7. For imported atlas sheets, preserve the original atlas dimensions unless you have proven the frames are evenly packed. Do not resize/regrid uneven source sheets and then derive frame coordinates from the resized grid; that can split legs, bodies, weapons, and effects across cells.
+8. Generate a frame-selection debug PNG that draws every selected source rectangle and foot anchor over the actual atlas before editing manifests or judging scale.
+9. Export animated WebP previews for each action being accepted. For QA previews intended to reveal transparency issues, composite frames over magenta `#ff00ff`; for final art previews, transparent backgrounds are preferred.
+10. Validate the UnitV2 manifest, style/scale fit, frame-selection debug image, and preview coverage before wiring into gameplay.
+11. Integrate through `src/content/units/<unit-id>/` definitions/art manifests and `UnitPainter`/focused UnitV2 painter code. Keep AI rules in unit runtime systems, not in art files.
+12. Smoke-test in the browser at desktop and phone viewports. Watch the frame graph while several units move.
 
 ## UnitV2 Output Shape
 
@@ -45,12 +47,49 @@ src/content/units/<unit-id>/art.js
 
 src/content/units/<unit-id>/art/
   unitv2_atlas.png
+  frame_selection_debug.png
   previews/<action>.webp
   source/frames/<action>/
   qa/validation.json
+src/content/units/<unit-id>/refresh-art-previews.bat
 ```
 
 Keep runtime assets small and sprite/spritesheet based. Prefer low-resolution source cells, crisp pixel edges, and strong near-black silhouette outlines. Pack generated raster art into one atlas plus metadata, not one oversized file per animation. Do not integrate a UnitV2 character whose primary body is canvas-drawn primitives unless the user explicitly asks for placeholder/debug art.
+
+## Imported Atlas Lessons
+
+When adapting third-party or user-supplied atlases, first determine whether the sheet is truly cell-aligned. If the sheet is unevenly spaced, use explicit source rectangles:
+
+```js
+f(left, top, right, bottom, anchorX, anchorY, { footPhase: "leftContact" })
+```
+
+For uneven atlases:
+
+- Keep `unitv2_atlas.png` at the original pixel size.
+- Put exact `{ left, top, right, bottom }` source rectangles in the manifest instead of relying on `{ column, row }`.
+- Store a per-frame foot anchor. The renderer should anchor each cropped source rectangle to the world tile using that exact point.
+- Ignore small disconnected effects or projectile-only components unless they are intentionally part of the action frame.
+- Generate and inspect `frame_selection_debug.png` before judging runtime output.
+- Use magenta-backed WebP previews to spot missed transparency, checkerboard residue, and accidental holes.
+- Tune runtime `drawScale` only after frame rectangles and anchors are correct; never use scale as a workaround for bad source boxes.
+- If the imported atlas has an opaque checkerboard or white background, remove only edge-connected background pixels first. Avoid global color deletion that can erase highlights inside the character.
+
+For the current local helper, run:
+
+```bash
+python scripts/build-unitv2-frame-debug.py --unit <unit-id>
+```
+
+This refreshes `frame_selection_debug.png` and `art/previews/*.webp` from the unit's current `art/unitv2_atlas.png`. Use `--from-source` only when intentionally rebuilding the atlas from the configured external source.
+
+Each imported UnitV2 unit should include a small double-clickable Windows shortcut:
+
+```text
+src/content/units/<unit-id>/refresh-art-previews.bat
+```
+
+The shortcut should call `python scripts\build-unitv2-frame-debug.py --unit <unit-id>` from the repo root and pause on completion, so artists can replace or edit `unitv2_atlas.png`, double-click the shortcut, and immediately inspect the regenerated debug PNG and magenta WebP previews.
 
 ## Prompt Pattern
 
@@ -72,7 +111,7 @@ For generated strips, use chroma key colors that do not appear in the unit. Remo
 
 ## WebP Preview
 
-Use animated WebP as the normal acceptance preview. Upscale with nearest-neighbor or crisp pixel scaling, keep transparency, and verify that frames clear correctly with no trails. GIF is not a required output for Nido Wars UnitV2.
+Use animated WebP as the normal acceptance preview. Upscale with nearest-neighbor or crisp pixel scaling, keep transparency for final acceptance previews, and verify that frames clear correctly with no trails. GIF is not a required output for Nido Wars UnitV2. During atlas extraction QA, use magenta-backed WebP previews to make transparency gaps and unremoved backgrounds obvious.
 
 Use:
 
@@ -87,6 +126,7 @@ python skills/create-unitv2-art/scripts/export_unitv2_webp_preview.py \
 Preview acceptance requires:
 
 - transparent or intentionally neutral background
+- magenta `#ff00ff` background for extraction/debug previews when checking transparency
 - stable foot anchor and no floor shadow baked into the art
 - no identity drift between frames
 - attack/contact frames that stay attached to the body or weapon

@@ -7,10 +7,7 @@ export const skeletonEnemyArt = {
   shadow: { width: 12, height: 4.8, alpha: 0.24 },
   atlas: {
     src: "./src/content/units/skeleton-enemy/art/unitv2_atlas.png",
-    cellSize: 112,
-    drawWidth: 58,
-    drawHeight: 58,
-    anchor: { x: 56, y: 104 },
+    drawScale: 0.23,
   },
   palette: {
     bone: "#d8d0b6",
@@ -27,43 +24,69 @@ export const skeletonEnemyArt = {
   animations: {
     idle: {
       frameMs: 180,
-      frames: [{ column: 0, row: 0 }, { column: 1, row: 0 }, { column: 2, row: 0 }, { column: 3, row: 0 }],
+      frames: [
+        f(113, 60, 227, 246, 175.5, 246),
+        f(307, 63, 422, 249, 376.4, 249),
+        f(480, 61, 594, 245, 547.2, 245),
+        f(678, 62, 783, 243, 729.6, 243),
+      ],
     },
     walk: {
       frameMs: 105,
       frames: [
-        { column: 0, row: 1, footPhase: "leftContact" },
-        { column: 1, row: 1 },
-        { column: 2, row: 1, footPhase: "rightPass" },
-        { column: 3, row: 1, footPhase: "rightContact" },
-        { column: 4, row: 1 },
-        { column: 5, row: 1, footPhase: "leftPass" },
+        f(102, 279, 217, 440, 167.8, 440, { footPhase: "leftContact" }),
+        f(287, 281, 400, 443, 353.6, 443),
+        f(456, 286, 571, 447, 524.9, 447, { footPhase: "rightPass" }),
+        f(636, 281, 751, 443, 703.6, 443, { footPhase: "rightContact" }),
+        f(821, 279, 936, 441, 883.9, 441),
+        f(1001, 286, 1118, 445, 1068.4, 445, { footPhase: "leftPass" }),
       ],
     },
     guard: {
       frameMs: 160,
-      frames: [{ column: 0, row: 2 }, { column: 1, row: 2 }],
+      frames: [
+        f(109, 486, 270, 634, 158.7, 634),
+        f(314, 487, 470, 633, 364.1, 633),
+        f(508, 490, 666, 632, 559.7, 632),
+      ],
     },
     attack: {
       frameMs: 90,
       loop: false,
       frames: [
-        { column: 0, row: 3, attackPhase: "anticipation" },
-        { column: 1, row: 3, attackPhase: "windup" },
-        { column: 2, row: 3, attackPhase: "contact", contact: true },
-        { column: 3, row: 3, attackPhase: "recovery" },
-        { column: 4, row: 3, attackPhase: "settle" },
+        f(82, 658, 234, 819, 173.9, 819, { attackPhase: "anticipation" }),
+        f(336, 669, 573, 820, 393.7, 820, { attackPhase: "windup" }),
+        f(599, 669, 725, 821, 651.9, 821, { attackPhase: "contact", contact: true }),
+        f(771, 684, 954, 819, 815.5, 819, { attackPhase: "recovery" }),
+        f(959, 666, 1056, 826, 1013.3, 826, { attackPhase: "settle" }),
       ],
     },
     hit: {
       frameMs: 95,
       loop: false,
-      frames: [{ column: 0, row: 4, offsetX: -1.2 }, { column: 1, row: 4, offsetX: -0.4 }],
+      frames: [
+        f(82, 847, 240, 1003, 180.7, 1003, { offsetX: -1.2 }),
+        f(291, 847, 435, 1003, 378, 1003, { offsetX: -0.4 }),
+      ],
     },
     death: {
       frameMs: 140,
       loop: false,
-      frames: [{ column: 0, row: 5 }, { column: 1, row: 5 }, { column: 2, row: 5 }, { column: 3, row: 5 }],
+      frames: [
+        f(77, 1038, 233, 1151, 143.5, 1151),
+        f(292, 1079, 476, 1167, 323, 1167),
+        f(515, 1074, 710, 1177, 651.5, 1177),
+        f(738, 1100, 938, 1175, 877.2, 1175),
+        f(965, 1097, 1159, 1151, 1063.6, 1151),
+      ],
     },
   },
 };
+
+function f(left, top, right, bottom, anchorX, anchorY, extra = {}) {
+  return {
+    source: { left, top, right, bottom },
+    anchor: { x: anchorX, y: anchorY },
+    ...extra,
+  };
+}

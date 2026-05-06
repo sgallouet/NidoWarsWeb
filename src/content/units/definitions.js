@@ -57,6 +57,10 @@ export const UNIT_DEFINITIONS = {
     patrolRadius: 6,
     health: 4,
     attackDamage: 1,
+    art: {
+      system: "unitV2",
+      key: "monsterEnemy",
+    },
     colors: {
       primary: "#9e5035",
       secondary: "#e59a49",
@@ -74,6 +78,10 @@ export const UNIT_DEFINITIONS = {
     health: 5,
     attackDamage: 2,
     body: "thornback",
+    art: {
+      system: "unitV2",
+      key: "monsterEnemy",
+    },
     colors: {
       primary: "#b8d4de",
       secondary: "#f4fbff",
@@ -91,6 +99,10 @@ export const UNIT_DEFINITIONS = {
     health: 4,
     attackDamage: 1,
     body: "thornback",
+    art: {
+      system: "unitV2",
+      key: "monsterEnemy",
+    },
     colors: {
       primary: "#476d44",
       secondary: "#9abf6f",
@@ -108,6 +120,10 @@ export const UNIT_DEFINITIONS = {
     health: 5,
     attackDamage: 2,
     body: "emberMaw",
+    art: {
+      system: "unitV2",
+      key: "monsterEnemy",
+    },
     colors: {
       primary: "#6c2425",
       secondary: "#ff7a36",
@@ -164,6 +180,10 @@ export const UNIT_DEFINITIONS = {
     patrolRadius: 7,
     health: 3,
     attackDamage: 1,
+    art: {
+      system: "unitV2",
+      key: "monsterEnemy",
+    },
     colors: {
       primary: "#665e8f",
       secondary: "#b9c2dc",
@@ -180,6 +200,10 @@ export const UNIT_DEFINITIONS = {
     patrolRadius: 5,
     health: 5,
     attackDamage: 2,
+    art: {
+      system: "unitV2",
+      key: "monsterEnemy",
+    },
     colors: {
       primary: "#6f854d",
       secondary: "#c2a75c",

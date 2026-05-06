@@ -21,6 +21,18 @@ Animation fields:
 
 Frame descriptors should be small: atlas coordinates, authored pose ids, offsets, contact tags, and foot/attack phase tags. Avoid storing large nested geometry per frame.
 
+For truly cell-aligned sheets, `{ column, row }` plus atlas cell metadata is acceptable. For uneven imported atlases, prefer explicit source rectangles and anchors:
+
+```js
+{
+  source: { left, top, right, bottom },
+  anchor: { x, y },
+  footPhase: "leftContact"
+}
+```
+
+Do not resize/regrid uneven source atlases and then infer frame cells from the resized sheet. Use the original atlas pixel coordinates, generate a `frame_selection_debug.png` overlay, and inspect every rectangle before accepting the manifest.
+
 Do not use procedural channels as the primary character animation. Procedural movement is acceptable only for secondary effects such as glow, dust, cloth flutter, or one-pixel impact recoil after a real pose/atlas frame has been selected.
 
 ## Runtime Mapping
@@ -46,6 +58,7 @@ Enemies can start with `idle`, `walk`, `attack`, `hit`, and `death`.
 - draw a runtime canvas shadow from the anchor
 - mirror with `facingX` instead of duplicating frames
 - derive animation frame by `elapsed / frameMs`
+- support explicit per-frame `{ source, anchor }` rectangles for uneven imported atlases
 - draw primary character bodies from authored atlas frames unless placeholder/debug art was explicitly requested
 - avoid allocations in hot paths where simple locals work
 - draw from manifest state only; do not decide AI behavior
@@ -56,3 +69,4 @@ Enemies can start with `idle`, `walk`, `attack`, `hit`, and `death`.
 - Unit behavior: `src/gameplay/units/UnitManager.js`
 - UnitV2 art manifests: `src/content/units/<unit-id>/art.js` and `src/content/units/unitV2Art.js`
 - UnitV2 rendering: `src/rendering/UnitV2Painter.js`
+- UnitV2 extraction QA helpers: `scripts/build-unitv2-frame-debug.py`, `src/content/units/<unit-id>/art/frame_selection_debug.png`, `src/content/units/<unit-id>/art/previews/*.webp`, and optional `src/content/units/<unit-id>/refresh-art-previews.bat`

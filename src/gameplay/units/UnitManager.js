@@ -2933,6 +2933,10 @@ function getHeroClassTemplate(classId) {
       attackStyle: "ranged",
       attackRange: 4,
       scale: 1.03,
+      art: {
+        system: "unitV2",
+        key: "ranger",
+      },
       colors: {
         primary: "#396f50",
         secondary: "#cfe889",
