@@ -2,8 +2,16 @@ export const lightPriestArt = {
   key: "lightPriest",
   label: "Light Priest",
   role: "hero",
+  anchor: { x: 0, y: 0 },
   bounds: { width: 56, height: 65 },
   shadow: { width: 16, height: 5.5, alpha: 0.25 },
+  palette: {
+    robe: "#efe7d7",
+    gold: "#d5a743",
+    light: "#fff0a6",
+    shadow: "#7d725f",
+    outline: "#2c2419",
+  },
   atlas: {
     src: "./src/content/units/light-priest/art/unitv2_atlas.png",
     drawScale: 0.3,

@@ -2,8 +2,16 @@ export const monsterEnemyArt = {
   key: "monsterEnemy",
   label: "Monster Enemy",
   role: "enemy",
+  anchor: { x: 0, y: 0 },
   bounds: { width: 44, height: 64 },
   shadow: { width: 18, height: 6.5, alpha: 0.3 },
+  palette: {
+    hide: "#4b2f32",
+    muscle: "#7a4246",
+    bone: "#b4a77f",
+    glow: "#f04b2c",
+    outline: "#140f10",
+  },
   atlas: {
     src: "./src/content/units/monster-enemy/art/unitv2_atlas.png",
     drawScale: 0.34,

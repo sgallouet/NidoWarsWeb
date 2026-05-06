@@ -16,7 +16,7 @@ for (const [key, art] of Object.entries(UNIT_V2_ART)) {
   requireSize(key, art.bounds, "bounds");
   requirePalette(key, art.palette);
   requireField(key, art.role, "role");
-  requireAtlas(key, art.atlas);
+  requireAtlas(key, art.atlas, art.animations);
 
   const requiredActions = REQUIRED_ACTIONS_BY_ROLE[art.role] || ["idle", "walk"];
   for (const action of requiredActions) {
@@ -69,12 +69,19 @@ function requirePalette(key, palette) {
   }
 }
 
-function requireAtlas(key, atlas) {
+function requireAtlas(key, atlas, animations) {
   if (!atlas) {
     return;
   }
 
   requireField(key, atlas.src, "atlas.src");
+
+  if (usesExplicitFrameSources(animations)) {
+    if (!(atlas.drawScale > 0)) {
+      failures.push(`${key}: explicit source atlases must include positive atlas.drawScale`);
+    }
+    return;
+  }
 
   if (!(atlas.cellSize > 0)) {
     failures.push(`${key}: atlas.cellSize must be positive`);
@@ -85,4 +92,26 @@ function requireAtlas(key, atlas) {
   }
 
   requirePoint(key, atlas.anchor, "atlas.anchor");
+}
+
+function usesExplicitFrameSources(animations) {
+  const allFrames = Object.values(animations || {}).flatMap((animation) => animation.frames || []);
+
+  return allFrames.length > 0 && allFrames.every((frame) => {
+    const source = frame.source;
+    const anchor = frame.anchor;
+
+    return (
+      source &&
+      typeof source.left === "number" &&
+      typeof source.top === "number" &&
+      typeof source.right === "number" &&
+      typeof source.bottom === "number" &&
+      source.right > source.left &&
+      source.bottom > source.top &&
+      anchor &&
+      typeof anchor.x === "number" &&
+      typeof anchor.y === "number"
+    );
+  });
 }

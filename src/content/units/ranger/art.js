@@ -2,8 +2,16 @@ export const rangerArt = {
   key: "ranger",
   label: "Ranger",
   role: "hero",
+  anchor: { x: 0, y: 0 },
   bounds: { width: 36, height: 48 },
   shadow: { width: 14, height: 5, alpha: 0.28 },
+  palette: {
+    cloak: "#5b4a38",
+    tunic: "#264660",
+    leather: "#3b2619",
+    skin: "#c5905e",
+    outline: "#17120e",
+  },
   atlas: {
     src: "./src/content/units/ranger/art/unitv2_atlas.png",
     drawScale: 0.3,

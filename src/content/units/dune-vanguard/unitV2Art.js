@@ -2,8 +2,16 @@ export const duneVanguardUnitV2Art = {
   key: "duneVanguard",
   label: "Dune Vanguard",
   role: "ally",
+  anchor: { x: 0, y: 0 },
   bounds: { width: 50, height: 64 },
   shadow: { width: 15, height: 5.5, alpha: 0.28 },
+  palette: {
+    tunic: "#7b5635",
+    cloth: "#1d4465",
+    leather: "#3b2418",
+    steel: "#9da6aa",
+    outline: "#17120e",
+  },
   atlas: {
     src: "./src/content/units/dune-vanguard/art/unitv2_atlas.png",
     drawScale: 0.43,

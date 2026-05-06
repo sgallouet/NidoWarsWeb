@@ -2,8 +2,16 @@ export const quadrupedMonsterArt = {
   key: "quadrupedMonster",
   label: "Quadruped Monster",
   role: "enemy",
+  anchor: { x: 0, y: 0 },
   bounds: { width: 58, height: 44 },
   shadow: { width: 20, height: 7, alpha: 0.32 },
+  palette: {
+    hide: "#4a2c2f",
+    muscle: "#7b4245",
+    bone: "#b4a77e",
+    glow: "#f04b2c",
+    outline: "#140f10",
+  },
   atlas: {
     src: "./src/content/units/quadruped-monster/art/unitv2_atlas.png",
     drawScale: 0.34,

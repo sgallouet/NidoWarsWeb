@@ -3294,6 +3294,44 @@ function getHeroClassTemplate(classId) {
         shadow: "#5a4a38",
       },
     },
+    dwarfGuardian: {
+      body: "dwarfGuardian",
+      speed: 1.12,
+      patrolRadius: 5,
+      health: 9,
+      attackDamage: 3,
+      scale: 1.03,
+      art: {
+        system: "unitV2",
+        key: "dwarfGuardian",
+      },
+      colors: {
+        primary: "#2c343a",
+        secondary: "#c79635",
+        accent: "#2f7fac",
+        shadow: "#17110c",
+      },
+    },
+    lavaSerpent: {
+      body: "lavaSerpent",
+      speed: 1.36,
+      patrolRadius: 6,
+      health: 6,
+      attackDamage: 3,
+      attackStyle: "ranged",
+      attackRange: 4,
+      scale: 1,
+      art: {
+        system: "unitV2",
+        key: "lavaSerpent",
+      },
+      colors: {
+        primary: "#211b18",
+        secondary: "#fb6a22",
+        accent: "#ffb23a",
+        shadow: "#0f0c0b",
+      },
+    },
   };
 
   return templates[classId] || templates.ranger;

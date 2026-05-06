@@ -61,6 +61,28 @@ const HERO_CLASSES = [
     portrait: HERO_PORTRAITS.priest,
     head: HERO_PORTRAITS.priestHead,
   },
+  {
+    classId: "dwarfGuardian",
+    className: "Dwarf Guardian",
+    hobby: "hunting",
+    hobbyLabel: "Hunting",
+    cost: { gold: 7, rock: 6, wood: 3 },
+    pitch: "Locks down monster packs with a shield and thunder hammer.",
+    tone: "watch",
+    portrait: HERO_PORTRAITS.dwarfGuardian,
+    head: HERO_PORTRAITS.dwarfGuardianHead,
+  },
+  {
+    classId: "lavaSerpent",
+    className: "Lava Serpent",
+    hobby: "hunting",
+    hobbyLabel: "Hunting",
+    cost: { gold: 7, rock: 4, meat: 4 },
+    pitch: "Burns enemies from range and coils around the camp line.",
+    tone: "hero",
+    portrait: HERO_PORTRAITS.lavaSerpent,
+    head: HERO_PORTRAITS.lavaSerpentHead,
+  },
 ];
 
 export function createHeroRoster(dayIndex) {

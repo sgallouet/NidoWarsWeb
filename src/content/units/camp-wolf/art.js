@@ -2,8 +2,16 @@ export const campWolfArt = {
   key: "campWolf",
   label: "Camp Wolf",
   role: "ally",
+  anchor: { x: 0, y: 0 },
   bounds: { width: 54, height: 42 },
   shadow: { width: 18, height: 6.5, alpha: 0.28 },
+  palette: {
+    fur: "#1f2930",
+    armor: "#4a3629",
+    metal: "#6b7475",
+    eye: "#d2a846",
+    outline: "#0f1113",
+  },
   atlas: {
     src: "./src/content/units/camp-wolf/art/unitv2_atlas.png",
     drawScale: 0.25,

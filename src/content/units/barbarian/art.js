@@ -2,8 +2,16 @@ export const barbarianArt = {
   key: "barbarian",
   label: "Barbarian",
   role: "hero",
+  anchor: { x: 0, y: 0 },
   bounds: { width: 58, height: 64 },
   shadow: { width: 18, height: 6, alpha: 0.3 },
+  palette: {
+    skin: "#b67343",
+    leather: "#3a2518",
+    fur: "#6a5440",
+    metal: "#8d8b82",
+    outline: "#17120e",
+  },
   atlas: {
     src: "./src/content/units/barbarian/art/unitv2_atlas.png",
     drawScale: 0.32,
