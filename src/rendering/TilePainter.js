@@ -1,18 +1,28 @@
 import { TILE_TYPES } from "../content/tiles/definitions.js";
 import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { DESERT_TILE_ART } from "../content/tiles/desert/art.js";
+import { CAMPGROUND_TILE_ART } from "../content/tiles/campground/art.js";
 
 const DESERT_TILE_SPRITE_SRC = DESERT_TILE_ART.sprite;
+const CAMPGROUND_GROUND_SRC = CAMPGROUND_TILE_ART.ground;
+const CAMPGROUND_DECORATIONS_SRC = CAMPGROUND_TILE_ART.decorations;
+const CAMPGROUND_DECORATION_WIDTH = 28;
+const CAMPGROUND_DECORATION_HEIGHT = 22;
+const CAMPGROUND_DECORATION_COUNT = 8;
 
 export class TilePainter {
   constructor({ tileWidth, tileHeight }) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
     this.desertTileSprite = null;
+    this.campgroundSprite = null;
+    this.campgroundDecorations = null;
   }
 
   setImageCache(imageCache) {
     this.desertTileSprite = getLoadedImage(imageCache, DESERT_TILE_SPRITE_SRC);
+    this.campgroundSprite = getLoadedImage(imageCache, CAMPGROUND_GROUND_SRC);
+    this.campgroundDecorations = getLoadedImage(imageCache, CAMPGROUND_DECORATIONS_SRC);
   }
 
   paint(ctx, { tile, x, y, elapsed, isHovered }) {
@@ -76,6 +86,11 @@ export class TilePainter {
   }
 
   paintTop(ctx, corners, tile) {
+    if (this.isCampgroundTile(tile) && this.isCampgroundSpriteReady()) {
+      this.paintCampgroundTop(ctx, corners, tile);
+      return;
+    }
+
     if (this.isDesertSpriteTile(tile) && this.isDesertSpriteReady()) {
       this.paintDesertSpriteTop(ctx, corners, tile);
       return;
@@ -121,6 +136,70 @@ export class TilePainter {
     ctx.restore();
   }
 
+  paintCampgroundTop(ctx, corners, tile) {
+    const image = this.campgroundSprite;
+    const shouldFlip = seeded(tile.seed, 11) > 0.5;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+
+    if (shouldFlip) {
+      ctx.translate(corners.left.x + this.tileWidth, corners.top.y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(image, 0, 0, this.tileWidth, this.tileHeight);
+    } else {
+      ctx.drawImage(image, corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
+    }
+
+    drawDiamond(ctx, corners);
+    ctx.clip();
+
+    if (tile.lightness > 0) {
+      ctx.fillStyle = `rgba(174, 116, 61, ${Math.min(0.12, tile.lightness * 1.9)})`;
+      ctx.fillRect(corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
+    } else if (tile.lightness < 0) {
+      ctx.fillStyle = `rgba(24, 16, 10, ${Math.min(0.12, Math.abs(tile.lightness) * 2.1)})`;
+      ctx.fillRect(corners.left.x, corners.top.y, this.tileWidth, this.tileHeight);
+    }
+
+    ctx.restore();
+  }
+
+  paintCampgroundDecorations(ctx, corners, tile) {
+    if (!this.campgroundDecorations || seeded(tile.seed, 23) < 0.36) {
+      return;
+    }
+
+    const spriteCount = 1 + Math.floor(seeded(tile.seed, 31) * 2);
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.globalAlpha = 0.78;
+
+    for (let i = 0; i < spriteCount; i += 1) {
+      const sprite = Math.floor(seeded(tile.seed, i + 47) * CAMPGROUND_DECORATION_COUNT);
+      const x = corners.left.x + 12 + seeded(tile.seed, i + 71) * (this.tileWidth - 24);
+      const y = corners.top.y + 7 + seeded(tile.seed, i + 89) * (this.tileHeight - 12);
+      const scale = 0.72 + seeded(tile.seed, i + 107) * 0.28;
+      const width = CAMPGROUND_DECORATION_WIDTH * scale;
+      const height = CAMPGROUND_DECORATION_HEIGHT * scale;
+
+      ctx.drawImage(
+        this.campgroundDecorations,
+        sprite * CAMPGROUND_DECORATION_WIDTH,
+        0,
+        CAMPGROUND_DECORATION_WIDTH,
+        CAMPGROUND_DECORATION_HEIGHT,
+        x - width / 2,
+        y - height / 2,
+        width,
+        height,
+      );
+    }
+
+    ctx.restore();
+  }
+
   paintDesertSpriteTop(ctx, corners, tile) {
     const image = this.desertTileSprite;
     const shouldFlip = seeded(tile.seed, 97) > 0.5;
@@ -160,6 +239,14 @@ export class TilePainter {
 
   isDesertSpriteReady() {
     return Boolean(this.desertTileSprite);
+  }
+
+  isCampgroundTile(tile) {
+    return tile.type === "campground";
+  }
+
+  isCampgroundSpriteReady() {
+    return Boolean(this.campgroundSprite);
   }
 
   paintDuneLines(ctx, corners, tile) {
@@ -254,6 +341,10 @@ export class TilePainter {
   }
 
   paintFeature(ctx, corners, tile, elapsed) {
+    if (this.isCampgroundTile(tile) && this.isCampgroundSpriteReady()) {
+      this.paintCampgroundDecorations(ctx, corners, tile);
+    }
+
     if (tile.type === "rock" || tile.type === "obsidian") {
       this.paintRock(ctx, corners, tile);
     }

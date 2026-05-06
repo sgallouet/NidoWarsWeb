@@ -1,5 +1,5 @@
 import { getLoadedImage } from "../engine/assets/AssetLoader.js";
-import { RESOURCE_ICONS } from "../content/resources/definitions.js";
+import { RESOURCE_ICONS, RESOURCE_NODE_ART } from "../content/resources/definitions.js";
 
 export class ResourceNodePainter {
   constructor() {
@@ -7,7 +7,7 @@ export class ResourceNodePainter {
   }
 
   setImageCache(imageCache) {
-    this.rockImage = getLoadedImage(imageCache, RESOURCE_ICONS.rock);
+    this.rockImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.rock) || getLoadedImage(imageCache, RESOURCE_ICONS.rock);
   }
 
   paint(ctx, { node, x, y, elapsed }) {
@@ -130,7 +130,8 @@ export class ResourceNodePainter {
     ctx.fill();
 
     if (this.rockImage) {
-      ctx.drawImage(this.rockImage, x - 26, y - 34, 52, 52);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(this.rockImage, x - 31, y - 43, 62, 62);
       ctx.restore();
       return;
     }

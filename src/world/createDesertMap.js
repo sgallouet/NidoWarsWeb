@@ -9,7 +9,7 @@ const BIOME_CENTERS = [
 ];
 const START_BIOME_ID = "desert";
 const START_CLEARING_TYPES = {
-  desert: "sand",
+  desert: "campground",
   paradise: "grass",
   snow: "snow",
   temperate: "grass",

@@ -99,6 +99,10 @@ export class UnitPainter {
       this.paintCarriedResource(ctx, x - 17 + strain, drawY - 17, "meat");
     }
 
+    if (unit.carryingReviveCorpseId) {
+      this.paintCarriedCasualty(ctx, x - 18 + strain, drawY - 21, elapsed);
+    }
+
     if (unit.orderIcon) {
       this.paintOrderIcon(ctx, unit.orderIcon, x + 18, y - 50);
     }
@@ -153,8 +157,12 @@ export class UnitPainter {
       ctx.scale(scale * 0.92, scale * 0.92);
       this.unitV2Painter.paint(ctx, { ...corpse, unitV2ForcedAction: "death" }, 0, 0, elapsed);
       ctx.restore();
+      this.paintReviveEffects(ctx, corpse, x, y, elapsed);
       return;
     }
+
+    const fallProgress = Math.min(1, (corpse.ageMs || 0) / 620);
+    const fallEase = 1 - Math.pow(1 - fallProgress, 3);
 
     ctx.save();
     ctx.fillStyle = "rgba(18, 12, 10, 0.34)";
@@ -163,9 +171,9 @@ export class UnitPainter {
     ctx.fill();
 
     ctx.globalAlpha = 0.72;
-    ctx.translate(x + settle, y + 5);
-    ctx.rotate(Math.PI / 2 + 0.12);
-    ctx.scale(scale * 0.78, scale * 0.78);
+    ctx.translate(x + settle, y + 5 + (1 - fallEase) * -8);
+    ctx.rotate((Math.PI / 2 + 0.12) * fallEase);
+    ctx.scale(scale * (0.88 - fallEase * 0.1), scale * (0.88 - fallEase * 0.1));
     this.paintUnitBody(ctx, corpse, 0, 0, elapsed);
     ctx.restore();
 
@@ -180,6 +188,8 @@ export class UnitPainter {
     ctx.lineTo(x - 10, y + 8);
     ctx.stroke();
     ctx.restore();
+
+    this.paintReviveEffects(ctx, corpse, x, y, elapsed);
   }
 
   paintGroundShadow(ctx, x, y, unit, scale) {
@@ -875,6 +885,81 @@ export class UnitPainter {
     ctx.restore();
   }
 
+  paintCarriedCasualty(ctx, x, y, elapsed) {
+    const sway = Math.sin(elapsed * 0.012) * 1.4;
+
+    ctx.save();
+    ctx.translate(x, y + sway);
+    ctx.rotate(-0.28);
+    ctx.fillStyle = "#2a1d18";
+    ctx.strokeStyle = "rgba(255, 244, 214, 0.5)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.roundRect(-13, -5, 25, 11, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#8f6f45";
+    ctx.beginPath();
+    ctx.ellipse(-8, -2, 5, 4, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(9, 2, 4, 3, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#a9f06f";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.lineTo(0, -2);
+    ctx.moveTo(-4, -5.5);
+    ctx.lineTo(4, -5.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  paintReviveEffects(ctx, corpse, x, y, elapsed) {
+    if (!corpse.revivable) {
+      return;
+    }
+
+    const healing = corpse.status === "healing";
+    const pulse = Math.sin(elapsed * 0.008) * 0.5 + 0.5;
+    const progress = healing
+      ? Math.max(0, Math.min(1, (corpse.healMs || 0) / (corpse.healDurationMs || 1)))
+      : 0;
+
+    ctx.save();
+    ctx.globalAlpha = healing ? 0.54 + pulse * 0.24 : 0.28 + pulse * 0.18;
+    ctx.strokeStyle = healing ? "#a9f06f" : "#fff0a6";
+    ctx.lineWidth = healing ? 2.2 : 1.5;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 3, 24 + pulse * 4, 9 + pulse * 1.6, -0.08, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (healing) {
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = "#8fe8ef";
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.arc(x, y - 24, 12, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#d7fff6";
+      ctx.lineWidth = 1.8;
+      for (let i = 0; i < 3; i += 1) {
+        const angle = elapsed * 0.0024 + i * ((Math.PI * 2) / 3);
+        const px = x + Math.cos(angle) * 16;
+        const py = y - 22 + Math.sin(angle) * 6;
+
+        ctx.beginPath();
+        ctx.moveTo(px - 4, py);
+        ctx.lineTo(px + 4, py);
+        ctx.moveTo(px, py - 4);
+        ctx.lineTo(px, py + 4);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
   paintStruggleMarks(ctx, x, y, elapsed) {
     const pulse = Math.sin(elapsed * 0.018) * 0.5 + 0.5;
 
@@ -1243,7 +1328,11 @@ export class UnitPainter {
 
 function hasCarriedLoad(unit) {
   return Boolean(
-    unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId || unit.carryingMeatCorpseId,
+    unit.carryingTreasureId ||
+      unit.carryingHerbId ||
+      unit.carryingResourceNodeId ||
+      unit.carryingMeatCorpseId ||
+      unit.carryingReviveCorpseId,
   );
 }
 

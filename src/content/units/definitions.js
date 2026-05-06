@@ -31,6 +31,10 @@ export const UNIT_DEFINITIONS = {
     patrolRadius: 5,
     health: 5,
     attackDamage: 1,
+    art: {
+      system: "unitV2",
+      key: "duneVanguard",
+    },
     colors: {
       primary: "#2b746f",
       secondary: "#f2cf79",

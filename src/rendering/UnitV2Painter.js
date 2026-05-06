@@ -168,7 +168,11 @@ function getUnitV2Action(unit) {
 
 function hasCarriedLoad(unit) {
   return Boolean(
-    unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId || unit.carryingMeatCorpseId,
+    unit.carryingTreasureId ||
+      unit.carryingHerbId ||
+      unit.carryingResourceNodeId ||
+      unit.carryingMeatCorpseId ||
+      unit.carryingReviveCorpseId,
   );
 }
 

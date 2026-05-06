@@ -29,8 +29,13 @@ const WARRIOR_KNOCKBACK_STAGGER_MS = 760;
 const RECOVERY_RADIUS = 2;
 const RECOVERY_TICK_MS = 1800;
 const RECOVERY_PAUSE_MS = 260;
+const REVIVE_HEAL_MS = 9000;
 const MONSTER_OUTER_ROAM_CAMP_RADIUS = 10;
 const MONSTER_OUTER_ROAM_ATTEMPTS = 36;
+const PLAYER_PATROL_WAIT_MIN_MS = 1600;
+const PLAYER_PATROL_WAIT_MAX_MS = 4200;
+const MONSTER_PATROL_WAIT_MIN_MS = 1400;
+const MONSTER_PATROL_WAIT_MAX_MS = 3800;
 const SPRITE_WARRIOR_MOVE_MULTIPLIER = 1.55;
 const SPRITE_SETTLER_MOVE_MULTIPLIER = 1.55;
 const HERO_MARKET_CHECK_MS = 2600;
@@ -237,6 +242,11 @@ export class UnitManager {
       return corpse ? this.commandHarvestCorpse(corpse, { allowQueue: false }) : false;
     }
 
+    if (order.kind === "revive") {
+      const corpse = this.getCorpseById(order.targetId);
+      return corpse ? this.commandReviveCorpse(corpse, { allowQueue: false }) : false;
+    }
+
     if (order.kind === "build") {
       const tile = this.getTileById(order.tileId);
       return tile ? this.commandBuildTile(tile, order.buildingId, { allowQueue: false }) : false;
@@ -273,6 +283,11 @@ export class UnitManager {
     if (order.kind === "corpse") {
       const corpse = this.getCorpseById(order.targetId);
       return Boolean(corpse && !corpse.harvested && !corpse.reservedBy);
+    }
+
+    if (order.kind === "revive") {
+      const corpse = this.getCorpseById(order.targetId);
+      return Boolean(corpse && corpse.revivable && corpse.status === "waiting" && !corpse.reservedBy);
     }
 
     if (order.kind === "build") {
@@ -314,6 +329,8 @@ export class UnitManager {
             ? this.resourceNodeManager.getById(details.targetId)
             : kind === "corpse"
               ? this.getCorpseById(details.targetId)
+              : kind === "revive"
+                ? this.getCorpseById(details.targetId)
               : null;
 
     return target ? this.world.getTile(target.column, target.row) : null;
@@ -623,6 +640,49 @@ export class UnitManager {
     return true;
   }
 
+  commandReviveCorpse(corpse, options = {}) {
+    const { allowQueue = true } = options;
+
+    if (allowQueue && this.hasPendingOrder("revive", { targetId: corpse?.id })) {
+      return true;
+    }
+
+    if (!corpse || !corpse.revivable || corpse.status !== "waiting" || corpse.reservedBy) {
+      return false;
+    }
+
+    const corpseTile = this.world.getTile(corpse.column, corpse.row);
+    const worker = this.getAvailableSettlers(corpseTile)[0];
+
+    if (!worker) {
+      return allowQueue ? this.queuePendingOrder("revive", "rest", { targetId: corpse.id }) : false;
+    }
+
+    const marker = this.addMarker("rest", corpseTile);
+
+    corpse.reservedBy = worker.id;
+    worker.targetCorpseId = corpse.id;
+
+    const assigned = this.assignUnitPath(worker, corpseTile, {
+      order: "revive",
+      orderIcon: "rest",
+      markerId: marker.id,
+      stage: "toCorpse",
+    });
+
+    if (!assigned) {
+      this.removeMarker(marker.id);
+      corpse.reservedBy = null;
+      worker.targetCorpseId = null;
+      this.setPatrol(worker);
+      return allowQueue ? this.queuePendingOrder("revive", "rest", { targetId: corpse.id }) : false;
+    }
+
+    this.assignGuardToWorker(worker);
+    say(worker, "Bringing them home!", "rest", 1200);
+    return true;
+  }
+
   commandBuildTile(tile, buildingId, options = {}) {
     const { allowQueue = true } = options;
 
@@ -838,7 +898,7 @@ export class UnitManager {
     unit.movementQueue = [];
   }
 
-  applyUnitPath(unit, destination, path, { order, orderIcon, markerId = null, stage = null }) {
+  applyUnitPath(unit, destination, path, { order, orderIcon, markerId = null, stage = null, pauseAfterPathMs = 0 } = {}) {
     if (path.length < 2 && (unit.column !== destination.column || unit.row !== destination.row)) {
       return false;
     }
@@ -849,7 +909,7 @@ export class UnitManager {
     unit.orderIcon = orderIcon;
     unit.markerId = markerId;
     unit.stage = stage;
-    unit.pauseMs = 0;
+    unit.pauseMs = pauseAfterPathMs;
     this.startNextSegment(unit);
     return true;
   }
@@ -968,6 +1028,11 @@ export class UnitManager {
 
     if (unit.order === "meat") {
       this.updateMeat(unit, delta);
+      return;
+    }
+
+    if (unit.order === "revive") {
+      this.updateRevive(unit);
       return;
     }
 
@@ -1332,6 +1397,53 @@ export class UnitManager {
     this.setPatrol(unit);
   }
 
+  updateRevive(unit) {
+    const corpse = this.getCorpseById(unit.targetCorpseId);
+
+    if (!corpse || !corpse.revivable) {
+      this.removeMarker(unit.markerId);
+      this.setPatrol(unit);
+      return;
+    }
+
+    if (unit.stage === "toCorpse") {
+      corpse.status = "carried";
+      corpse.carriedBy = unit.id;
+      corpse.reservedBy = unit.id;
+      unit.carryingReviveCorpseId = corpse.id;
+
+      const assignedReturn = this.assignUnitPath(unit, this.getCampAccessTile(unit), {
+        order: "revive",
+        orderIcon: "rest",
+        markerId: unit.markerId,
+        stage: "toFire",
+      });
+
+      if (!assignedReturn) {
+        this.dropCarriedReviveCorpse(unit);
+        this.setPatrol(unit);
+        return;
+      }
+
+      say(unit, "Hold on.", "rest", 1000);
+      return;
+    }
+
+    corpse.status = "healing";
+    corpse.carriedBy = null;
+    corpse.reservedBy = null;
+    corpse.column = unit.column;
+    corpse.row = unit.row;
+    corpse.visualColumn = unit.visualColumn;
+    corpse.visualRow = unit.visualRow;
+    corpse.healMs = 0;
+    corpse.healDurationMs = REVIVE_HEAL_MS;
+    unit.carryingReviveCorpseId = null;
+    say(unit, "Healing by fire.", "herb", 1200);
+    this.removeMarker(unit.markerId);
+    this.setPatrol(unit);
+  }
+
   updateBuild(unit, delta) {
     const tile = this.getTileById(unit.targetBuildTileId);
 
@@ -1620,12 +1732,13 @@ export class UnitManager {
       return;
     }
 
-    this.applyDamage(target, unit.attackDamage || 1, { keepPlayerAlive: true });
+    this.applyDamage(target, unit.attackDamage || 1);
 
     if (!target.defeated) {
       this.sendToRecovery(target);
-      this.setPatrol(unit);
     }
+
+    this.setPatrol(unit);
   }
 
   applyWarriorKnockback(unit, target) {
@@ -1681,7 +1794,7 @@ export class UnitManager {
     return destination;
   }
 
-  applyDamage(target, amount, options = {}) {
+  applyDamage(target, amount) {
     target.health = Math.max(0, target.health - amount);
     target.hitFlashMs = HIT_FLASH_MS;
     showCombatText(target, `-${amount}`, "damage");
@@ -1690,11 +1803,8 @@ export class UnitManager {
       return;
     }
 
-    if (target.faction === "player" && options.keepPlayerAlive) {
-      target.health = 1;
-      target.recoverMs = Math.min(target.recoverMs || 0, -RECOVERY_TICK_MS);
-      showCombatText(target, `-${amount}`, "heavyDamage");
-      return;
+    if (target.faction === "player") {
+      this.abandonAssignments(target);
     }
 
     this.recordCorpse(target);
@@ -1702,9 +1812,11 @@ export class UnitManager {
   }
 
   recordCorpse(unit) {
-    if (unit.faction !== "monster" || this.corpses.some((corpse) => corpse.id === `corpse-${unit.id}`)) {
+    if (!["monster", "player"].includes(unit.faction) || this.corpses.some((corpse) => corpse.id === `corpse-${unit.id}`)) {
       return;
     }
+
+    const isPlayer = unit.faction === "player";
 
     this.corpses.push({
       id: `corpse-${unit.id}`,
@@ -1719,9 +1831,15 @@ export class UnitManager {
       visualColumn: unit.visualColumn,
       visualRow: unit.visualRow,
       ageMs: 0,
+      status: "waiting",
+      revivable: isPlayer,
+      reviveUnit: isPlayer ? createReviveSnapshot(unit) : null,
+      healMs: 0,
+      healDurationMs: REVIVE_HEAL_MS,
       meatValue: unit.decorative ? 1 : 2,
       harvested: false,
       reservedBy: null,
+      carriedBy: null,
     });
   }
 
@@ -1907,10 +2025,6 @@ export class UnitManager {
   }
 
   updateCorpses(delta) {
-    if (!this.corpseTtlMs) {
-      return;
-    }
-
     let writeIndex = 0;
 
     for (let readIndex = 0; readIndex < this.corpses.length; readIndex += 1) {
@@ -1918,7 +2032,22 @@ export class UnitManager {
 
       corpse.ageMs += delta;
 
-      if (corpse.ageMs >= this.corpseTtlMs || corpse.harvested) {
+      if (corpse.revivable) {
+        if (corpse.status === "healing") {
+          corpse.healMs = Math.min(corpse.healDurationMs || REVIVE_HEAL_MS, (corpse.healMs || 0) + delta);
+
+          if (corpse.healMs >= (corpse.healDurationMs || REVIVE_HEAL_MS)) {
+            this.restoreRevivedUnit(corpse);
+            continue;
+          }
+        }
+
+        this.corpses[writeIndex] = corpse;
+        writeIndex += 1;
+        continue;
+      }
+
+      if ((this.corpseTtlMs && corpse.ageMs >= this.corpseTtlMs) || corpse.harvested) {
         continue;
       }
 
@@ -1932,7 +2061,12 @@ export class UnitManager {
   getCorpseAt(column, row) {
     return (
       this.corpses.find(
-        (corpse) => corpse.column === column && corpse.row === row && !corpse.harvested && !corpse.reservedBy,
+        (corpse) =>
+          corpse.column === column &&
+          corpse.row === row &&
+          corpse.status === "waiting" &&
+          !corpse.harvested &&
+          !corpse.reservedBy,
       ) || null
     );
   }
@@ -1943,6 +2077,54 @@ export class UnitManager {
 
   removeCorpse(corpseId) {
     this.corpses = this.corpses.filter((corpse) => corpse.id !== corpseId);
+  }
+
+  restoreRevivedUnit(corpse) {
+    if (!corpse.reviveUnit || this.units.some((unit) => unit.id === corpse.reviveUnit.id)) {
+      return false;
+    }
+
+    const tile = this.world.getTile(corpse.column, corpse.row) || this.getCampAccessTile(this.campTile);
+    const unit = {
+      ...corpse.reviveUnit,
+      column: tile.column,
+      row: tile.row,
+      visualColumn: tile.column,
+      visualRow: tile.row,
+      movementQueue: [],
+      movementSegment: null,
+      pendingPathJobId: null,
+      order: "recover",
+      orderIcon: "rest",
+      speech: null,
+      pauseMs: RECOVERY_PAUSE_MS,
+      carryingTreasureId: null,
+      carryingHerbId: null,
+      carryingResourceNodeId: null,
+      carryingResourceType: null,
+      carryingResourceAmount: 0,
+      carryingMeatCorpseId: null,
+      carryingReviveCorpseId: null,
+      targetCorpseId: null,
+      escortTargetId: null,
+      guardTargetId: null,
+      targetResourceNodeId: null,
+      targetMonsterId: null,
+      targetUnitId: null,
+      attackCooldownMs: 0,
+      attackFlashMs: 0,
+      staggerMs: 0,
+      hitFlashMs: 0,
+      defeated: false,
+      health: Math.max(1, Math.ceil((corpse.reviveUnit.maxHealth || 1) * 0.5)),
+      recoverMs: 0,
+      combatText: null,
+    };
+
+    this.units.push(unit);
+    showCombatText(unit, "Revived", "heal");
+    say(unit, "I live.", "smile", 1300);
+    return true;
   }
 
   sendToRecovery(unit) {
@@ -2074,8 +2256,8 @@ export class UnitManager {
     this.queueUnitPath(unit, destination, {
       order: "patrol",
       orderIcon: null,
+      pauseAfterPathMs: getRandomPatrolWaitMs(unit),
     });
-    unit.pauseMs = 500 + Math.random() * 900;
   }
 
   patrolMonster(unit) {
@@ -2086,8 +2268,8 @@ export class UnitManager {
         this.queueUnitPath(unit, localDestination, {
           order: "monsterPatrol",
           orderIcon: null,
+          pauseAfterPathMs: getRandomPatrolWaitMs(unit),
         });
-        unit.pauseMs = 550 + Math.random() * 1100;
         return;
       }
     }
@@ -2099,8 +2281,8 @@ export class UnitManager {
         this.queueUnitPath(unit, roamingDestination, {
           order: "monsterPatrol",
           orderIcon: null,
+          pauseAfterPathMs: getRandomPatrolWaitMs(unit),
         });
-        unit.pauseMs = 450 + Math.random() * 900;
         return;
       }
     }
@@ -2124,8 +2306,8 @@ export class UnitManager {
     this.queueUnitPath(unit, destination, {
       order: "monsterPatrol",
       orderIcon: null,
+      pauseAfterPathMs: getRandomPatrolWaitMs(unit),
     });
-    unit.pauseMs = 700 + Math.random() * 1200;
   }
 
   getLocalRoamTile(unit) {
@@ -2182,6 +2364,7 @@ export class UnitManager {
 
   setPatrol(unit) {
     this.cancelQueuedPath(unit);
+    this.dropCarriedReviveCorpse(unit);
 
     if (unit.targetHerbId) {
       this.herbManager.release(unit.targetHerbId, unit.id);
@@ -2235,6 +2418,7 @@ export class UnitManager {
     unit.targetBuildingId = null;
     unit.targetCorpseId = null;
     unit.carryingMeatCorpseId = null;
+    unit.carryingReviveCorpseId = null;
     unit.guardTargetId = null;
     unit.workMs = 0;
     unit.targetMonsterId = null;
@@ -2242,7 +2426,7 @@ export class UnitManager {
     unit.recoverMs = 0;
     unit.movementQueue = [];
     unit.movementSegment = null;
-    unit.pauseMs = 250 + Math.random() * 600;
+    unit.pauseMs = getRandomPatrolWaitMs(unit);
   }
 
   removeDefeatedUnits() {
@@ -2266,6 +2450,7 @@ export class UnitManager {
   abandonAssignments(unit) {
     this.cancelQueuedPath(unit);
     this.removeMarker(unit.markerId);
+    this.dropCarriedReviveCorpse(unit);
 
     if (unit.targetHerbId) {
       this.herbManager.release(unit.targetHerbId, unit.id);
@@ -2316,8 +2501,27 @@ export class UnitManager {
     unit.targetBuildingId = null;
     unit.targetCorpseId = null;
     unit.carryingMeatCorpseId = null;
+    unit.carryingReviveCorpseId = null;
     unit.guardTargetId = null;
     unit.workMs = 0;
+  }
+
+  dropCarriedReviveCorpse(unit) {
+    if (!unit.carryingReviveCorpseId) {
+      return;
+    }
+
+    const corpse = this.getCorpseById(unit.carryingReviveCorpseId);
+
+    if (corpse && corpse.status === "carried" && corpse.carriedBy === unit.id) {
+      corpse.status = "waiting";
+      corpse.carriedBy = null;
+      corpse.reservedBy = null;
+      corpse.column = unit.column;
+      corpse.row = unit.row;
+      corpse.visualColumn = unit.visualColumn;
+      corpse.visualRow = unit.visualRow;
+    }
   }
 
   updateMovement(unit, delta) {
@@ -2862,6 +3066,44 @@ function showResourceText(unit, amount, type) {
   };
 }
 
+function createReviveSnapshot(unit) {
+  return {
+    ...unit,
+    movementQueue: [],
+    movementSegment: null,
+    pendingPathJobId: null,
+    order: "recover",
+    orderIcon: "rest",
+    speech: null,
+    pauseMs: RECOVERY_PAUSE_MS,
+    carryingTreasureId: null,
+    carryingHerbId: null,
+    carryingResourceNodeId: null,
+    carryingResourceType: null,
+    carryingResourceAmount: 0,
+    carryingMeatCorpseId: null,
+    carryingReviveCorpseId: null,
+    escortTargetId: null,
+    guardTargetId: null,
+    targetHerbId: null,
+    targetTreasureId: null,
+    targetResourceNodeId: null,
+    targetCleanTileId: null,
+    targetBuildTileId: null,
+    targetBuildingId: null,
+    targetCorpseId: null,
+    targetMonsterId: null,
+    targetUnitId: null,
+    attackCooldownMs: 0,
+    attackFlashMs: 0,
+    staggerMs: 0,
+    recoverMs: 0,
+    hitFlashMs: 0,
+    combatText: null,
+    defeated: false,
+  };
+}
+
 function getAttackRange(unit) {
   return Math.max(1, unit.attackRange || 1);
 }
@@ -2975,6 +3217,10 @@ function getHeroClassTemplate(classId) {
       health: 6,
       attackDamage: 2,
       scale: 1.08,
+      art: {
+        system: "unitV2",
+        key: "duneVanguard",
+      },
       colors: {
         primary: "#496477",
         secondary: "#dbe4d7",
@@ -3073,9 +3319,20 @@ function getHeroHobbyWorkMs(hobby) {
   return 3800 + Math.random() * 4200;
 }
 
+function getRandomPatrolWaitMs(unit) {
+  const min = unit.faction === "player" ? PLAYER_PATROL_WAIT_MIN_MS : MONSTER_PATROL_WAIT_MIN_MS;
+  const max = unit.faction === "player" ? PLAYER_PATROL_WAIT_MAX_MS : MONSTER_PATROL_WAIT_MAX_MS;
+
+  return min + Math.random() * (max - min);
+}
+
 function hasCarriedLoad(unit) {
   return Boolean(
-    unit.carryingTreasureId || unit.carryingHerbId || unit.carryingResourceNodeId || unit.carryingMeatCorpseId,
+    unit.carryingTreasureId ||
+      unit.carryingHerbId ||
+      unit.carryingResourceNodeId ||
+      unit.carryingMeatCorpseId ||
+      unit.carryingReviveCorpseId,
   );
 }
 

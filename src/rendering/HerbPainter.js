@@ -1,5 +1,21 @@
+import { getLoadedImage } from "../engine/assets/AssetLoader.js";
+import { RESOURCE_NODE_ART } from "../content/resources/definitions.js";
+
 export class HerbPainter {
+  constructor() {
+    this.herbImage = null;
+  }
+
+  setImageCache(imageCache) {
+    this.herbImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.herbs);
+  }
+
   paint(ctx, { x, y, loadsRemaining }) {
+    if (this.herbImage) {
+      this.paintHerbImage(ctx, x, y, loadsRemaining);
+      return;
+    }
+
     ctx.save();
     ctx.fillStyle = "rgba(33, 23, 12, 0.2)";
     ctx.beginPath();
@@ -27,6 +43,19 @@ export class HerbPainter {
     ctx.fill();
 
     ctx.fillStyle = "rgba(255, 244, 214, 0.84)";
+    ctx.font = "700 9px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(loadsRemaining), x, y + 12);
+    ctx.restore();
+  }
+
+  paintHerbImage(ctx, x, y, loadsRemaining) {
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.herbImage, x - 27, y - 41, 54, 54);
+
+    ctx.fillStyle = "rgba(255, 244, 214, 0.9)";
     ctx.font = "700 9px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

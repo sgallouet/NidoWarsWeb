@@ -472,7 +472,11 @@ export class Game {
     const corpse = this.units.getCorpseAt(tile.column, tile.row);
 
     if (corpse) {
-      this.units.commandHarvestCorpse(corpse);
+      if (corpse.revivable) {
+        this.units.commandReviveCorpse(corpse);
+      } else {
+        this.units.commandHarvestCorpse(corpse);
+      }
       return;
     }
 

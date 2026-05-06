@@ -1,6 +1,6 @@
 export const duneVanguardArt = {
-  idleSheet: "./src/content/units/dune-vanguard/art/idle_sheet.png",
-  walkSheet: "./src/content/units/dune-vanguard/art/walk_sheet.png",
+  idleSheet: "./src/content/units/dune-vanguard/art/idle_sheet_old.png",
+  walkSheet: "./src/content/units/dune-vanguard/art/walk_sheet_old.png",
   sourceSize: 186,
   drawSize: 66,
   idleFrameCount: 8,

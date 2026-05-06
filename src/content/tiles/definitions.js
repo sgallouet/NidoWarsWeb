@@ -9,6 +9,16 @@ export const TILE_TYPES = {
       shadow: "#a87436",
     },
   },
+  campground: {
+    label: "Firecamp Ground",
+    movementCost: 1.2,
+    passable: true,
+    colors: {
+      light: "#8c5f37",
+      base: "#5c3a1f",
+      shadow: "#332112",
+    },
+  },
   grass: {
     label: "Temperate Meadow",
     movementCost: 1,

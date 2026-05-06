@@ -31,6 +31,7 @@ export class CanvasRenderer {
     this.imageCache = imageCache;
     this.firecampSprite = getLoadedImage(imageCache, FIRECAMP_SPRITE_SRC);
     this.tilePainter.setImageCache(imageCache);
+    this.herbPainter.setImageCache(imageCache);
     this.resourceNodePainter.setImageCache(imageCache);
     this.unitPainter.setImageCache(imageCache);
   }
@@ -756,6 +757,17 @@ export class CanvasRenderer {
       ctx.beginPath();
       ctx.arc(x, y, 3.5, 0, Math.PI * 2);
       ctx.fill();
+    } else if (type === "rest") {
+      ctx.strokeStyle = "#a9f06f";
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(x, y + 1, 7, 0.15, Math.PI * 1.85);
+      ctx.moveTo(x - 5, y + 1);
+      ctx.lineTo(x + 5, y + 1);
+      ctx.moveTo(x, y - 4);
+      ctx.lineTo(x, y + 6);
+      ctx.stroke();
     } else if (type === "herb") {
       ctx.strokeStyle = "#cce68a";
       ctx.lineWidth = 2;
@@ -900,6 +912,10 @@ export class CanvasRenderer {
     );
 
     for (const corpse of sortedCorpses) {
+      if (corpse.status === "carried") {
+        continue;
+      }
+
       const point = gridToWorld(
         corpse.visualColumn,
         corpse.visualRow,
@@ -1231,6 +1247,10 @@ function getMarkerBackground(type) {
 
   if (type === "herb") {
     return "rgba(35, 67, 35, 0.92)";
+  }
+
+  if (type === "rest") {
+    return "rgba(32, 69, 55, 0.92)";
   }
 
   if (type === "fish") {

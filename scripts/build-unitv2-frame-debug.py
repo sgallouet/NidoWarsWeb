@@ -36,6 +36,12 @@ UNITS = {
         "atlas": ROOT / "src/content/units/quadruped-monster/art/unitv2_atlas.png",
         "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
     },
+    "dune-vanguard": {
+        "source": Path("C:/Users/Simon/Downloads/ChatGPT Image May 6, 2026, 02_42_17 PM (1).png"),
+        "atlas": ROOT / "src/content/units/dune-vanguard/art/unitv2_atlas.png",
+        "preview_aliases": {"guard": "attack"},
+        "groups": [("idle", 4), ("walk", 6), ("attack", 5), ("hit", 2), ("death", 5)],
+    },
 }
 
 COLORS = [
@@ -67,7 +73,7 @@ def main() -> None:
         frames = detect_frames(atlas)
         named_frames = name_frames(frames, config["groups"])
         write_debug_image(unit_id, atlas, named_frames)
-        write_webp_previews(unit_id, atlas, named_frames)
+        write_webp_previews(unit_id, atlas, named_frames, config.get("preview_aliases", {}))
         print(f"{unit_id}: {len(named_frames)} frames")
         for label, frame in named_frames:
             left, top, right, bottom = frame["source"]
@@ -242,11 +248,15 @@ def write_debug_image(unit_id: str, atlas: Image.Image, frames: list[tuple[str, 
     debug.save(out_path)
 
 
-def write_webp_previews(unit_id: str, atlas: Image.Image, frames: list[tuple[str, dict]]) -> None:
+def write_webp_previews(unit_id: str, atlas: Image.Image, frames: list[tuple[str, dict]], aliases: dict[str, str]) -> None:
     groups: dict[str, list[dict]] = {}
     for label, frame in frames:
         action = label.rsplit("-", 1)[0]
         groups.setdefault(action, []).append(frame)
+
+    for alias, source_action in aliases.items():
+        if source_action in groups:
+            groups[alias] = groups[source_action]
 
     out_dir = ROOT / f"src/content/units/{unit_id}/art/previews"
     out_dir.mkdir(parents=True, exist_ok=True)

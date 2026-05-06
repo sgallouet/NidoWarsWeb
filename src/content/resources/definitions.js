@@ -10,6 +10,11 @@ export const RESOURCE_ICONS = {
   rock: "./src/content/resources/rock/icon.png",
 };
 
+export const RESOURCE_NODE_ART = {
+  herbs: "./src/content/resources/herbs/node.png",
+  rock: "./src/content/resources/rock/node.png",
+};
+
 export const RESOURCE_DEFINITIONS = {
   fish: {
     label: "Fish Shoal",
