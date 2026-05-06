@@ -1,4 +1,5 @@
-const RESOURCE_KEYS = ["gold", "herbs", "fish", "meat", "berries", "wood", "rock"];
+import { RESOURCE_KEYS } from "../content/resources/definitions.js";
+
 const RESOURCE_ROLL_MS = 780;
 
 export class Hud {

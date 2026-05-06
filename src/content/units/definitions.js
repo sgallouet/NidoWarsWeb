@@ -1,4 +1,4 @@
-import { isTilePassable } from "../world/tileTypes.js";
+import { isTilePassable } from "../tiles/definitions.js";
 
 const BASE_MAP_COLUMNS = 60;
 const BASE_MAP_ROWS = 60;

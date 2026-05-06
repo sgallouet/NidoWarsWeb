@@ -52,7 +52,7 @@ Enemies can start with `idle`, `walk`, `attack`, `hit`, and `death`.
 
 ## Data Ownership
 
-- Unit stats and spawn data: `src/units/unitDefinitions.js`
-- Unit behavior: `src/units/UnitManager.js`
-- UnitV2 art manifests: `src/units/unitV2Art.js`
+- Unit stats and spawn data: `src/content/units/`
+- Unit behavior: `src/gameplay/units/UnitManager.js`
+- UnitV2 art manifests: `src/content/units/<unit-id>/art.js` and `src/content/units/unitV2Art.js`
 - UnitV2 rendering: `src/rendering/UnitV2Painter.js`

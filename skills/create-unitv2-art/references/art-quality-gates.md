@@ -8,10 +8,10 @@ UnitV2 is meant to create better and more complete unit art than the earlier uni
 
 Before accepting an asset, compare it against:
 
-- `assets/warrior_idle_sheet.png`
-- `assets/warrior_walk_sheet.png`
-- `assets/settler_idle_sheet.png`
-- `assets/settler_walk_sheet.png`
+- `src/content/units/dune-vanguard/art/idle_sheet.png`
+- `src/content/units/dune-vanguard/art/walk_sheet.png`
+- `src/content/units/dune-settler/art/idle_sheet.png`
+- `src/content/units/dune-settler/art/walk_sheet.png`
 - the user's reference image, when provided
 
 The new asset should blend with those sprites in outline weight, contrast, palette warmth, and readable silhouette. It may use a different pipeline, but the final in-game result must feel at least as intentional.

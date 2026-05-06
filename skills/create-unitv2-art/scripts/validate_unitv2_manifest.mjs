@@ -1,4 +1,4 @@
-import { UNIT_V2_ART } from "../../../src/units/unitV2Art.js";
+import { UNIT_V2_ART } from "../../../src/content/units/unitV2Art.js";
 
 const REQUIRED_ACTIONS_BY_ROLE = {
   enemy: ["idle", "walk", "attack", "hit", "death"],

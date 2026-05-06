@@ -1,8 +1,13 @@
-import { UNIT_V2_ART } from "../units/unitV2Art.js";
+import { UNIT_V2_ART } from "../content/units/unitV2Art.js";
+import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 
 export class UnitV2Painter {
   constructor() {
-    this.images = new Map();
+    this.imageCache = new Map();
+  }
+
+  setImageCache(imageCache) {
+    this.imageCache = imageCache;
   }
 
   getArt(unit) {
@@ -71,22 +76,7 @@ export class UnitV2Painter {
   }
 
   getImage(src) {
-    if (!src || typeof Image !== "function") {
-      return null;
-    }
-
-    const cached = this.images.get(src);
-
-    if (cached) {
-      return cached;
-    }
-
-    const image = new Image();
-
-    image.decoding = "async";
-    image.src = src;
-    this.images.set(src, image);
-    return image;
+    return getLoadedImage(this.imageCache, src);
   }
 }
 
@@ -169,5 +159,5 @@ function getFacing(unit) {
 }
 
 function isImageReady(image) {
-  return Boolean(image?.complete && image.naturalWidth > 0);
+  return Boolean(image);
 }

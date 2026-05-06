@@ -1,40 +1,70 @@
 ---
 name: nido-wars-architecture
-description: Use when planning, implementing, reviewing, or performance-testing work in Nido Wars, a plain JavaScript realtime browser strategy game. Trigger for gameplay features, world generation, unit AI, rendering, input, mobile/touch behavior, HUD/UI changes, code architecture, build/run setup, or 60 FPS performance work in this repository.
+description: Use when planning, implementing, reviewing, or performance-testing work in Nido Wars, a plain JavaScript realtime browser strategy game. Trigger for gameplay features, world generation, content organization, unit AI, rendering, input, mobile/touch behavior, HUD/UI changes, code architecture, build/run setup, or 60 FPS performance work in this repository.
 ---
 
 # Nido Wars Architecture
 
 ## Purpose
 
-Use this skill to make changes that fit the current Nido Wars codebase: a dependency-light realtime canvas RTS with modular ES files, cached rendering, compact DOM UI, and mobile-first pointer controls.
+Use this skill to keep Nido Wars clean, small-file, dependency-light, and fast. Nido Wars is a realtime canvas strategy game; the first screen is always the live game world, and every repo change should make the game easier to extend without turning managers, painters, or HTML into melting pots.
 
-## First Steps
+## First Reads
 
-1. Read `references/project-setup.md` when you need repo layout, run commands, module ownership, or current gameplay systems.
-2. Read `references/feature-workflow.md` before adding or changing gameplay, content, UI flows, input actions, or world systems.
-3. Read `references/performance.md` before touching the game loop, rendering, fog, pathfinding, unit updates, CSS over the canvas, assets, or mobile interaction.
-4. Inspect the directly owned files before editing. Prefer `rg` and focused reads over broad rewrites.
+1. Read `references/project-setup.md` for the current folder map, app entry flow, and ownership rules.
+2. Read `references/feature-workflow.md` before changing gameplay, content, UI flows, input actions, world actions, or art integration.
+3. Read `references/performance.md` before touching the game loop, rendering, fog, pathfinding, unit updates, assets, CSS over the canvas, or mobile interaction.
+4. Inspect the directly owned files with `rg` and focused reads. Avoid broad rewrites unless the task is explicitly architectural.
 
-## Core Rules
+## Non-Negotiables
 
-- Keep responsibilities separated: orchestration in `src/core`, input in `src/engine`, rendering in `src/rendering`, world systems in `src/world`, unit logic in `src/units`, UI bindings in `src/ui`, constants in `src/config`.
-- Preserve the live game as the first screen. Avoid landing pages, marketing copy, large explanatory panels, or UI that competes with the map.
-- Keep player understanding environmental where possible: unit motion, in-world markers, compact icons, animation, and brief feedback before text-heavy UI.
-- Treat performance as a product feature. Protect steady 60 FPS, especially on mobile.
-- Do not add a framework or runtime dependency unless the task has a clear, established domain need that outweighs the plain-browser setup.
-- Add abstractions only when they remove real complexity or match an existing local pattern.
+- Keep the live canvas game as the first screen. Do not replace it with a landing page, hero section, or explanatory UI.
+- Treat steady 60 FPS as a product feature. Prefer readable motion and cached drawing over decorative complexity.
+- Keep files small and owned. Any runtime file growing beyond roughly 300-400 lines is a design smell; beyond 600 lines is a red flag that should trigger extraction.
+- Put content with content. Unit definitions and art live under `src/content/units/<unit-id>/`; tile definitions and art under `src/content/tiles/<tile-id>/`; resources under `src/content/resources/<resource-id>/`; buildings, heroes, and quests under their own content folders.
+- Keep common contracts outside content folders. Shared factories, registries, math, browser helpers, and runtime interfaces belong in `src/common`, `src/core`, `src/engine`, `src/rendering`, `src/world`, or focused system folders.
+- Keep managers behavioral and painters visual. Managers produce state; painters draw state; content files declare data and asset paths.
+- Keep `index.html` tiny. It loads CSS and `src/main.js`; app shell markup belongs in `src/app/shell`.
+- Move unused generated or legacy files to `bin/` instead of leaving them beside active runtime content.
+- Active art should be compact sprite or spritesheet art. Favor low-resolution raster cells for performance, crisp pixel edges, readable silhouettes, and strong near-black outline/detail lines that match the Nido Wars style.
+- Runtime image paths must be registered in a content asset manifest and loaded during the loading screen. Do not add lazy image discovery in per-frame paint paths.
+- Do not add a framework or runtime dependency unless the task has a clear domain need and the existing plain-browser setup cannot reasonably cover it.
 
-## Product Direction
+## Desired Shape
 
-- Nido Wars is a realtime strategy game centered on a fire camp, buildable village space, exploration, gathering, monster threats, and compact hero/building/quest interactions.
-- The island uses multiple biomes: snow mountain, desert, temperate, volcanic, and paradise. Ground units must respect impassable terrain; birds can fly over terrain.
-- Player units patrol, explore fog, gather treasure/herbs/fish/berries/wood/rock/meat, build, clean blocked tiles, fight threats, and recover at camp when wounded.
-- Visuals should be readable, warm, and premium in a 2D isometric canvas style across desktop, phone, and tablet.
+- `src/app/`: browser app composition, DOM shell creation, boot-only wiring.
+- `src/common/`: small shared helpers and contracts with no game-domain ownership.
+- `src/config/`: global configuration only.
+- `src/content/`: universe/content hierarchy: units, tiles, resources, buildings, heroes, quests, objects, and local art.
+- `src/core/`: game orchestration and lifecycle. Keep thin; extract menus, construction, roads, quests, and intro helpers when they grow.
+- `src/engine/`: input, frame budgets, low-level runtime mechanics.
+- `src/rendering/`: renderer orchestration and focused painters. Painters can import content art manifests, but not own gameplay rules.
+- `src/world/`: world state and world managers. Prefer focused managers and compatibility shims over one huge world file.
+- `src/gameplay/`: gameplay-specific runtime rules grouped by concept, such as units and resources.
+- `src/gameplay/units/`: unit runtime systems such as movement, pathfinding, orders, and AI. Unit content stays in `src/content/units`.
+- `src/gameplay/resources/`: gatherable, loot, herb, treasure, and resource-node rules.
+- `src/ui/`: persistent HUD/chrome components, not large app markup.
+- `bin/`: legacy generated art, generated caches, retired experiments, and other non-runtime leftovers.
+- `skills/`: local Codex skills and references. Keep paths current after architecture moves.
+
+## Content Rules
+
+- A unit folder should contain its definition, optional art manifest, local art files, and unit-specific notes if needed. Shared unit creation/spawn logic belongs in `_shared` or `spawning`, not inside one unit.
+- A tile folder should contain terrain definition, local art, and rendering hooks or metadata. Shared movement/passability helpers stay in the tile registry/common layer.
+- A resource folder owns its icon and definition. Resource node spawning/cleanup behavior stays in a manager.
+- Buildings, heroes, and quests are content data first; UI card rendering and lifecycle behavior should be extracted from `Game` when changed.
+- Compatibility shim files are allowed during migrations, but they should be tiny re-exports and marked by their size and simplicity.
+
+## Design Taste
+
+- Use compact, in-world feedback before text-heavy panels.
+- Keep HUD and overlays small, safe-area-aware, and quick to scan.
+- Use visual assets for the actual game world and objects, not decorative page furniture.
+- Prefer warm, readable, premium 2D isometric visuals with clear silhouettes at runtime size.
 
 ## Before Finishing
 
-- Run syntax checks for changed JavaScript where practical.
+- Run `node --check` on changed JavaScript where practical.
 - For gameplay, rendering, input, UI, or performance changes, run the local app and smoke-test the affected flow.
-- Check the browser console and the in-game frame monitor for obvious regressions.
-- Keep generated screenshots, logs, and exploratory artifacts out of commits unless intentionally requested.
+- Check browser console behavior and the in-game frame monitor for obvious regressions.
+- Keep generated screenshots, logs, caches, and exploratory artifacts out of active runtime folders unless intentionally requested.

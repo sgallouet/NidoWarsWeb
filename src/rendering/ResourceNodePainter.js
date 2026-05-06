@@ -1,10 +1,13 @@
+import { getLoadedImage } from "../engine/assets/AssetLoader.js";
+import { RESOURCE_ICONS } from "../content/resources/definitions.js";
+
 export class ResourceNodePainter {
   constructor() {
-    this.rockImage = typeof Image === "undefined" ? null : new Image();
+    this.rockImage = null;
+  }
 
-    if (this.rockImage) {
-      this.rockImage.src = "./assets/rock.png";
-    }
+  setImageCache(imageCache) {
+    this.rockImage = getLoadedImage(imageCache, RESOURCE_ICONS.rock);
   }
 
   paint(ctx, { node, x, y, elapsed }) {
@@ -126,7 +129,7 @@ export class ResourceNodePainter {
     ctx.ellipse(x, y + 12, 23, 8, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    if (this.rockImage?.complete && this.rockImage.naturalWidth > 0) {
+    if (this.rockImage) {
       ctx.drawImage(this.rockImage, x - 26, y - 34, 52, 52);
       ctx.restore();
       return;

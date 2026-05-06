@@ -1,33 +1,41 @@
 import { UnitV2Painter } from "./UnitV2Painter.js";
+import { getLoadedImage } from "../engine/assets/AssetLoader.js";
+import { PLAYER_UNIT_ART } from "../content/units/playerSpriteArt.js";
 
-const WARRIOR_SPRITE_SRC = "./assets/warrior_idle_sheet.png";
-const WARRIOR_WALK_SPRITE_SRC = "./assets/warrior_walk_sheet.png";
-const SETTLER_SPRITE_SRC = "./assets/settler_idle_sheet.png";
-const SETTLER_WALK_SPRITE_SRC = "./assets/settler_walk_sheet.png";
-const WARRIOR_SPRITE_SOURCE_SIZE = 186;
-const WARRIOR_SPRITE_DRAW_SIZE = 66;
-const WARRIOR_SPRITE_FRAME_COUNT = 8;
-const WARRIOR_SPRITE_FRAME_MS = 125;
-const WARRIOR_WALK_FRAME_COUNT = 8;
-const WARRIOR_WALK_FRAME_MS = 110;
-const WARRIOR_SPRITE_FOOT_SOURCE_X = 85;
-const WARRIOR_SPRITE_FOOT_SOURCE_Y = 177;
-const SETTLER_SPRITE_SOURCE_SIZE = 186;
-const SETTLER_SPRITE_DRAW_SIZE = 66;
-const SETTLER_SPRITE_FRAME_COUNT = 8;
-const SETTLER_SPRITE_FRAME_MS = 140;
-const SETTLER_WALK_FRAME_COUNT = 8;
-const SETTLER_WALK_FRAME_MS = 125;
+const WARRIOR_ART = PLAYER_UNIT_ART.duneVanguard;
+const SETTLER_ART = PLAYER_UNIT_ART.duneSettler;
+const WARRIOR_SPRITE_SOURCE_SIZE = WARRIOR_ART.sourceSize;
+const WARRIOR_SPRITE_DRAW_SIZE = WARRIOR_ART.drawSize;
+const WARRIOR_SPRITE_FRAME_COUNT = WARRIOR_ART.idleFrameCount;
+const WARRIOR_SPRITE_FRAME_MS = WARRIOR_ART.idleFrameMs;
+const WARRIOR_WALK_FRAME_COUNT = WARRIOR_ART.walkFrameCount;
+const WARRIOR_WALK_FRAME_MS = WARRIOR_ART.walkFrameMs;
+const WARRIOR_SPRITE_FOOT_SOURCE_X = WARRIOR_ART.footSource.x;
+const WARRIOR_SPRITE_FOOT_SOURCE_Y = WARRIOR_ART.footSource.y;
+const SETTLER_SPRITE_SOURCE_SIZE = SETTLER_ART.sourceSize;
+const SETTLER_SPRITE_DRAW_SIZE = SETTLER_ART.drawSize;
+const SETTLER_SPRITE_FRAME_COUNT = SETTLER_ART.idleFrameCount;
+const SETTLER_SPRITE_FRAME_MS = SETTLER_ART.idleFrameMs;
+const SETTLER_WALK_FRAME_COUNT = SETTLER_ART.walkFrameCount;
+const SETTLER_WALK_FRAME_MS = SETTLER_ART.walkFrameMs;
 
 export class UnitPainter {
   constructor({ tileWidth, tileHeight }) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
     this.unitV2Painter = new UnitV2Painter();
-    this.warriorSpriteSheet = loadImage(WARRIOR_SPRITE_SRC);
-    this.warriorWalkSpriteSheet = loadImage(WARRIOR_WALK_SPRITE_SRC);
-    this.settlerSpriteSheet = loadImage(SETTLER_SPRITE_SRC);
-    this.settlerWalkSpriteSheet = loadImage(SETTLER_WALK_SPRITE_SRC);
+    this.warriorSpriteSheet = null;
+    this.warriorWalkSpriteSheet = null;
+    this.settlerSpriteSheet = null;
+    this.settlerWalkSpriteSheet = null;
+  }
+
+  setImageCache(imageCache) {
+    this.unitV2Painter.setImageCache(imageCache);
+    this.warriorSpriteSheet = getLoadedImage(imageCache, WARRIOR_ART.idleSheet);
+    this.warriorWalkSpriteSheet = getLoadedImage(imageCache, WARRIOR_ART.walkSheet);
+    this.settlerSpriteSheet = getLoadedImage(imageCache, SETTLER_ART.idleSheet);
+    this.settlerWalkSpriteSheet = getLoadedImage(imageCache, SETTLER_ART.walkSheet);
   }
 
   paint(ctx, { unit, x, y, elapsed, dayNight }) {
@@ -1239,20 +1247,8 @@ function hasCarriedLoad(unit) {
   );
 }
 
-function loadImage(src) {
-  if (typeof Image !== "function") {
-    return null;
-  }
-
-  const image = new Image();
-
-  image.decoding = "async";
-  image.src = src;
-  return image;
-}
-
 function isImageReady(image) {
-  return Boolean(image?.complete && image.naturalWidth > 0);
+  return Boolean(image);
 }
 
 function getMovementFacing(unit) {

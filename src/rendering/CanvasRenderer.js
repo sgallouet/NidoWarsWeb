@@ -22,6 +22,13 @@ export class CanvasRenderer {
     this.fogCache = null;
   }
 
+  setImageCache(imageCache) {
+    this.imageCache = imageCache;
+    this.tilePainter.setImageCache(imageCache);
+    this.resourceNodePainter.setImageCache(imageCache);
+    this.unitPainter.setImageCache(imageCache);
+  }
+
   resize() {
     const rect = this.canvas.getBoundingClientRect();
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -386,7 +393,6 @@ export class CanvasRenderer {
   async prepareWorld(world, fogOfWar, onProgress = () => {}) {
     const terrainWeight = 0.78;
 
-    await this.tilePainter.loadAssets();
     await this.prepareTerrainCache(world, (progress) => onProgress(progress * terrainWeight));
     this.prepareStructureCache(world);
     await this.prepareFogCache(world, fogOfWar, (progress) =>

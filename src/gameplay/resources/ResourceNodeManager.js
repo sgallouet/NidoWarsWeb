@@ -1,43 +1,7 @@
-import { isTilePassable } from "./tileTypes.js";
+import { isTilePassable } from "../../content/tiles/definitions.js";
+import { RESOURCE_DEFINITIONS, getResourceDefinition } from "../../content/resources/definitions.js";
 
-const RESOURCE_DEFINITIONS = {
-  fish: {
-    label: "Fish Shoal",
-    loads: 4,
-    value: 1,
-    maxWorkers: 1,
-    workMs: { min: 3000, max: 30000 },
-    tileTypes: new Set(["water"]),
-  },
-  berries: {
-    label: "Berry Bush",
-    loads: 5,
-    value: 1,
-    maxWorkers: 4,
-    workMs: 6000,
-    tileTypes: new Set(["forest", "flower", "grass"]),
-  },
-  wood: {
-    label: "Timber Tree",
-    loads: 4,
-    value: 1,
-    maxWorkers: 4,
-    workMs: 15000,
-    tileTypes: new Set(["forest"]),
-  },
-  rock: {
-    label: "Rock Deposit",
-    loads: 5,
-    value: 1,
-    maxWorkers: 2,
-    workMs: 12000,
-    tileTypes: new Set(["rock", "obsidian"]),
-  },
-};
-
-export function getResourceDefinition(type) {
-  return RESOURCE_DEFINITIONS[type] || null;
-}
+export { getResourceDefinition } from "../../content/resources/definitions.js";
 
 export class ResourceNodeManager {
   constructor({ world, counts, reservedKeys = new Set() }) {

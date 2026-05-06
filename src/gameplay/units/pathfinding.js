@@ -1,4 +1,4 @@
-import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
+import { getTileMovementCost, isTilePassable } from "../../content/tiles/definitions.js";
 import { getMovementStepDistanceMultiplier } from "./movementGeometry.js";
 
 const DIRECTIONS = [

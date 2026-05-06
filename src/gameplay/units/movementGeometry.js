@@ -1,4 +1,4 @@
-import { GAME_CONFIG } from "../config/gameConfig.js";
+import { GAME_CONFIG } from "../../config/gameConfig.js";
 
 const CARDINAL_STEP_PIXELS = getMovementStepPixels(1, 0);
 

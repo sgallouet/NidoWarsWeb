@@ -1,26 +1,18 @@
-import { TILE_TYPES } from "../world/tileTypes.js";
+import { TILE_TYPES } from "../content/tiles/definitions.js";
+import { getLoadedImage } from "../engine/assets/AssetLoader.js";
+import { DESERT_TILE_ART } from "../content/tiles/desert/art.js";
 
-const DESERT_TILE_SPRITE_SRC = "./assets/desert_tile_sprite.png";
+const DESERT_TILE_SPRITE_SRC = DESERT_TILE_ART.sprite;
 
 export class TilePainter {
   constructor({ tileWidth, tileHeight }) {
     this.tileWidth = tileWidth;
     this.tileHeight = tileHeight;
     this.desertTileSprite = null;
-    this.desertTileSpriteLoad = Promise.resolve();
-
-    if (typeof Image !== "undefined") {
-      this.desertTileSprite = new Image();
-      this.desertTileSpriteLoad = new Promise((resolve) => {
-        this.desertTileSprite.addEventListener("load", resolve, { once: true });
-        this.desertTileSprite.addEventListener("error", resolve, { once: true });
-      });
-      this.desertTileSprite.src = DESERT_TILE_SPRITE_SRC;
-    }
   }
 
-  loadAssets() {
-    return this.desertTileSpriteLoad;
+  setImageCache(imageCache) {
+    this.desertTileSprite = getLoadedImage(imageCache, DESERT_TILE_SPRITE_SRC);
   }
 
   paint(ctx, { tile, x, y, elapsed, isHovered }) {
@@ -167,7 +159,7 @@ export class TilePainter {
   }
 
   isDesertSpriteReady() {
-    return Boolean(this.desertTileSprite?.complete && this.desertTileSprite.naturalWidth > 0);
+    return Boolean(this.desertTileSprite);
   }
 
   paintDuneLines(ctx, corners, tile) {

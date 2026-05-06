@@ -25,7 +25,7 @@ Use this skill to produce game-ready isometric unit animation sheets that match 
 2. Read `references/nido-wars-style.md` when exact style matching matters.
 3. Decide the smallest useful scope. Prefer one action at a time: `idle`, `walk`, `gather`, `work`, `attack`, or `death`.
 4. Prompt image generation for a single horizontal strip of 8 equal square frames. Ask for coherent motion, not eight separate redesigns.
-5. Save raw generated art as `assets/<unit>_<action>_generated.png`.
+5. Save raw generated art as `src/content/units/<unit-id>/art/source/<action>_generated.png` when it belongs to an active unit; use `bin/legacy-assets/` only for retired experiments.
 6. Run `scripts/prepare_isometric_sheet.py` to remove the chroma key, split/fit frames into exact cells, validate differences, and export the WebP preview.
 7. Visually inspect the PNG sheet and WebP preview. Reject outputs with identity drift, mismatched scale, missing feet, detached tools, unreadable hands/faces, or frames that do not animate.
 8. Integrate only after the sheet passes script checks and visual review.
@@ -52,9 +52,9 @@ Run:
 
 ```bash
 python skills/isometric-unit-animation/scripts/prepare_isometric_sheet.py \
-  --input assets/<unit>_<action>_generated.png \
-  --output assets/<unit>_<action>_sheet.png \
-  --preview artifacts/<unit>_<action>_preview.webp \
+  --input src/content/units/<unit-id>/art/source/<action>_generated.png \
+  --output src/content/units/<unit-id>/art/<action>_sheet.png \
+  --preview src/content/units/<unit-id>/art/previews/<action>.webp \
   --frames 8 \
   --cell 186 \
   --baseline-y 180 \

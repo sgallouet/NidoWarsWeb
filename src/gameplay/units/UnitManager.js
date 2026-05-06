@@ -1,17 +1,17 @@
 import { findNearestPassableTile, findPath, getRandomPassableTileNear, toKey } from "./pathfinding.js";
 import { PathJobQueue } from "./PathJobQueue.js";
-import { UNIT_V2_ART } from "./unitV2Art.js";
+import { UNIT_V2_ART } from "../../content/units/unitV2Art.js";
 import { getMovementStepDistanceMultiplier as getStepDistanceMultiplier } from "./movementGeometry.js";
-import { getTileMovementCost, isTilePassable } from "../world/tileTypes.js";
-import { HERB_WORK_MS } from "../world/HerbManager.js";
-import { getResourceDefinition } from "../world/ResourceNodeManager.js";
+import { getTileMovementCost, isTilePassable } from "../../content/tiles/definitions.js";
+import { HERB_WORK_MS } from "../resources/HerbManager.js";
+import { getResourceDefinition } from "../resources/ResourceNodeManager.js";
 import {
   applyHeroLootItem,
   canHeroUseLootItem,
   createMonsterLoot,
   getLootItemFee,
   getLootItemPrice,
-} from "../world/lootTables.js";
+} from "../resources/lootTables.js";
 
 const BASE_STEP_MS = 520;
 const CLEAN_WORK_MS = 3600;

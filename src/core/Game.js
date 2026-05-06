@@ -1,19 +1,24 @@
 import { GameLoop } from "./GameLoop.js";
 import { InputController } from "../engine/InputController.js";
+import { loadImageAssets } from "../engine/assets/AssetLoader.js";
 import { Camera2D } from "../rendering/Camera2D.js";
 import { CanvasRenderer } from "../rendering/CanvasRenderer.js";
+import { RUNTIME_IMAGE_ASSETS } from "../content/assets/runtimeImages.js";
+import { createHeroRoster, getHeroQuestPower } from "../content/heroes/roster.js";
+import { createQuestRoster, getQuestTeamPower, seededQuestRoll } from "../content/quests/roster.js";
 import { createDesertMap } from "../world/createDesertMap.js";
 import { DayNightCycle } from "../world/DayNightCycle.js";
 import { FogOfWar } from "../world/FogOfWar.js";
-import { HerbManager } from "../world/HerbManager.js";
-import { ResourceNodeManager } from "../world/ResourceNodeManager.js";
+import { HerbManager } from "../gameplay/resources/HerbManager.js";
+import { ResourceNodeManager } from "../gameplay/resources/ResourceNodeManager.js";
 import { Hud } from "../ui/Hud.js";
 import { PerformanceMonitor } from "../ui/PerformanceMonitor.js";
-import { TreasureManager } from "../world/TreasureManager.js";
-import { UnitManager } from "../units/UnitManager.js";
-import { createStartingUnits, findCampTile } from "../units/unitDefinitions.js";
-import { BUILDINGS, getBuildingById } from "../world/buildings.js";
-import { TILE_TYPES } from "../world/tileTypes.js";
+import { TreasureManager } from "../gameplay/resources/TreasureManager.js";
+import { UnitManager } from "../gameplay/units/UnitManager.js";
+import { createStartingUnits, findCampTile } from "../content/units/definitions.js";
+import { BUILDINGS, getBuildingById } from "../content/buildings/definitions.js";
+import { getResourceIcon } from "../content/resources/definitions.js";
+import { TILE_TYPES } from "../content/tiles/definitions.js";
 
 const CONSTRUCTION_MS = 12 * 1000;
 const START_CLEAR_RADIUS = 5;
@@ -132,6 +137,8 @@ export class Game {
   }
 
   async start() {
+    const assetWeight = 0.22;
+
     this.renderer.resize();
     this.performanceMonitor.resize();
     this.camera.frameTile(this.campTile, this.renderer.viewport);
@@ -146,8 +153,13 @@ export class Game {
     this.setLoadingProgress(0);
     this.setLoadingVisible(true);
 
+    const imageCache = await loadImageAssets(RUNTIME_IMAGE_ASSETS, (progress) => {
+      this.setLoadingProgress(progress * assetWeight);
+    });
+    this.renderer.setImageCache(imageCache);
+
     await this.renderer.prepareWorld(this.world, this.fogOfWar, (progress) => {
-      this.setLoadingProgress(progress);
+      this.setLoadingProgress(assetWeight + progress * (1 - assetWeight));
     });
 
     this.setLoadingVisible(false);
@@ -1166,129 +1178,6 @@ function getStructureStateKey(tile) {
   ].join(":");
 }
 
-function createHeroRoster(dayIndex) {
-  const names = ["Mira", "Borin", "Sava", "Keth", "Nara", "Oryn", "Talia", "Voss", "Elun", "Rook"];
-  const classes = [
-    {
-      classId: "ranger",
-      className: "Ranger",
-      hobby: "hunting",
-      hobbyLabel: "Hunting",
-      cost: { gold: 4, meat: 2 },
-      pitch: "Tracks monsters by day and returns to the tavern at night.",
-      tone: "gain",
-    },
-    {
-      classId: "angler",
-      className: "Angler",
-      hobby: "fishing",
-      hobbyLabel: "Fishing",
-      cost: { gold: 3, fish: 3 },
-      pitch: "Roams toward fishing spots during daylight.",
-      tone: "food",
-    },
-    {
-      classId: "guardian",
-      className: "Guardian",
-      hobby: "hunting",
-      hobbyLabel: "Hunting",
-      cost: { gold: 5, rock: 4 },
-      pitch: "A sturdy fighter who grows stronger from fights.",
-      tone: "watch",
-    },
-    {
-      classId: "herbalist",
-      className: "Herbalist",
-      hobby: "foraging",
-      hobbyLabel: "Foraging",
-      cost: { gold: 3, herbs: 3 },
-      pitch: "Wanders berry and herb country while the sun is up.",
-      tone: "food",
-    },
-  ];
-  const roster = [];
-
-  for (let index = 0; index < 3; index += 1) {
-    const classTemplate = classes[(dayIndex + index * 2) % classes.length];
-    const name = names[(dayIndex * 3 + index * 5) % names.length];
-
-    roster.push({
-      ...classTemplate,
-      id: `${dayIndex}-${index}-${classTemplate.classId}`,
-      name,
-      hired: false,
-    });
-  }
-
-  return roster;
-}
-
-function createQuestRoster(dayIndex) {
-  const quests = [
-    {
-      key: "salt-giant",
-      name: "Slay the Salt Giant",
-      kind: "Hunt",
-      pitch: "A huge monster is stomping through the salt flats.",
-      minTeam: 1,
-      maxTeam: 3,
-      difficulty: 4,
-      reward: { gold: 9 },
-      xp: 3,
-      durationMs: 65 * 1000,
-      tone: "hunt",
-    },
-    {
-      key: "lost-caravan",
-      name: "Recover the Lost Caravan",
-      kind: "Rescue",
-      pitch: "Find the wagon lights before the dunes swallow them.",
-      minTeam: 1,
-      maxTeam: 2,
-      difficulty: 3,
-      reward: { gold: 6 },
-      xp: 2,
-      durationMs: 48 * 1000,
-      tone: "rescue",
-    },
-    {
-      key: "obsidian-crown",
-      name: "Break the Obsidian Crown",
-      kind: "Raid",
-      pitch: "Strike a volcanic lair and bring back its tribute.",
-      minTeam: 2,
-      maxTeam: 3,
-      difficulty: 6,
-      reward: { gold: 12 },
-      xp: 4,
-      durationMs: 82 * 1000,
-      tone: "raid",
-    },
-    {
-      key: "moonwell",
-      name: "Guard the Moonwell",
-      kind: "Watch",
-      pitch: "Hold a night road until the pilgrims pass safely.",
-      minTeam: 1,
-      maxTeam: 2,
-      difficulty: 4,
-      reward: { gold: 7 },
-      xp: 3,
-      durationMs: 58 * 1000,
-      tone: "watch",
-    },
-  ];
-
-  return [0, 1, 2].map((offset) => {
-    const quest = quests[(dayIndex + offset) % quests.length];
-
-    return {
-      ...quest,
-      id: `${dayIndex}-${offset}-${quest.key}`,
-    };
-  });
-}
-
 function formatHeroEffect(hero) {
   return [
     `<strong class="build-effect-var build-effect-${hero.tone}">Lv 1 ${escapeHtml(hero.className)}</strong>`,
@@ -1350,28 +1239,10 @@ function formatQuestEffect(quest, selectedPower) {
   ].join("");
 }
 
-function getQuestTeamPower(heroes) {
-  return heroes.reduce((total, hero) => total + getHeroQuestPower(hero), 0);
-}
-
-function getHeroQuestPower(hero) {
-  return Math.max(1, (hero.heroLevel || 1) + Math.max(0, (hero.attackDamage || 1) - 1));
-}
-
 function formatDuration(ms) {
   const seconds = Math.max(0, Math.ceil(ms / 1000));
 
   return `${seconds}s`;
-}
-
-function seededQuestRoll(seed) {
-  let hash = 0;
-
-  for (let index = 0; index < seed.length; index += 1) {
-    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
-  }
-
-  return (hash % 1000) / 1000;
 }
 
 function formatEffect(building) {
@@ -1407,20 +1278,6 @@ function formatResourcePips(resources, options = {}) {
       return `<span class="resource-pip"><img src="${icon}" alt="" /><span>${amount}${suffix}</span><span class="sr-only"> ${label}</span></span>`;
     })
     .join("");
-}
-
-function getResourceIcon(resource) {
-  const icons = {
-    gold: "./assets/gold.png",
-    herbs: "./assets/herbs.svg",
-    fish: "./assets/fish.png",
-    meat: "./assets/meat.svg",
-    berries: "./assets/berries.png",
-    wood: "./assets/wood.png",
-    rock: "./assets/rock.png",
-  };
-
-  return icons[resource] || null;
 }
 
 function escapeHtml(value) {

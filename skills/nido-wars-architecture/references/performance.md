@@ -6,6 +6,13 @@
 - Use the in-game `PerformanceMonitor` for quick regressions and browser performance tools for deeper work.
 - Prefer steady frame time over richer effects.
 
+## Architecture For Speed
+
+- Small files are not just tidy; they make hot paths easier to see. Keep render/update loops obvious and extract cold helpers away from them.
+- Content modules may declare data and asset paths, but they should not do per-frame work.
+- Avoid importing heavy registries into hot helpers when a narrow manifest or definition is enough.
+- Compatibility shims should be tiny re-exports. If a shim starts growing logic, move the logic into the new owner.
+
 ## Game Loop
 
 - `Game.update` runs every frame. Keep it lean.
@@ -18,7 +25,8 @@
 ## Rendering
 
 - `CanvasRenderer` caches static terrain and fog. Preserve this split:
-  - Terrain cache changes when `world.version`, map size, seed, or tile dimensions change.
+  - Terrain cache changes when `world.terrainVersion`, map size, seed, or tile dimensions change.
+  - Structure cache changes when `world.structureVersion` changes.
   - Fog cache changes through `FogOfWar.version` and changed-tile clearing.
 - Draw only the visible cache slice and visible dynamic tiles.
 - Add focused painters for new visual categories instead of putting unrelated drawing into existing painters.
@@ -33,11 +41,17 @@
 - Keep `backdrop-filter`, large shadows, and large translucent overlays limited to paused/modal states.
 - Do not update DOM text/classes every frame for values that can be sampled.
 - Preserve the fullscreen, fixed, non-scrolling shell: `overflow: hidden`, `touch-action: none`, safe-area offsets, and mobile media rules.
+- Static shell markup should be generated once at boot, not re-rendered during play.
 
 ## Assets
 
 - Keep sprite sheets and resource icons small enough for mobile memory.
+- Put active art beside its owning content folder under `src/content`.
+- Put active WebP previews beside their unit art under `src/content/units/<unit-id>/art/previews`.
+- Put retired variants and cache files under `bin/`.
+- Register runtime art in the content image manifest and preload it during the loading screen. Painters should receive loaded images from the engine asset cache.
 - Prefer sprite sheets or cached canvas drawing for repeated animated units.
+- Prefer compact low-resolution sprites/spritesheets with crisp near-black outlines; avoid large painterly source images in runtime.
 - Keep shadows in canvas code unless an authored sprite explicitly needs them; mismatched baked shadows hurt readability at zoom.
 - Check generated assets at runtime size, not just source size.
 

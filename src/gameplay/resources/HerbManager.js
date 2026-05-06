@@ -1,4 +1,4 @@
-import { isTilePassable } from "./tileTypes.js";
+import { isTilePassable } from "../../content/tiles/definitions.js";
 
 const DEFAULT_HERB_LOADS = 5;
 export const HERB_WORK_MS = 6000;

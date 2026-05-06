@@ -4,7 +4,7 @@ Use these notes when generating or evaluating unit animation art for this projec
 
 ## Warrior Style Anchors
 
-- Source sheets: `assets/warrior_idle_sheet.png` and `assets/warrior_walk_sheet.png`.
+- Source sheets: `src/content/units/dune-vanguard/art/idle_sheet.png` and `src/content/units/dune-vanguard/art/walk_sheet.png`.
 - Source cell: `186x186`; runtime draw size is about `66x66`, so details must survive downscaling.
 - Facing: three-quarter isometric, body angled slightly to the viewer's right.
 - Silhouette: compact full-body sprite with oversized readable head/torso, planted feet, and no cast shadow in the asset.

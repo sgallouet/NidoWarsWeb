@@ -1,4 +1,4 @@
-import { createFrameBudget } from "../engine/FrameBudget.js";
+import { createFrameBudget } from "../../engine/FrameBudget.js";
 import { createPathSearch } from "./pathfinding.js";
 
 export class PathJobQueue {

@@ -1,4 +1,4 @@
-import { isTilePassable } from "./tileTypes.js";
+import { isTilePassable } from "../../content/tiles/definitions.js";
 
 const DEFAULT_TREASURE_VALUE = 25;
 const STATIC_TREASURE_AGE_MS = 2000;

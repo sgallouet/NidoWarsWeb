@@ -1,4 +1,4 @@
-import { TILE_TYPES } from "./tileTypes.js";
+import { TILE_TYPES } from "../content/tiles/definitions.js";
 
 const BIOME_CENTERS = [
   { id: "snow", label: "Snow Mountain", column: 0.18, row: 0.18 },
