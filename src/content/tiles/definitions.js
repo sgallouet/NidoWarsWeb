@@ -162,5 +162,9 @@ export function getTileMovementCost(tile) {
 }
 
 export function isTilePassable(tile) {
+  if (tile.blocksMovement) {
+    return false;
+  }
+
   return TILE_TYPES[tile.type].passable;
 }

@@ -858,16 +858,16 @@ export class UnitManager {
     const dropOffTile = this.getDropOffTile(unit);
     const assignedDropOff = this.assignUnitPath(unit, dropOffTile, options);
 
-    if (assignedDropOff || dropOffTile.id === this.campTile.id) {
+    if (assignedDropOff) {
       return assignedDropOff;
     }
 
-    return this.assignUnitPath(unit, this.campTile, options);
+    return this.assignUnitPath(unit, this.getCampAccessTile(unit), options);
   }
 
   getDropOffTile(origin = this.campTile) {
-    let nearest = this.campTile;
-    let nearestDistance = tileDistance(origin, this.campTile);
+    let nearest = this.getCampAccessTile(origin);
+    let nearestDistance = tileDistance(origin, nearest);
 
     for (const tile of this.world.tiles) {
       if (tile.building !== "storage-house") {
@@ -883,6 +883,30 @@ export class UnitManager {
     }
 
     return nearest;
+  }
+
+  getCampAccessTile(origin = this.campTile) {
+    let nearest = null;
+    let nearestDistance = Infinity;
+
+    for (let row = this.campTile.row - 1; row <= this.campTile.row + 1; row += 1) {
+      for (let column = this.campTile.column - 1; column <= this.campTile.column + 1; column += 1) {
+        const tile = this.world.getTile(column, row);
+
+        if (!tile || tile.id === this.campTile.id || !isTilePassable(tile)) {
+          continue;
+        }
+
+        const distance = tileDistance(origin, tile);
+
+        if (distance < nearestDistance) {
+          nearest = tile;
+          nearestDistance = distance;
+        }
+      }
+    }
+
+    return nearest || this.campTile;
   }
 
   assignEscort(unit, carrier, markerId) {
@@ -985,7 +1009,7 @@ export class UnitManager {
     if (unit.stage === "outbound") {
       this.fogOfWar.revealAround(unit, REVEAL_RADIUS + 1);
       this.removeMarker(unit.markerId);
-      this.assignUnitPath(unit, this.campTile, {
+      this.assignUnitPath(unit, this.getCampAccessTile(unit), {
         order: "explore",
         orderIcon: "eye",
         markerId: null,

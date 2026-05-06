@@ -3,7 +3,11 @@ import { HerbPainter } from "./HerbPainter.js";
 import { ResourceNodePainter } from "./ResourceNodePainter.js";
 import { TreasurePainter } from "./TreasurePainter.js";
 import { UnitPainter } from "./UnitPainter.js";
+import { FIRECAMP_ART } from "../content/objects/firecamp/art.js";
+import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { gridToWorld, worldToGrid } from "./isoMath.js";
+
+const FIRECAMP_SPRITE_SRC = FIRECAMP_ART.fireplace;
 
 export class CanvasRenderer {
   constructor({ canvas, camera, config }) {
@@ -17,6 +21,7 @@ export class CanvasRenderer {
     this.resourceNodePainter = new ResourceNodePainter();
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
+    this.firecampSprite = null;
     this.terrainCache = null;
     this.structureCache = null;
     this.fogCache = null;
@@ -24,6 +29,7 @@ export class CanvasRenderer {
 
   setImageCache(imageCache) {
     this.imageCache = imageCache;
+    this.firecampSprite = getLoadedImage(imageCache, FIRECAMP_SPRITE_SRC);
     this.tilePainter.setImageCache(imageCache);
     this.resourceNodePainter.setImageCache(imageCache);
     this.unitPainter.setImageCache(imageCache);
@@ -659,6 +665,26 @@ export class CanvasRenderer {
     }
 
     const point = this.getTileCenter(campTile);
+
+    if (this.firecampSprite) {
+      this.paintFirecampSprite(ctx, point);
+      return;
+    }
+
+    this.paintProceduralCamp(ctx, point, elapsed);
+  }
+
+  paintFirecampSprite(ctx, point) {
+    const width = this.config.tileWidth * 3;
+    const height = this.config.tileHeight * 3;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(this.firecampSprite, point.x - width / 2, point.y - height / 2, width, height);
+    ctx.restore();
+  }
+
+  paintProceduralCamp(ctx, point, elapsed) {
     const flame = 1 + Math.sin(elapsed * 0.01) * 0.16;
 
     ctx.save();

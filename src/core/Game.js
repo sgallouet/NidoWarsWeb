@@ -39,6 +39,7 @@ export class Game {
     this.world = createDesertMap(config.map);
     this.fogOfWar = new FogOfWar(this.world);
     this.campTile = findCampTile(this.world);
+    this.campTile.blocksMovement = true;
     const startingUnits = createStartingUnits(this.world, this.campTile);
     const reservedSpawnKeys = this.getStartingReservedKeys(startingUnits);
     this.treasures = new TreasureManager({
