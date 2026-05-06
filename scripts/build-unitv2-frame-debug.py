@@ -26,6 +26,16 @@ UNITS = {
         "remove_checker": True,
         "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
     },
+    "camp-wolf": {
+        "source": Path("C:/Users/Simon/Downloads/Wolf (1).png"),
+        "atlas": ROOT / "src/content/units/camp-wolf/art/unitv2_atlas.png",
+        "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
+    },
+    "quadruped-monster": {
+        "source": Path("C:/Users/Simon/Downloads/ChatGPT Image May 6, 2026, 01_16_37 PM (1).png"),
+        "atlas": ROOT / "src/content/units/quadruped-monster/art/unitv2_atlas.png",
+        "groups": [("idle", 3), ("walk", 6), ("guard", 3), ("attack", 5), ("hit", 2), ("death", 5)],
+    },
 }
 
 COLORS = [

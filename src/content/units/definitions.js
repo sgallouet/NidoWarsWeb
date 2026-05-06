@@ -16,6 +16,11 @@ const START_THREAT_DEFINITIONS = [
   "emberMaw",
   "skeletonEnemy",
 ];
+const QUADRUPED_PACKS = [
+  { biome: "temperate", column: 22, row: 42, count: 3 },
+  { biome: "desert", column: 49, row: 23, count: 3 },
+  { biome: "volcanic", column: 14, row: 47, count: 3 },
+];
 
 export const UNIT_DEFINITIONS = {
   duneVanguard: {
@@ -46,6 +51,26 @@ export const UNIT_DEFINITIONS = {
       secondary: "#8fd6c8",
       accent: "#fff0a6",
       shadow: "#4f3a28",
+    },
+  },
+  campWolf: {
+    label: "Camp Wolf",
+    faction: "player",
+    role: "Warrior",
+    speed: 1.55,
+    patrolRadius: 6,
+    health: 3,
+    attackDamage: 1,
+    body: "campWolf",
+    art: {
+      system: "unitV2",
+      key: "campWolf",
+    },
+    colors: {
+      primary: "#1f2a32",
+      secondary: "#6b4c38",
+      accent: "#e0c36b",
+      shadow: "#11161b",
     },
   },
   emberMaw: {
@@ -129,6 +154,29 @@ export const UNIT_DEFINITIONS = {
       secondary: "#ff7a36",
       accent: "#ffd45f",
       shadow: "#251718",
+    },
+  },
+  quadrupedMonster: {
+    label: "Ashback Hound",
+    faction: "monster",
+    temperament: "scary",
+    role: "Pack Monster",
+    speed: 1.28,
+    patrolRadius: 6,
+    patrolMode: "localRoam",
+    roamMinCampDistance: 15,
+    health: 4,
+    attackDamage: 1,
+    body: "quadrupedMonster",
+    art: {
+      system: "unitV2",
+      key: "quadrupedMonster",
+    },
+    colors: {
+      primary: "#6f3d3a",
+      secondary: "#c79b72",
+      accent: "#ff6d3a",
+      shadow: "#211518",
     },
   },
   bloomWisp: {
@@ -274,6 +322,7 @@ export function createStartingUnits(world, campTile) {
     reserve(campTile.column + 1, campTile.row),
     reserve(campTile.column, campTile.row + 1),
   ];
+  const wolfSpawns = [reserve(campTile.column - 2, campTile.row + 1), reserve(campTile.column + 2, campTile.row + 1)];
   const monsterSpawns = {
     snow: reserveBiome(world, "snow", occupied, scaleColumn(world, 10), scaleRow(world, 10), monsterSpawnOptions),
     desert: reserveBiome(world, "desert", occupied, scaleColumn(world, 48), scaleRow(world, 14), monsterSpawnOptions),
@@ -313,6 +362,7 @@ export function createStartingUnits(world, campTile) {
     minDistance: 18,
   });
   const startThreats = createStartThreatUnits(world, campTile, occupied);
+  const quadrupedPacks = createQuadrupedPackUnits(world, campTile, occupied);
 
   return [
     createUnit({
@@ -332,6 +382,18 @@ export function createStartingUnits(world, campTile) {
       definition: "duneSettler",
       name: "Vale",
       tile: playerSpawns[2],
+    }),
+    createUnit({
+      id: "wolf-nyx",
+      definition: "campWolf",
+      name: "Nyx",
+      tile: wolfSpawns[0],
+    }),
+    createUnit({
+      id: "wolf-rusk",
+      definition: "campWolf",
+      name: "Rusk",
+      tile: wolfSpawns[1],
     }),
     createUnit({
       id: "monster-ember-01",
@@ -382,6 +444,7 @@ export function createStartingUnits(world, campTile) {
       name: "Bone Clacker",
       tile: skeletonSpawn,
     }),
+    ...quadrupedPacks,
     ...startThreats,
     createUnit({
       id: "critter-bloom-01",
@@ -452,6 +515,64 @@ function createStartThreatUnits(world, campTile, occupied) {
       },
     });
   });
+}
+
+function createQuadrupedPackUnits(world, campTile, occupied) {
+  return QUADRUPED_PACKS.flatMap((pack, packIndex) => {
+    const center = reserveBiome(world, pack.biome, occupied, scaleColumn(world, pack.column), scaleRow(world, pack.row), {
+      minDistanceFrom: campTile,
+      minDistance: START_THREAT_MAX_RADIUS,
+    });
+    const spawnTiles = reservePackTiles(world, occupied, center, pack.count, {
+      minDistanceFrom: campTile,
+      minDistance: START_THREAT_MAX_RADIUS,
+    });
+    const home = { column: center.column, row: center.row };
+
+    return spawnTiles.map((tile, memberIndex) =>
+      createUnit({
+        id: `monster-quadruped-${packIndex + 1}-${memberIndex + 1}`,
+        definition: "quadrupedMonster",
+        name: "Ashback Hound",
+        tile,
+        overrides: {
+          home,
+          patrolMode: "localRoam",
+          patrolRadius: 5 + memberIndex,
+          roamMinCampDistance: START_THREAT_MAX_RADIUS,
+        },
+      }),
+    );
+  });
+}
+
+function reservePackTiles(world, occupied, center, count, options = {}) {
+  const tiles = [center];
+  const offsets = [
+    { column: 1, row: 0 },
+    { column: 0, row: 1 },
+    { column: -1, row: 0 },
+    { column: 0, row: -1 },
+    { column: 1, row: 1 },
+    { column: -1, row: 1 },
+  ];
+
+  for (const offset of offsets) {
+    if (tiles.length >= count) {
+      break;
+    }
+
+    const tile = findNearestOpenTile(world, center.column + offset.column, center.row + offset.row, occupied, options);
+
+    if (!tile || occupied.has(tile.id)) {
+      continue;
+    }
+
+    occupied.add(tile.id);
+    tiles.push(tile);
+  }
+
+  return tiles;
 }
 
 function createUnit({ id, definition, name, tile, overrides = {} }) {
