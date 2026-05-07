@@ -30,6 +30,7 @@ const WARRIOR_KNOCKBACK_STAGGER_MS = 760;
 const RECOVERY_RADIUS = 2;
 const RECOVERY_TICK_MS = 1800;
 const RECOVERY_PAUSE_MS = 260;
+const PLAYER_SLEEP_NIGHT_THRESHOLD = 0.42;
 const REVIVE_HEAL_MS = 9000;
 const MONSTER_OUTER_ROAM_CAMP_RADIUS = 10;
 const MONSTER_OUTER_ROAM_ATTEMPTS = 36;
@@ -981,14 +982,29 @@ export class UnitManager {
     this.updateEscort(unit);
   }
 
+  shouldRestForRecovery(unit) {
+    return (
+      unit.faction === "player" &&
+      !unit.defeated &&
+      unit.health < unit.maxHealth &&
+      this.nightAmount > PLAYER_SLEEP_NIGHT_THRESHOLD &&
+      unit.order !== "attack"
+    );
+  }
+
   updateBehavior(unit, delta) {
-    if (unit.faction === "player" && unit.health < unit.maxHealth && unit.order !== "recover") {
-      this.sendToRecovery(unit);
+    if (unit.order === "recover") {
+      if (!this.shouldRestForRecovery(unit)) {
+        this.setPatrol(unit);
+        return;
+      }
+
+      this.updateRecovery(unit, delta);
       return;
     }
 
-    if (unit.order === "recover") {
-      this.updateRecovery(unit, delta);
+    if (this.shouldRestForRecovery(unit)) {
+      this.sendToRecovery(unit);
       return;
     }
 
@@ -1613,11 +1629,6 @@ export class UnitManager {
       return;
     }
 
-    if (unit.health < unit.maxHealth) {
-      this.sendToRecovery(unit);
-      return;
-    }
-
     if (unit.order === "attack" && unit.targetMonsterId === monster.id) {
       return;
     }
@@ -1734,10 +1745,6 @@ export class UnitManager {
     }
 
     this.applyDamage(target, unit.attackDamage || 1);
-
-    if (!target.defeated) {
-      this.sendToRecovery(target);
-    }
 
     this.setPatrol(unit);
   }

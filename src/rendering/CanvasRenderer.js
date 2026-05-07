@@ -3,6 +3,7 @@ import { HerbPainter } from "./HerbPainter.js";
 import { ResourceNodePainter } from "./ResourceNodePainter.js";
 import { TreasurePainter } from "./TreasurePainter.js";
 import { UnitPainter } from "./UnitPainter.js";
+import { NightPainter } from "./NightPainter.js";
 import { FIRECAMP_ART } from "../content/objects/firecamp/art.js";
 import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { gridToWorld, worldToGrid } from "./isoMath.js";
@@ -24,6 +25,7 @@ export class CanvasRenderer {
     this.resourceNodePainter = new ResourceNodePainter();
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
+    this.nightPainter = new NightPainter(config);
     this.firecampSprite = null;
     this.firecampSheet = null;
     this.terrainCache = null;
@@ -110,11 +112,16 @@ export class CanvasRenderer {
     this.paintHover(ctx, hoveredTile);
     this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
     this.paintNightLayer(ctx, world, dayNight);
+    this.paintGroundLights(ctx, {
+      units,
+      campTile,
+      dayNight,
+      elapsed,
+      visibleRect: dynamicRect,
+    });
     this.paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed);
 
     ctx.restore();
-    this.paintScreenNight(ctx, width, height, dayNight);
-    this.paintTorchLights(ctx, units, dayNight, elapsed);
     this.paintVignette(ctx, width, height);
   }
 
@@ -169,11 +176,7 @@ export class CanvasRenderer {
 
     const cache = this.getTerrainCache(world);
 
-    ctx.save();
-    ctx.globalCompositeOperation = "multiply";
-    ctx.fillStyle = `rgba(19, 33, 72, ${0.42 * night})`;
-    ctx.fillRect(cache.bounds.x, cache.bounds.y, cache.bounds.width, cache.bounds.height);
-    ctx.restore();
+    this.nightPainter.paintWorldShade(ctx, cache.bounds, dayNight);
   }
 
   paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed) {
@@ -279,70 +282,8 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintScreenNight(ctx, width, height, dayNight) {
-    const night = dayNight?.nightAmount || 0;
-
-    if (night <= 0.01) {
-      return;
-    }
-
-    ctx.save();
-    const glow = ctx.createRadialGradient(
-      width * 0.72,
-      height * 0.18,
-      0,
-      width * 0.72,
-      height * 0.18,
-      Math.max(width, height) * 0.72,
-    );
-
-    glow.addColorStop(0, `rgba(104, 144, 255, ${0.1 * night})`);
-    glow.addColorStop(1, `rgba(4, 10, 26, ${0.28 * night})`);
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
-  }
-
-  paintTorchLights(ctx, units, dayNight, elapsed) {
-    const night = dayNight?.nightAmount || 0;
-
-    if (night <= 0.04 || !units?.length) {
-      return;
-    }
-
-    const zoom = this.camera.zoom;
-    const radius = Math.max(38, Math.min(180, 160 * zoom));
-    const flicker = 0.9 + Math.sin(elapsed * 0.019) * 0.06;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-
-    for (const unit of units) {
-      if (unit.faction !== "player" || unit.defeated) {
-        continue;
-      }
-
-      const point = gridToWorld(
-        unit.visualColumn,
-        unit.visualRow,
-        this.config.tileWidth,
-        this.config.tileHeight,
-      );
-      const screenX = (point.x - this.camera.x) * zoom + this.viewport.width / 2;
-      const screenY = (point.y + this.config.tileHeight * 0.5 - this.camera.y) * zoom + this.viewport.height * 0.54;
-      const glow = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, radius * flicker);
-
-      glow.addColorStop(0, `rgba(255, 202, 96, ${0.46 * night})`);
-      glow.addColorStop(0.32, `rgba(255, 145, 58, ${0.22 * night})`);
-      glow.addColorStop(1, "rgba(255, 145, 58, 0)");
-
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, radius * flicker, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
+  paintGroundLights(ctx, options) {
+    this.nightPainter.paintGroundLights(ctx, options);
   }
 
   paintWorld(ctx, world) {
