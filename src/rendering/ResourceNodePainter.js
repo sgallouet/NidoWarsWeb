@@ -2,29 +2,42 @@ import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { RESOURCE_ICONS, RESOURCE_NODE_ART } from "../content/resources/definitions.js";
 
 const TREE_VARIANT_COUNT = 24;
-const TREE_MAX_SIZE = 112;
+const TREE_BATCH_SIZE = 148;
+const TREE_BATCH_ANCHOR_X = 74;
+const TREE_BATCH_ANCHOR_Y = 118;
+const ROCK_BATCH_WIDTH = 80;
+const ROCK_BATCH_HEIGHT = 72;
+const ROCK_BATCH_ANCHOR_X = 40;
+const ROCK_BATCH_ANCHOR_Y = 48;
+const BERRY_BATCH_SIZE = 64;
+const BERRY_BATCH_ANCHOR_X = 32;
+const BERRY_BATCH_ANCHOR_Y = 28;
 
 export class ResourceNodePainter {
   constructor() {
     this.treeImage = null;
     this.rockImage = null;
     this.treeVariants = new Map();
+    this.rockSprite = null;
+    this.berrySprites = new Map();
   }
 
   setImageCache(imageCache) {
     this.treeImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.wood) || getLoadedImage(imageCache, RESOURCE_ICONS.wood);
     this.rockImage = getLoadedImage(imageCache, RESOURCE_NODE_ART.rock) || getLoadedImage(imageCache, RESOURCE_ICONS.rock);
     this.treeVariants.clear();
+    this.rockSprite = null;
+    this.berrySprites.clear();
   }
 
-  paint(ctx, { node, x, y, elapsed, activeWorkerCount = 0 }) {
+  paint(ctx, { node, x, y, elapsed, activeWorkerCount = 0, alpha = 1 }) {
     if (node.type === "fish") {
       this.paintFishShoal(ctx, x, y, elapsed, node);
       return;
     }
 
     if (node.type === "wood") {
-      this.paintTimberTree(ctx, x, y, node, elapsed, activeWorkerCount);
+      this.paintTimberTree(ctx, x, y, node, elapsed, activeWorkerCount, alpha);
       return;
     }
 
@@ -80,15 +93,16 @@ export class ResourceNodePainter {
     ctx.restore();
   }
 
-  paintTimberTree(ctx, x, y, node, elapsed, activeWorkerCount = 0) {
+  paintTimberTree(ctx, x, y, node, elapsed, activeWorkerCount = 0, alpha = 1) {
     if (this.treeImage) {
-      this.paintTreeSprite(ctx, x, y, node, elapsed, activeWorkerCount);
+      this.paintTreeSprite(ctx, x, y, node, elapsed, activeWorkerCount, alpha);
       return;
     }
 
     const sway = (node.seed || node.column + node.row) % 2 === 0 ? -1 : 1;
 
     ctx.save();
+    ctx.globalAlpha *= alpha;
     ctx.fillStyle = "rgba(25, 18, 13, 0.24)";
     ctx.beginPath();
     ctx.ellipse(x, y + 12, 22, 7, 0, 0, Math.PI * 2);
@@ -123,30 +137,28 @@ export class ResourceNodePainter {
     ctx.restore();
   }
 
-  paintTreeSprite(ctx, x, y, node, elapsed, activeWorkerCount) {
+  paintTreeSprite(ctx, x, y, node, elapsed, activeWorkerCount, alpha = 1) {
     const seed = getNodeSeed(node);
     const variant = this.getTreeVariant(seed);
-    const size = variant.size;
-    const anchorY = y + 19;
     const isBeingCut = activeWorkerCount > 0;
     const cutPulse = isBeingCut ? Math.max(0, Math.sin(elapsed * 0.028 + seed * 0.01)) : 0;
-    const impactTilt = cutPulse * 0.035 * (seeded(seed, 29) > 0.5 ? 1 : -1);
 
-    ctx.save();
-    ctx.fillStyle = "rgba(25, 18, 13, 0.26)";
-    ctx.beginPath();
-    ctx.ellipse(x, y + 13, 25, 8, -0.03, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (isBeingCut) {
-      ctx.translate(x, anchorY);
-      ctx.rotate(impactTilt);
-      ctx.drawImage(variant.canvas, -size / 2, -size, size, size);
-    } else {
-      ctx.drawImage(variant.canvas, x - size / 2, anchorY - size, size, size);
+    if (alpha < 1) {
+      ctx.save();
+      ctx.globalAlpha *= alpha;
     }
 
-    ctx.restore();
+    ctx.drawImage(
+      variant,
+      x - TREE_BATCH_ANCHOR_X,
+      y - TREE_BATCH_ANCHOR_Y,
+      TREE_BATCH_SIZE,
+      TREE_BATCH_SIZE,
+    );
+
+    if (alpha < 1) {
+      ctx.restore();
+    }
 
     if (isBeingCut) {
       this.paintChopFeedback(ctx, x, y, node, elapsed, activeWorkerCount, cutPulse);
@@ -167,26 +179,29 @@ export class ResourceNodePainter {
     const saturation = 0.92 + seeded(variantKey, 59) * 0.22;
     const brightness = 0.88 + seeded(variantKey, 71) * 0.2;
 
-    canvas.width = TREE_MAX_SIZE;
-    canvas.height = TREE_MAX_SIZE;
+    canvas.width = TREE_BATCH_SIZE;
+    canvas.height = TREE_BATCH_SIZE;
 
     const variantCtx = canvas.getContext("2d");
+
+    variantCtx.fillStyle = "rgba(25, 18, 13, 0.26)";
+    variantCtx.beginPath();
+    variantCtx.ellipse(TREE_BATCH_ANCHOR_X, TREE_BATCH_ANCHOR_Y + 13, 25, 8, -0.03, 0, Math.PI * 2);
+    variantCtx.fill();
 
     variantCtx.imageSmoothingEnabled = true;
     variantCtx.filter = `hue-rotate(${tintHue}deg) saturate(${saturation}) brightness(${brightness})`;
     variantCtx.drawImage(
       this.treeImage,
-      (TREE_MAX_SIZE - size) / 2,
-      TREE_MAX_SIZE - size,
+      TREE_BATCH_ANCHOR_X - size / 2,
+      TREE_BATCH_ANCHOR_Y + 19 - size,
       size,
       size,
     );
     variantCtx.filter = "none";
 
-    const variant = { canvas, size: TREE_MAX_SIZE };
-
-    this.treeVariants.set(variantKey, variant);
-    return variant;
+    this.treeVariants.set(variantKey, canvas);
+    return canvas;
   }
 
   paintChopFeedback(ctx, x, y, node, elapsed, activeWorkerCount, cutPulse) {
@@ -234,18 +249,16 @@ export class ResourceNodePainter {
   }
 
   paintRockDeposit(ctx, x, y, node) {
+    if (this.rockImage) {
+      this.paintRockSprite(ctx, x, y);
+      return;
+    }
+
     ctx.save();
     ctx.fillStyle = "rgba(25, 18, 13, 0.25)";
     ctx.beginPath();
     ctx.ellipse(x, y + 12, 23, 8, 0, 0, Math.PI * 2);
     ctx.fill();
-
-    if (this.rockImage) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(this.rockImage, x - 31, y - 43, 62, 62);
-      ctx.restore();
-      return;
-    }
 
     const pulse = 0.9 + Math.sin(node.column * 0.7 + node.row) * 0.08;
 
@@ -254,6 +267,41 @@ export class ResourceNodePainter {
     this.paintStone(ctx, x - 2, y - 11, 13, "#758187", "#eef5e6");
     this.paintStone(ctx, x - 1, y + 8, 16, "#747d7c", "#e3ecd5");
     ctx.restore();
+  }
+
+  paintRockSprite(ctx, x, y) {
+    const sprite = this.getRockSprite();
+
+    ctx.drawImage(
+      sprite,
+      x - ROCK_BATCH_ANCHOR_X,
+      y - ROCK_BATCH_ANCHOR_Y,
+      ROCK_BATCH_WIDTH,
+      ROCK_BATCH_HEIGHT,
+    );
+  }
+
+  getRockSprite() {
+    if (this.rockSprite) {
+      return this.rockSprite;
+    }
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = ROCK_BATCH_WIDTH;
+    canvas.height = ROCK_BATCH_HEIGHT;
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "rgba(25, 18, 13, 0.25)";
+    ctx.beginPath();
+    ctx.ellipse(ROCK_BATCH_ANCHOR_X, ROCK_BATCH_ANCHOR_Y + 12, 23, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(this.rockImage, ROCK_BATCH_ANCHOR_X - 31, ROCK_BATCH_ANCHOR_Y - 43, 62, 62);
+
+    this.rockSprite = canvas;
+    return this.rockSprite;
   }
 
   paintStone(ctx, x, y, radius, shadow, light) {
@@ -268,6 +316,38 @@ export class ResourceNodePainter {
   }
 
   paintBerryBush(ctx, x, y, node) {
+    const sprite = this.getBerrySprite(node);
+
+    ctx.drawImage(
+      sprite,
+      x - BERRY_BATCH_ANCHOR_X,
+      y - BERRY_BATCH_ANCHOR_Y,
+      BERRY_BATCH_SIZE,
+      BERRY_BATCH_SIZE,
+    );
+  }
+
+  getBerrySprite(node) {
+    const key = node.id;
+    const cached = this.berrySprites.get(key);
+
+    if (cached) {
+      return cached;
+    }
+
+    const canvas = document.createElement("canvas");
+
+    canvas.width = BERRY_BATCH_SIZE;
+    canvas.height = BERRY_BATCH_SIZE;
+
+    const ctx = canvas.getContext("2d");
+
+    this.paintBerryBushVector(ctx, BERRY_BATCH_ANCHOR_X, BERRY_BATCH_ANCHOR_Y, node);
+    this.berrySprites.set(key, canvas);
+    return canvas;
+  }
+
+  paintBerryBushVector(ctx, x, y, node) {
     ctx.save();
     ctx.fillStyle = "rgba(25, 18, 13, 0.22)";
     ctx.beginPath();

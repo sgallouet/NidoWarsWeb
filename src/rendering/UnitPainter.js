@@ -10,14 +10,13 @@ const WARRIOR_SPRITE_FRAME_COUNT = WARRIOR_ART.idleFrameCount;
 const WARRIOR_SPRITE_FRAME_MS = WARRIOR_ART.idleFrameMs;
 const WARRIOR_WALK_FRAME_COUNT = WARRIOR_ART.walkFrameCount;
 const WARRIOR_WALK_FRAME_MS = WARRIOR_ART.walkFrameMs;
-const WARRIOR_SPRITE_FOOT_SOURCE_X = WARRIOR_ART.footSource.x;
-const WARRIOR_SPRITE_FOOT_SOURCE_Y = WARRIOR_ART.footSource.y;
 const SETTLER_SPRITE_SOURCE_SIZE = SETTLER_ART.sourceSize;
 const SETTLER_SPRITE_DRAW_SIZE = SETTLER_ART.drawSize;
 const SETTLER_SPRITE_FRAME_COUNT = SETTLER_ART.idleFrameCount;
 const SETTLER_SPRITE_FRAME_MS = SETTLER_ART.idleFrameMs;
 const SETTLER_WALK_FRAME_COUNT = SETTLER_ART.walkFrameCount;
 const SETTLER_WALK_FRAME_MS = SETTLER_ART.walkFrameMs;
+const UNIT_SHADOW_FILL = "rgba(18, 12, 9, 0.5)";
 
 export class UnitPainter {
   constructor({ tileWidth, tileHeight }) {
@@ -198,29 +197,29 @@ export class UnitPainter {
       return;
     }
 
-    if (this.usesWarriorSprite(unit)) {
-      this.paintWarriorShadow(ctx, x, y, scale);
+    if (this.usesWarriorSprite(unit) || this.usesSettlerSprite(unit)) {
+      this.paintSpriteShadow(ctx, x, y, unit, scale);
       return;
     }
 
     ctx.save();
-    ctx.fillStyle = "rgba(25, 18, 13, 0.34)";
+    ctx.fillStyle = UNIT_SHADOW_FILL;
     ctx.beginPath();
-    ctx.ellipse(x + 2, y + 9, (unit.faction === "player" ? 18 : 22) * scale, 8 * scale, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 2, y + 9, (unit.faction === "player" ? 19 : 23) * scale, 8.5 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
   }
 
-  paintWarriorShadow(ctx, x, y, scale) {
-    const sourceScale = WARRIOR_SPRITE_DRAW_SIZE / WARRIOR_SPRITE_SOURCE_SIZE;
-    const footX = x;// - WARRIOR_SPRITE_DRAW_SIZE / 2 + WARRIOR_SPRITE_FOOT_SOURCE_X * sourceScale;
-    const footY = y;// - WARRIOR_SPRITE_DRAW_SIZE + 8 + WARRIOR_SPRITE_FOOT_SOURCE_Y * sourceScale;
+  paintSpriteShadow(ctx, x, y, unit, scale) {
+    const isSettler = this.usesSettlerSprite(unit);
+    const width = isSettler ? 13.5 : 16.5;
+    const height = isSettler ? 7.4 : 8.4;
 
     ctx.save();
-    ctx.fillStyle = "rgba(25, 18, 13, 0.32)";
+    ctx.fillStyle = UNIT_SHADOW_FILL;
     ctx.beginPath();
-    ctx.ellipse(footX, footY+2.5 , 15 * scale, 8 * scale, -0.08, 0, Math.PI * 2);
+    ctx.ellipse(x, y + 3, width * scale, height * scale, -0.08, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

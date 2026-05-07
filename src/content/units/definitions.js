@@ -3,10 +3,14 @@ import { isTilePassable } from "../tiles/definitions.js";
 const BASE_MAP_COLUMNS = 60;
 const BASE_MAP_ROWS = 60;
 const MONSTER_START_EXCLUSION_RADIUS = 36;
-const START_THREAT_COUNT = 32;
+const START_THREAT_COUNT = 64;
 const START_THREAT_MIN_RADIUS = 12;
 const START_THREAT_MAX_RADIUS = 52;
+const START_THREAT_REGION_MAX = 18;
+const START_THREAT_SPECIES_MAX = 12;
+const START_THREAT_REGION_SPECIES_MAX = 5;
 const PACK_MIN_CAMP_DISTANCE = 25;
+const PACK_REGION_SPECIES_MAX = 20;
 const START_THREAT_DEFINITIONS = [
   "skeletonEnemy",
   "skeletonEnemy",
@@ -22,9 +26,9 @@ const START_THREAT_DEFINITIONS = [
   "cinderMaw",
 ];
 const QUADRUPED_PACKS = [
-  { biome: "temperate", column: 22, row: 42, count: 5 },
-  { biome: "desert", column: 49, row: 23, count: 5 },
-  { biome: "volcanic", column: 14, row: 47, count: 5 },
+  { biome: "temperate", column: 22, row: 42, count: 10 },
+  { biome: "desert", column: 49, row: 23, count: 10 },
+  { biome: "volcanic", column: 14, row: 47, count: 10 },
 ];
 
 export const UNIT_DEFINITIONS = {
@@ -533,18 +537,30 @@ function scaleRow(world, row) {
 }
 
 function createStartThreatUnits(world, campTile, occupied) {
-  const spawnTiles = reserveRandomOpenRing(
-    world,
-    occupied,
-    campTile,
-    START_THREAT_COUNT,
-    START_THREAT_MIN_RADIUS,
-    START_THREAT_MAX_RADIUS,
-  );
+  const spawnTiles = collectOpenRingCandidates(world, occupied, campTile, START_THREAT_MIN_RADIUS, START_THREAT_MAX_RADIUS);
   const definitionOffset = Math.floor(Math.random() * START_THREAT_DEFINITIONS.length);
+  const population = createPopulationCounts();
+  const plannedThreats = [];
 
-  return spawnTiles.map((tile, index) => {
-    const definition = START_THREAT_DEFINITIONS[(index + definitionOffset) % START_THREAT_DEFINITIONS.length];
+  shuffleArray(spawnTiles);
+
+  for (const tile of spawnTiles) {
+    if (plannedThreats.length >= START_THREAT_COUNT) {
+      break;
+    }
+
+    const definition = findAllowedThreatDefinition(tile, population, plannedThreats.length + definitionOffset);
+
+    if (!definition) {
+      continue;
+    }
+
+    occupied.add(tile.id);
+    registerThreatPopulation(definition, tile, population);
+    plannedThreats.push({ definition, tile });
+  }
+
+  return plannedThreats.map(({ definition, tile }, index) => {
     const template = UNIT_DEFINITIONS[definition];
 
     return createUnit({
@@ -563,16 +579,29 @@ function createStartThreatUnits(world, campTile, occupied) {
 }
 
 function createQuadrupedPackUnits(world, campTile, occupied) {
+  const packPopulation = createPopulationCounts();
+
   return QUADRUPED_PACKS.flatMap((pack, packIndex) => {
     const center = reserveBiome(world, pack.biome, occupied, scaleColumn(world, pack.column), scaleRow(world, pack.row), {
       minDistanceFrom: campTile,
       minDistance: PACK_MIN_CAMP_DISTANCE,
     });
-    const spawnTiles = reservePackTiles(world, occupied, center, pack.count, {
+    const regionSpeciesKey = getRegionSpeciesKey(pack.biome, "quadrupedMonster");
+    const packCount = Math.min(pack.count, PACK_REGION_SPECIES_MAX - getPopulationCount(packPopulation.regionSpecies, regionSpeciesKey));
+
+    if (packCount <= 0) {
+      return [];
+    }
+
+    const spawnTiles = reservePackTiles(world, occupied, center, packCount, {
       minDistanceFrom: campTile,
       minDistance: PACK_MIN_CAMP_DISTANCE,
     });
     const home = { column: center.column, row: center.row };
+
+    for (const tile of spawnTiles) {
+      incrementPopulation(packPopulation.regionSpecies, getRegionSpeciesKey(getRegionKey(tile), "quadrupedMonster"));
+    }
 
     return spawnTiles.map((tile, memberIndex) =>
       createUnit({
@@ -591,30 +620,81 @@ function createQuadrupedPackUnits(world, campTile, occupied) {
   });
 }
 
+function findAllowedThreatDefinition(tile, population, offset) {
+  for (let index = 0; index < START_THREAT_DEFINITIONS.length; index += 1) {
+    const definition = START_THREAT_DEFINITIONS[(offset + index) % START_THREAT_DEFINITIONS.length];
+
+    if (canAddThreatPopulation(definition, tile, population)) {
+      return definition;
+    }
+  }
+
+  return null;
+}
+
+function canAddThreatPopulation(definition, tile, population) {
+  const region = getRegionKey(tile);
+  const regionSpeciesKey = getRegionSpeciesKey(region, definition);
+
+  return (
+    getPopulationCount(population.regions, region) < START_THREAT_REGION_MAX &&
+    getPopulationCount(population.species, definition) < START_THREAT_SPECIES_MAX &&
+    getPopulationCount(population.regionSpecies, regionSpeciesKey) < START_THREAT_REGION_SPECIES_MAX
+  );
+}
+
+function registerThreatPopulation(definition, tile, population) {
+  const region = getRegionKey(tile);
+
+  incrementPopulation(population.regions, region);
+  incrementPopulation(population.species, definition);
+  incrementPopulation(population.regionSpecies, getRegionSpeciesKey(region, definition));
+}
+
+function createPopulationCounts() {
+  return {
+    regions: new Map(),
+    species: new Map(),
+    regionSpecies: new Map(),
+  };
+}
+
+function getRegionKey(tile) {
+  return tile.biome || "wilds";
+}
+
+function getRegionSpeciesKey(region, definition) {
+  return `${region}:${definition}`;
+}
+
+function getPopulationCount(counts, key) {
+  return counts.get(key) || 0;
+}
+
+function incrementPopulation(counts, key) {
+  counts.set(key, getPopulationCount(counts, key) + 1);
+}
+
 function reservePackTiles(world, occupied, center, count, options = {}) {
   const tiles = [center];
-  const offsets = [
-    { column: 1, row: 0 },
-    { column: 0, row: 1 },
-    { column: -1, row: 0 },
-    { column: 0, row: -1 },
-    { column: 1, row: 1 },
-    { column: -1, row: 1 },
-  ];
 
-  for (const offset of offsets) {
-    if (tiles.length >= count) {
-      break;
+  for (let radius = 1; tiles.length < count && radius <= 3; radius += 1) {
+    for (let row = -radius; row <= radius; row += 1) {
+      for (let column = -radius; column <= radius; column += 1) {
+        if (tiles.length >= count || (Math.abs(column) !== radius && Math.abs(row) !== radius)) {
+          continue;
+        }
+
+        const tile = findNearestOpenTile(world, center.column + column, center.row + row, occupied, options);
+
+        if (!tile || occupied.has(tile.id)) {
+          continue;
+        }
+
+        occupied.add(tile.id);
+        tiles.push(tile);
+      }
     }
-
-    const tile = findNearestOpenTile(world, center.column + offset.column, center.row + offset.row, occupied, options);
-
-    if (!tile || occupied.has(tile.id)) {
-      continue;
-    }
-
-    occupied.add(tile.id);
-    tiles.push(tile);
   }
 
   return tiles;
@@ -698,7 +778,7 @@ function reserveOpenOutsideCamp(world, occupied, fallbackColumn, fallbackRow, op
   return nearest;
 }
 
-function reserveRandomOpenRing(world, occupied, center, count, minDistance, maxDistance) {
+function collectOpenRingCandidates(world, occupied, center, minDistance, maxDistance) {
   const candidates = [];
 
   for (let row = center.row - maxDistance; row <= center.row + maxDistance; row += 1) {
@@ -722,17 +802,19 @@ function reserveRandomOpenRing(world, occupied, center, count, minDistance, maxD
     }
   }
 
-  const reserved = [];
+  return candidates;
+}
 
-  while (reserved.length < count && candidates.length > 0) {
-    const index = Math.floor(Math.random() * candidates.length);
-    const [tile] = candidates.splice(index, 1);
+function shuffleArray(items) {
+  for (let index = items.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const item = items[index];
 
-    occupied.add(tile.id);
-    reserved.push(tile);
+    items[index] = items[swapIndex];
+    items[swapIndex] = item;
   }
 
-  return reserved;
+  return items;
 }
 
 function findNearestBiomeTile(world, biome, originColumn, originRow, occupied, options = {}) {

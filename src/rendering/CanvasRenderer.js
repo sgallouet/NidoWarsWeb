@@ -9,6 +9,8 @@ import { gridToWorld, worldToGrid } from "./isoMath.js";
 
 const FIRECAMP_SPRITE_SRC = FIRECAMP_ART.fireplace;
 const FIRECAMP_SHEET = FIRECAMP_ART.fireplaceSheet;
+const TREE_OCCLUDED_ALPHA = 0.68;
+const TREE_OCCLUSION_MIN_ZOOM = 0.72;
 
 export class CanvasRenderer {
   constructor({ canvas, camera, config }) {
@@ -27,6 +29,12 @@ export class CanvasRenderer {
     this.terrainCache = null;
     this.structureCache = null;
     this.fogCache = null;
+    this.visibleTiles = [];
+    this.visibleRenderables = [];
+    this.visibleUnitRenderables = [];
+    this.renderablePool = [];
+    this.fogRevealBrush = null;
+    this.fogRevealBrushKey = "";
   }
 
   setImageCache(imageCache) {
@@ -85,15 +93,22 @@ export class CanvasRenderer {
     this.paintWorld(ctx, world);
     this.paintStructures(ctx, world);
     this.paintConstructions(ctx, visibleTiles, elapsed);
-    this.paintResourceNodes(ctx, world, resourceNodes, units, elapsed, dynamicRect);
-    this.paintHerbs(ctx, world, herbs, dynamicRect);
-    this.paintTreasures(ctx, world, treasures, elapsed, dynamicRect);
     this.paintCamp(ctx, campTile, elapsed);
+    this.paintDynamicEntities(ctx, {
+      visibleTiles,
+      units,
+      corpses,
+      treasures,
+      herbs,
+      resourceNodes,
+      elapsed,
+      dayNight,
+      intro,
+      visibleRect: dynamicRect,
+    });
     this.paintFog(ctx, world, fogOfWar, visibleTiles);
     this.paintHover(ctx, hoveredTile);
     this.paintOrderMarkers(ctx, world, orderMarkers, elapsed);
-    this.paintCorpses(ctx, world, corpses, elapsed, dynamicRect);
-    this.paintUnits(ctx, world, units, elapsed, dayNight, intro, dynamicRect);
     this.paintNightLayer(ctx, world, dayNight);
     this.paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed);
 
@@ -900,53 +915,66 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintUnits(ctx, world, units, elapsed, dayNight, intro, visibleRect) {
+  paintDynamicEntities(ctx, {
+    visibleTiles = [],
+    units = [],
+    corpses = [],
+    treasures = [],
+    herbs = [],
+    resourceNodes = [],
+    elapsed,
+    dayNight,
+    intro,
+    visibleRect,
+  }) {
+    const renderables = this.visibleRenderables;
+    const unitRenderables = this.visibleUnitRenderables;
     const introScale = getIntroUnitScale(intro);
 
-    if (introScale <= 0) {
-      return;
+    renderables.length = 0;
+    unitRenderables.length = 0;
+
+    if (introScale > 0) {
+      this.collectUnitRenderables(renderables, unitRenderables, units, visibleRect, introScale);
     }
 
-    const sortedUnits = [...units].sort(
-      (a, b) => a.visualColumn + a.visualRow - (b.visualColumn + b.visualRow),
-    );
+    this.collectCorpseRenderables(renderables, corpses, visibleRect);
+    this.collectTreasureRenderables(renderables, treasures, visibleRect);
+    this.collectHerbRenderables(renderables, herbs, visibleRect);
+    this.collectBuildingRenderables(renderables, visibleTiles, visibleRect);
+    this.collectResourceNodeRenderables(renderables, resourceNodes, units, unitRenderables, visibleRect);
 
-    for (const unit of sortedUnits) {
+    renderables.sort((a, b) => a.depth - b.depth || a.sortOrder - b.sortOrder || a.x - b.x);
+
+    for (const renderable of renderables) {
+      this.paintDynamicRenderable(ctx, renderable, elapsed, dayNight);
+    }
+  }
+
+  collectUnitRenderables(renderables, unitRenderables, units, visibleRect, introScale) {
+    for (const unit of units) {
       const point = gridToWorld(
         unit.visualColumn,
         unit.visualRow,
         this.config.tileWidth,
         this.config.tileHeight,
       );
+      const x = point.x;
+      const y = point.y + this.config.tileHeight * 0.5 + (1 - Math.min(1, introScale)) * 18;
 
-      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+      if (!isPointInRect(x, y, visibleRect, this.config.tileWidth)) {
         continue;
       }
 
-      const paintUnit =
-        introScale === 1
-          ? unit
-          : {
-              ...unit,
-              scale: (unit.scale || 1) * introScale,
-            };
+      const renderable = this.pushRenderable(renderables, "unit", unit, x, y, y, 60);
 
-      this.unitPainter.paint(ctx, {
-        unit: paintUnit,
-        x: point.x,
-        y: point.y + this.config.tileHeight * 0.5 + (1 - Math.min(1, introScale)) * 18,
-        elapsed,
-        dayNight,
-      });
+      renderable.introScale = introScale;
+      unitRenderables.push(renderable);
     }
   }
 
-  paintCorpses(ctx, world, corpses = [], elapsed, visibleRect) {
-    const sortedCorpses = [...corpses].sort(
-      (a, b) => a.visualColumn + a.visualRow - (b.visualColumn + b.visualRow),
-    );
-
-    for (const corpse of sortedCorpses) {
+  collectCorpseRenderables(renderables, corpses, visibleRect) {
+    for (const corpse of corpses) {
       if (corpse.status === "carried") {
         continue;
       }
@@ -957,60 +985,72 @@ export class CanvasRenderer {
         this.config.tileWidth,
         this.config.tileHeight,
       );
+      const x = point.x;
+      const y = point.y + this.config.tileHeight * 0.5;
 
-      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+      if (!isPointInRect(x, y, visibleRect, this.config.tileWidth)) {
         continue;
       }
 
-      this.unitPainter.paintCorpse(ctx, {
-        corpse,
-        x: point.x,
-        y: point.y + this.config.tileHeight * 0.5,
-        elapsed,
-      });
+      this.pushRenderable(renderables, "corpse", corpse, x, y, y, 20);
     }
   }
 
-  paintTreasures(ctx, world, treasures, elapsed, visibleRect) {
+  collectTreasureRenderables(renderables, treasures, visibleRect) {
     for (const treasure of treasures) {
-      if (treasure.status === "carried") {
+      if (treasure.status === "carried" || treasure.status === "collected") {
         continue;
       }
 
-      const tile = world.getTile(treasure.column, treasure.row);
-      const point = this.getTileCenter(tile);
+      const point = gridToWorld(treasure.column, treasure.row, this.config.tileWidth, this.config.tileHeight);
+      const x = point.x;
+      const y = point.y + this.config.tileHeight * 0.5;
 
-      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+      if (!isPointInRect(x, y, visibleRect, this.config.tileWidth)) {
         continue;
       }
 
-      this.treasurePainter.paint(ctx, {
-        treasure,
-        x: point.x,
-        y: point.y,
-        elapsed,
-      });
+      this.pushRenderable(renderables, "treasure", treasure, x, y, y, 30);
     }
   }
 
-  paintHerbs(ctx, world, herbs, visibleRect) {
+  collectHerbRenderables(renderables, herbs, visibleRect) {
     for (const herb of herbs) {
-      const tile = world.getTile(herb.column, herb.row);
-      const point = this.getTileCenter(tile);
-
-      if (!isPointInRect(point.x, point.y, visibleRect, this.config.tileWidth)) {
+      if (herb.loadsRemaining <= 0 || herb.cleaned) {
         continue;
       }
 
-      this.herbPainter.paint(ctx, {
-        x: point.x,
-        y: point.y,
-        loadsRemaining: herb.loadsRemaining,
-      });
+      const point = gridToWorld(herb.column, herb.row, this.config.tileWidth, this.config.tileHeight);
+      const x = point.x;
+      const y = point.y + this.config.tileHeight * 0.5;
+
+      if (!isPointInRect(x, y, visibleRect, this.config.tileWidth)) {
+        continue;
+      }
+
+      this.pushRenderable(renderables, "herb", herb, x, y, y, 30);
     }
   }
 
-  paintResourceNodes(ctx, world, resourceNodes, units, elapsed, visibleRect) {
+  collectBuildingRenderables(renderables, visibleTiles, visibleRect) {
+    for (const tile of visibleTiles) {
+      if (!tile.building) {
+        continue;
+      }
+
+      const point = gridToWorld(tile.column, tile.row, this.config.tileWidth, this.config.tileHeight);
+      const depth = this.tilePainter.getBuildingObjectDepth(tile, point.x, point.y);
+      const bounds = this.tilePainter.getBuildingObjectBounds(tile, point.x, point.y);
+
+      if (!isRectInRect(bounds, visibleRect)) {
+        continue;
+      }
+
+      this.pushRenderable(renderables, "building", tile, point.x, point.y, depth, 65);
+    }
+  }
+
+  collectResourceNodeRenderables(renderables, resourceNodes, units, unitRenderables, visibleRect) {
     if (!resourceNodes) {
       return;
     }
@@ -1018,22 +1058,135 @@ export class CanvasRenderer {
     const workingNodeCounts = getWorkingResourceNodeCounts(units);
 
     for (const node of resourceNodes) {
-      const tile = world.getTile(node.column, node.row);
-      const point = this.getTileCenter(tile);
-      const padding = node.type === "wood" ? this.config.tileWidth * 1.8 : this.config.tileWidth;
-
-      if (!isPointInRect(point.x, point.y, visibleRect, padding)) {
+      if (node.loadsRemaining <= 0 || node.cleaned) {
         continue;
       }
 
-      this.resourceNodePainter.paint(ctx, {
-        node,
-        x: point.x,
-        y: point.y,
-        elapsed,
-        activeWorkerCount: workingNodeCounts.get(node.id) || 0,
-      });
+      const point = gridToWorld(node.column, node.row, this.config.tileWidth, this.config.tileHeight);
+      const x = point.x;
+      const y = point.y + this.config.tileHeight * 0.5;
+      const padding = node.type === "wood" ? this.config.tileWidth * 1.8 : this.config.tileWidth;
+
+      if (!isPointInRect(x, y, visibleRect, padding)) {
+        continue;
+      }
+
+      const sortOrder = node.type === "wood" ? 70 : 50;
+      const renderable = this.pushRenderable(renderables, "resourceNode", node, x, y, y, sortOrder);
+
+      renderable.activeWorkerCount = workingNodeCounts.get(node.id) || 0;
+      renderable.alpha = this.shouldFadeTree(node, x, y, unitRenderables) ? TREE_OCCLUDED_ALPHA : 1;
     }
+  }
+
+  pushRenderable(renderables, kind, item, x, y, depth, sortOrder) {
+    const index = renderables.length;
+    const renderable = this.renderablePool[index] || {};
+
+    this.renderablePool[index] = renderable;
+    renderable.kind = kind;
+    renderable.item = item;
+    renderable.x = x;
+    renderable.y = y;
+    renderable.depth = depth;
+    renderable.sortOrder = sortOrder;
+    renderable.alpha = 1;
+    renderable.activeWorkerCount = 0;
+    renderable.introScale = 1;
+    renderables.push(renderable);
+    return renderable;
+  }
+
+  paintDynamicRenderable(ctx, renderable, elapsed, dayNight) {
+    const { kind, item, x, y } = renderable;
+
+    if (kind === "unit") {
+      const unit =
+        renderable.introScale === 1
+          ? item
+          : {
+              ...item,
+              scale: (item.scale || 1) * renderable.introScale,
+            };
+
+      this.unitPainter.paint(ctx, {
+        unit,
+        x,
+        y,
+        elapsed,
+        dayNight,
+      });
+      return;
+    }
+
+    if (kind === "corpse") {
+      this.unitPainter.paintCorpse(ctx, {
+        corpse: item,
+        x,
+        y,
+        elapsed,
+      });
+      return;
+    }
+
+    if (kind === "resourceNode") {
+      this.resourceNodePainter.paint(ctx, {
+        node: item,
+        x,
+        y,
+        elapsed,
+        activeWorkerCount: renderable.activeWorkerCount,
+        alpha: renderable.alpha,
+      });
+      return;
+    }
+
+    if (kind === "herb") {
+      this.herbPainter.paint(ctx, {
+        x,
+        y,
+        loadsRemaining: item.loadsRemaining,
+      });
+      return;
+    }
+
+    if (kind === "treasure") {
+      this.treasurePainter.paint(ctx, {
+        treasure: item,
+        x,
+        y,
+        elapsed,
+      });
+      return;
+    }
+
+    this.tilePainter.paintBuildingObject(ctx, {
+      tile: item,
+      x,
+      y,
+    });
+  }
+
+  shouldFadeTree(node, x, y, unitRenderables) {
+    return (
+      node.type === "wood" &&
+      this.camera.zoom >= TREE_OCCLUSION_MIN_ZOOM &&
+      unitRenderables.length > 0 &&
+      this.isTreeOccludingUnit(x, y, unitRenderables)
+    );
+  }
+
+  isTreeOccludingUnit(treeX, treeY, unitRenderables) {
+    for (const unit of unitRenderables) {
+      const dx = Math.abs(unit.x - treeX);
+      const dy = unit.y - treeY;
+
+      if (dx <= 48 && dy >= -92 && dy <= 10) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   paintFog(ctx, world, fogOfWar, visibleTiles) {
@@ -1043,7 +1196,10 @@ export class CanvasRenderer {
 
     const cache = this.getFogCache(world, fogOfWar, visibleTiles);
 
+    ctx.save();
+    ctx.globalAlpha = 0.78;
     this.drawCacheSlice(ctx, cache);
+    ctx.restore();
   }
 
   async prepareFogCache(world, fogOfWar, onProgress) {
@@ -1062,7 +1218,9 @@ export class CanvasRenderer {
 
     const ctx = canvas.getContext("2d");
 
+    this.paintFogBase(ctx, terrainCache.bounds);
     ctx.translate(-terrainCache.bounds.x, -terrainCache.bounds.y);
+    ctx.globalCompositeOperation = "destination-out";
 
     let index = 0;
     const tiles = world.tilesByDrawOrder;
@@ -1071,8 +1229,8 @@ export class CanvasRenderer {
       while (index < tiles.length && performance.now() < deadlineMs) {
         const tile = tiles[index];
 
-        if (!fogOfWar.isRevealed(tile)) {
-          this.paintFogTile(ctx, tile);
+        if (fogOfWar.isRevealed(tile)) {
+          this.eraseFogAtTile(ctx, tile);
         }
 
         index += 1;
@@ -1104,11 +1262,13 @@ export class CanvasRenderer {
 
       const ctx = canvas.getContext("2d");
 
+      this.paintFogBase(ctx, terrainCache.bounds);
       ctx.translate(-terrainCache.bounds.x, -terrainCache.bounds.y);
+      ctx.globalCompositeOperation = "destination-out";
 
       for (const tile of world.tilesByDrawOrder) {
-        if (!fogOfWar.isRevealed(tile)) {
-          this.paintFogTile(ctx, tile);
+        if (fogOfWar.isRevealed(tile)) {
+          this.eraseFogAtTile(ctx, tile);
         }
       }
 
@@ -1143,25 +1303,56 @@ export class CanvasRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.translate(-cache.bounds.x, -cache.bounds.y);
     ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "#000";
 
     for (const tile of tiles) {
-      drawDiamond(ctx, this.getTileCorners(tile, 1.5));
-      ctx.fill();
+      this.eraseFogAtTile(ctx, tile);
     }
 
     ctx.restore();
   }
 
-  paintFogTile(ctx, tile) {
-    const corners = this.getTileCorners(tile);
+  paintFogBase(ctx, bounds) {
+    ctx.fillStyle = "#070a0c";
+    ctx.fillRect(0, 0, bounds.width, bounds.height);
+  }
 
-    ctx.fillStyle = "rgba(45, 55, 60, 0.28)";
-    ctx.strokeStyle = "rgba(181, 214, 210, 0.08)";
-    ctx.lineWidth = 1;
-    drawDiamond(ctx, corners);
-    ctx.fill();
-    ctx.stroke();
+  eraseFogAtTile(ctx, tile) {
+    const center = this.getTileCenter(tile);
+    const brush = this.getFogRevealBrush();
+
+    ctx.drawImage(brush, center.x - brush.width / 2, center.y - brush.height / 2);
+  }
+
+  getFogRevealBrush() {
+    const key = `${this.config.tileWidth}:${this.config.tileHeight}`;
+
+    if (this.fogRevealBrush && this.fogRevealBrushKey === key) {
+      return this.fogRevealBrush;
+    }
+
+    const canvas = document.createElement("canvas");
+    const width = Math.ceil(this.config.tileWidth * 1.8);
+    const height = Math.ceil(this.config.tileHeight * 2.7);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    const cx = width / 2;
+    const cy = height / 2;
+    const radius = Math.max(width, height) * 0.5;
+    const gradient = ctx.createRadialGradient(cx, cy, radius * 0.12, cx, cy, radius);
+
+    gradient.addColorStop(0, "rgba(0, 0, 0, 1)");
+    gradient.addColorStop(0.58, "rgba(0, 0, 0, 1)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    this.fogRevealBrush = canvas;
+    this.fogRevealBrushKey = key;
+    return canvas;
   }
 
   drawCacheSlice(ctx, cache) {
@@ -1226,7 +1417,9 @@ export class CanvasRenderer {
     const maxColumn = clampInt(Math.ceil(maxCornerColumn) + 4, 0, world.columns - 1);
     const minRow = clampInt(Math.floor(minCornerRow) - 4, 0, world.rows - 1);
     const maxRow = clampInt(Math.ceil(maxCornerRow) + 4, 0, world.rows - 1);
-    const tiles = [];
+    const tiles = this.visibleTiles;
+
+    tiles.length = 0;
 
     for (let diagonal = minColumn + minRow; diagonal <= maxColumn + maxRow; diagonal += 1) {
       for (let row = minRow; row <= maxRow; row += 1) {
@@ -1429,6 +1622,15 @@ function isPointInRect(x, y, rect, padding = 0) {
   );
 }
 
+function isRectInRect(bounds, rect) {
+  return (
+    bounds.x + bounds.width >= rect.x &&
+    bounds.x <= rect.x + rect.width &&
+    bounds.y + bounds.height >= rect.y &&
+    bounds.y <= rect.y + rect.height
+  );
+}
+
 function getWorldBounds(world, config) {
   const halfWidth = config.tileWidth / 2;
   const minX = -world.rows * halfWidth - config.tileWidth;
@@ -1447,25 +1649,17 @@ function getWorldBounds(world, config) {
 function runChunkedWork(work) {
   return new Promise((resolve) => {
     const schedule = () => {
-      const run = (deadline) => {
+      window.setTimeout(() => {
         const start = performance.now();
-        const idleTime = typeof deadline?.timeRemaining === "function" ? deadline.timeRemaining() : 0;
-        const budget = Math.max(6, Math.min(12, idleTime || 8));
-        const isDone = work(start + budget);
+        const isDone = work(start + 8);
 
         if (isDone) {
           resolve();
           return;
         }
 
-        requestAnimationFrame(schedule);
-      };
-
-      if (typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(run, { timeout: 60 });
-      } else {
-        requestAnimationFrame(() => run(null));
-      }
+        schedule();
+      }, 0);
     };
 
     schedule();

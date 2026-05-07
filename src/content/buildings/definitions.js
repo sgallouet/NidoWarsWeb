@@ -11,6 +11,7 @@ export const BUILDINGS = [
     cost: { wood: 12, rock: 4 },
     maintenance: { fish: 1, settlers: 1 },
     tone: "hut",
+    renderMask: createDefaultBuildingRenderMask(),
   },
   {
     id: "storage-house",
@@ -24,6 +25,7 @@ export const BUILDINGS = [
     cost: { wood: 10, rock: 5 },
     maintenance: { fish: 1 },
     tone: "storage",
+    renderMask: createDefaultBuildingRenderMask(),
   },
   {
     id: "torch-watch",
@@ -37,6 +39,7 @@ export const BUILDINGS = [
     cost: { wood: 10, rock: 6, herbs: 2 },
     maintenance: { fish: 1 },
     tone: "watch",
+    renderMask: createDefaultBuildingRenderMask(),
   },
   {
     id: "tavern",
@@ -50,6 +53,7 @@ export const BUILDINGS = [
     cost: { wood: 14, rock: 8, herbs: 2 },
     maintenance: { fish: 2, meat: 1 },
     tone: "tavern",
+    renderMask: createDefaultBuildingRenderMask(),
   },
   {
     id: "guild-town",
@@ -63,6 +67,7 @@ export const BUILDINGS = [
     cost: { wood: 18, rock: 12, gold: 4 },
     maintenance: { fish: 2, wood: 1 },
     tone: "guild",
+    renderMask: createDefaultBuildingRenderMask(),
   },
   {
     id: "market",
@@ -76,9 +81,32 @@ export const BUILDINGS = [
     cost: { wood: 16, rock: 10, gold: 3 },
     maintenance: { fish: 1, wood: 1 },
     tone: "market",
+    renderMask: createDefaultBuildingRenderMask(),
   },
 ];
 
 export function getBuildingById(id) {
   return BUILDINGS.find((building) => building.id === id) || null;
+}
+
+export function getBuildingRenderMask(buildingId) {
+  return getBuildingById(buildingId)?.renderMask || createDefaultBuildingRenderMask();
+}
+
+function createDefaultBuildingRenderMask() {
+  return {
+    ground: {
+      left: -30,
+      top: -1,
+      right: 32,
+      bottom: 22,
+    },
+    object: {
+      left: -24,
+      top: -34,
+      right: 24,
+      bottom: 10,
+      depthY: 10,
+    },
+  };
 }

@@ -14,6 +14,7 @@ import {
 } from "../resources/lootTables.js";
 
 const BASE_STEP_MS = 520;
+const UNIT_MOVE_SPEED_MULTIPLIER = 0.5;
 const CLEAN_WORK_MS = 3600;
 const MEAT_WORK_MS = 5000;
 const BUILD_WORK_MS = 260;
@@ -2576,6 +2577,7 @@ export class UnitManager {
     const nightMultiplier = unit.faction === "player" ? 1 + this.nightAmount * 0.3 : 1;
     const terrainCost = unit.canFly ? 1 : getTileMovementCost(destinationTile);
     const stepDistanceMultiplier = getUnitStepDistanceMultiplier(unit, nextTile);
+    const effectiveSpeed = Math.max(0.1, unit.speed * UNIT_MOVE_SPEED_MULTIPLIER);
     const duration =
       (BASE_STEP_MS *
         terrainCost *
@@ -2583,7 +2585,7 @@ export class UnitManager {
         carryMultiplier *
         nightMultiplier *
         getMovementDurationMultiplier(unit)) /
-      unit.speed;
+      effectiveSpeed;
 
     unit.movementSegment = {
       from: {

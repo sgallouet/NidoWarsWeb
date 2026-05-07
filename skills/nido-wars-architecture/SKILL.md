@@ -63,6 +63,14 @@ Use this skill to keep Nido Wars clean, small-file, dependency-light, and fast. 
 - Use visual assets for the actual game world and objects, not decorative page furniture.
 - Prefer warm, readable, premium 2D isometric visuals with clear silhouettes at runtime size.
 
+## Z And Object Depth
+
+- Depth-sort dynamic world objects by the world-space contact point of their visible object, not by the tile that owns them or the top-left of their sprite.
+- Split visuals that occupy the ground from visuals that stand up into the world. Ground/foundation/shadows may stay in static structure or terrain caches; the actual upright object must join the dynamic depth pass when units, corpses, trees, or resources can cross in front of or behind it.
+- Content that draws as an object must declare an object render mask beside its definition. The mask should separate `ground` from `object`, and `object.depthY` should be the contact/depth line used for sorting. If `depthY` is omitted, use the object mask bottom edge.
+- Use object masks for visible-rect culling too. Do not run per-object occlusion or transparency checks for offscreen art, and gate subtle transparency work by zoom when it is not readable at far zoom.
+- Transparency for occluders such as trees is a last-mile readability aid, not the primary z solution. Correct z ordering comes first; transparency should only inspect already-visible renderables.
+
 ## Before Finishing
 
 - Run `node --check` on changed JavaScript where practical.

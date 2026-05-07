@@ -23,11 +23,12 @@ export class UnitV2Painter {
   paintShadow(ctx, x, y, unit, scale = 1) {
     const art = this.getArt(unit);
     const shadow = art?.shadow || { width: 14, height: 5, alpha: 0.24 };
+    const alpha = Math.max(0.42, shadow.alpha * 1.7);
 
     ctx.save();
-    ctx.fillStyle = `rgba(25, 18, 13, ${shadow.alpha})`;
+    ctx.fillStyle = `rgba(18, 12, 9, ${alpha})`;
     ctx.beginPath();
-    ctx.ellipse(x + 1, y + 3, shadow.width * scale, shadow.height * scale, -0.05, 0, Math.PI * 2);
+    ctx.ellipse(x + 1, y + 3, shadow.width * 1.08 * scale, shadow.height * 1.12 * scale, -0.05, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

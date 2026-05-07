@@ -2,6 +2,7 @@ import { TILE_TYPES } from "../content/tiles/definitions.js";
 import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { DESERT_TILE_ART } from "../content/tiles/desert/art.js";
 import { CAMPGROUND_TILE_ART } from "../content/tiles/campground/art.js";
+import { getBuildingRenderMask } from "../content/buildings/definitions.js";
 
 const DESERT_TILE_SPRITE_SRC = DESERT_TILE_ART.sprite;
 const CAMPGROUND_GROUND = CAMPGROUND_TILE_ART.ground;
@@ -56,7 +57,7 @@ export class TilePainter {
       this.paintBuildSite(ctx, corners, tile, elapsed);
     }
     if (tile.building) {
-      this.paintBuilding(ctx, corners, tile, elapsed);
+      this.paintBuildingGround(ctx, corners, tile);
     }
   }
 
@@ -526,17 +527,33 @@ export class TilePainter {
     ctx.restore();
   }
 
-  paintBuilding(ctx, corners, tile) {
+  getBuildingObjectDepth(tile, x, y) {
+    const mask = getBuildingRenderMask(tile.building).object;
+    const depthY = Number.isFinite(mask.depthY) ? mask.depthY : mask.bottom;
+
+    return y + this.tileHeight * 0.5 + depthY;
+  }
+
+  getBuildingObjectBounds(tile, x, y) {
+    const mask = getBuildingRenderMask(tile.building).object;
+    const cx = x;
+    const cy = y + this.tileHeight * 0.5;
+
+    return {
+      x: cx + mask.left,
+      y: cy + mask.top,
+      width: mask.right - mask.left,
+      height: mask.bottom - mask.top,
+    };
+  }
+
+  paintBuildingObject(ctx, { tile, x, y }) {
+    const corners = this.getCorners(x, y);
     const cx = corners.top.x;
     const cy = corners.top.y + this.tileHeight * 0.5;
     const tone = getBuildingTone(tile.building);
 
     ctx.save();
-    ctx.fillStyle = "rgba(24, 15, 10, 0.34)";
-    ctx.beginPath();
-    ctx.ellipse(cx + 2, cy + 10, 28, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-
     ctx.fillStyle = tone.wall;
     ctx.beginPath();
     ctx.roundRect(cx - 18, cy - 16, 36, 26, 5);
@@ -554,6 +571,29 @@ export class TilePainter {
     ctx.fillRect(cx - 5, cy - 3, 10, 13);
     ctx.fillStyle = tone.light;
     ctx.fillRect(cx + 8, cy - 8, 6, 5);
+    ctx.restore();
+  }
+
+  paintBuildingGround(ctx, corners, tile) {
+    const cx = corners.top.x;
+    const cy = corners.top.y + this.tileHeight * 0.5;
+    const mask = getBuildingRenderMask(tile.building).ground;
+    const width = mask.right - mask.left;
+    const height = mask.bottom - mask.top;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(24, 15, 10, 0.34)";
+    ctx.beginPath();
+    ctx.ellipse(
+      cx + mask.left + width / 2,
+      cy + mask.top + height / 2,
+      width / 2,
+      height / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
     ctx.restore();
   }
 
