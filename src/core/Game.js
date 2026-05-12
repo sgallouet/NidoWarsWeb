@@ -18,7 +18,7 @@ import { UnitManager } from "../gameplay/units/UnitManager.js";
 import { createStartingUnits, findCampTile } from "../content/units/definitions.js";
 import { BUILDINGS, getBuildingById } from "../content/buildings/definitions.js";
 import { getResourceIcon } from "../content/resources/definitions.js";
-import { TILE_TYPES } from "../content/tiles/definitions.js";
+import { TILE_TYPES, isTilePassable } from "../content/tiles/definitions.js";
 
 const CONSTRUCTION_MS = 12 * 1000;
 const START_CLEAR_RADIUS = 5;
@@ -26,9 +26,15 @@ const BUILD_FOOTPRINT_RADIUS = 1;
 const BUILD_CONNECTOR_DISTANCE = BUILD_FOOTPRINT_RADIUS + 1;
 const BUILD_ANCHOR_DISTANCE = BUILD_FOOTPRINT_RADIUS + 2;
 const BUILD_ANCHOR_CLEARANCE = BUILD_FOOTPRINT_RADIUS + 1;
-const INTRO_DURATION_MS = 2000;
-const INTRO_UI_REVEAL_MS = 1700;
-const INTRO_GREETING_MS = 1250;
+const INTRO_GROUP_WALK_START_MS = 3350;
+const INTRO_GROUP_WALK_MS = 4600;
+const INTRO_FIRE_START_MS = 8200;
+const INTRO_FIRE_DURATION_MS = 4000;
+const INTRO_DURATION_MS = 12800;
+const INTRO_UI_REVEAL_MS = 12400;
+const INTRO_GREETING_MS = 12500;
+const INTRO_PORTAL_REVEAL_RADIUS = 3;
+const INTRO_FIRE_REVEAL_RADIUS = 12;
 
 export class Game {
   constructor({ canvas, root, config }) {
@@ -40,9 +46,17 @@ export class Game {
     this.fogOfWar = new FogOfWar(this.world);
     this.campTile = findCampTile(this.world);
     this.campTile.blocksMovement = true;
-    const startingUnits = createStartingUnits(this.world, this.campTile);
+    this.portalTile = findCampPortalTile(this.world, this.campTile);
+    if (this.portalTile) {
+      clearPortalLandingArea(this.world, this.portalTile);
+      this.portalTile.hasDarkPortal = true;
+      this.portalTile.blocksMovement = true;
+    }
+    const startingUnits = createStartingUnits(this.world, this.campTile, {
+      reservedTileIds: this.portalTile ? [this.portalTile.id] : [],
+    });
     const startingReservedKeys = this.getStartingReservedKeys(startingUnits);
-    const reservedSpawnKeys = new Set(startingReservedKeys);
+    const reservedSpawnKeys = new Set([...startingReservedKeys, ...this.getPortalReservedKeys()]);
     this.treasures = new TreasureManager({
       world: this.world,
       count: 36,
@@ -122,12 +136,25 @@ export class Game {
     this.isHeroProfileOpen = false;
     this.isIntroActive = true;
     this.didIntroGreeting = false;
+    this.didIntroJourneySpeech = false;
+    this.didIntroFireStart = false;
+    this.didIntroFireReveal = false;
     this.didRevealIntroUi = false;
     this.intro = {
       active: true,
       elapsedMs: 0,
       durationMs: INTRO_DURATION_MS,
       campTile: this.campTile,
+      focusTile: this.portalTile || this.campTile,
+      portalTile: this.portalTile,
+      playerUnitIds: startingUnits.filter((unit) => unit.faction === "player").map((unit) => unit.id),
+      walkStartMs: INTRO_GROUP_WALK_START_MS,
+      walkDurationMs: INTRO_GROUP_WALK_MS,
+      portalRevealRadius: INTRO_PORTAL_REVEAL_RADIUS + 0.2,
+      fireStartMs: INTRO_FIRE_START_MS,
+      fireDurationMs: INTRO_FIRE_DURATION_MS,
+      fireStarterUnitId: "settler-tor",
+      didFireReveal: false,
     };
     this.cardMenuMode = "build";
     this.selectedBuildTile = null;
@@ -161,12 +188,11 @@ export class Game {
 
     this.renderer.resize();
     this.performanceMonitor.resize();
-    this.camera.frameTile(this.campTile, this.renderer.viewport);
+    this.camera.frameTile(this.portalTile || this.campTile, this.renderer.viewport);
     this.hud.setResources(this.resources);
     this.hud.setCycle(this.dayNightCycle.getState());
     this.hud.setTile(this.campTile);
-    this.units.revealStartingArea();
-    this.refreshBuildSitesAndRoads();
+    this.revealIntroPortalArea();
     this.hud.setUnitSummary(this.units.units);
     this.setupHelpOverlay();
     this.setupHeroDock();
@@ -191,7 +217,7 @@ export class Game {
       this.renderer.resize();
       this.performanceMonitor.resize();
       if (this.isIntroActive) {
-        this.camera.frameTile(this.campTile, this.renderer.viewport);
+        this.camera.frameTile(this.portalTile || this.campTile, this.renderer.viewport);
       }
     });
 
@@ -275,6 +301,7 @@ export class Game {
       resourceNodes: this.resourceNodes.nodes,
       fogOfWar: this.fogOfWar,
       campTile: this.campTile,
+      portalTile: this.portalTile,
       orderMarkers: this.units.getOrderMarkers(),
       hoveredTile,
       dayNight,
@@ -288,8 +315,26 @@ export class Game {
   updateIntro(delta) {
     this.intro.elapsedMs = Math.min(this.intro.durationMs, this.intro.elapsedMs + delta);
 
+    if (!this.didIntroJourneySpeech && this.intro.elapsedMs >= INTRO_GROUP_WALK_START_MS + 650) {
+      this.didIntroJourneySpeech = true;
+      this.units.playIntroJourneySpeech();
+    }
+
+    if (!this.didIntroFireStart && this.intro.elapsedMs >= INTRO_FIRE_START_MS) {
+      this.didIntroFireStart = true;
+      this.units.clearIntroSpeech();
+      this.units.playIntroFireStart(this.intro.fireStarterUnitId, INTRO_FIRE_DURATION_MS);
+    }
+
+    if (!this.didIntroFireReveal && this.intro.elapsedMs >= INTRO_FIRE_START_MS + INTRO_FIRE_DURATION_MS) {
+      this.didIntroFireReveal = true;
+      this.intro.didFireReveal = true;
+      this.revealFirelitArea();
+    }
+
     if (!this.didIntroGreeting && this.intro.elapsedMs >= INTRO_GREETING_MS) {
       this.didIntroGreeting = true;
+      this.units.clearIntroSpeech();
       this.units.playIntroGreeting();
     }
 
@@ -302,10 +347,27 @@ export class Game {
       return;
     }
 
+    this.refreshBuildSitesAndRoads();
     this.isIntroActive = false;
     this.intro.active = false;
     this.root.classList.remove("is-intro-active");
     this.root.classList.remove("is-intro-ui-ready");
+  }
+
+  revealIntroPortalArea() {
+    const origin = this.portalTile || this.campTile;
+
+    this.fogOfWar.revealAround(origin, INTRO_PORTAL_REVEAL_RADIUS);
+  }
+
+  revealFirelitArea() {
+    this.fogOfWar.revealAround(this.campTile, INTRO_FIRE_REVEAL_RADIUS);
+
+    for (const unit of this.units.units) {
+      if (unit.faction === "player" && !unit.defeated) {
+        this.fogOfWar.revealAround(unit, 5);
+      }
+    }
   }
 
   setupHelpOverlay() {
@@ -1131,6 +1193,7 @@ export class Game {
   isBuildSiteCenter(tile) {
     if (
       !tile?.isEmpty ||
+      tile.hasDarkPortal ||
       tile.building ||
       tile.construction ||
       tile.buildReservedBy ||
@@ -1228,7 +1291,7 @@ export class Game {
   }
 
   isRoadTile(tile, roadConnectorIds = null) {
-    if (!tile?.isEmpty || tile.building || tile.construction || tile.id === this.campTile.id) {
+    if (!tile?.isEmpty || tile.hasDarkPortal || tile.building || tile.construction || tile.id === this.campTile.id) {
       return false;
     }
 
@@ -1321,6 +1384,90 @@ export class Game {
 
     return keys;
   }
+
+  getPortalReservedKeys() {
+    const keys = new Set();
+
+    if (this.portalTile) {
+      addReservedTileRadius(this.world, keys, this.portalTile, 4);
+    }
+
+    return keys;
+  }
+}
+
+function addReservedTileRadius(world, keys, center, radius) {
+  for (let row = center.row - radius; row <= center.row + radius; row += 1) {
+    for (let column = center.column - radius; column <= center.column + radius; column += 1) {
+      const tile = world.getTile(column, row);
+
+      if (tile) {
+        keys.add(tile.id);
+      }
+    }
+  }
+}
+
+function clearPortalLandingArea(world, center) {
+  for (let row = center.row - 4; row <= center.row + 4; row += 1) {
+    for (let column = center.column - 4; column <= center.column + 4; column += 1) {
+      const tile = world.getTile(column, row);
+
+      if (!tile || Math.hypot(tile.column - center.column, tile.row - center.row) > 4.2) {
+        continue;
+      }
+
+      tile.type = "campground";
+      tile.label = TILE_TYPES[tile.type].label;
+      tile.elevation = 0;
+      tile.isEmpty = true;
+      tile.building = null;
+      tile.construction = null;
+      tile.canBuild = false;
+      tile.hasRoad = false;
+      tile.roadConnections = null;
+    }
+  }
+}
+
+function findCampPortalTile(world, campTile) {
+  const preferredOffsets = [
+    { column: -9, row: 1 },
+    { column: -9, row: 0 },
+    { column: -8, row: 2 },
+    { column: -10, row: 1 },
+    { column: 9, row: -1 },
+  ];
+
+  for (const offset of preferredOffsets) {
+    const tile = world.getTile(campTile.column + offset.column, campTile.row + offset.row);
+
+    if (isOpenPortalTile(tile)) {
+      return tile;
+    }
+  }
+
+  for (let radius = 8; radius <= 12; radius += 1) {
+    for (let row = -radius; row <= radius; row += 1) {
+      for (let column = -radius; column <= radius; column += 1) {
+        if (Math.abs(column) !== radius && Math.abs(row) !== radius) {
+          continue;
+        }
+
+        const tile = world.getTile(campTile.column + column, campTile.row + row);
+
+        if (isOpenPortalTile(tile)) {
+          return tile;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function isOpenPortalTile(tile) {
+  return Boolean(tile?.isEmpty && !tile.building && !tile.construction && isTilePassable(tile));
 }
 
 function getEmptyTileType(tile) {

@@ -2,15 +2,10 @@
 3/ by night army of skeleton come to attack the village (each night +25% skeleton rounded to the bottom)
 4/ Guild house rule change: hero in the morning can go to that house and get simple quest (like kill 3 rabbits - reward is shared 30% by the player 70% by the unit) - the player decide which quest is activated
 5/ Weapon factory, player using collected ressource can build weapon which can be bought by the heros in the morning before going to their quest or hobby (if they dont have quest or if all quest power level requirement is higher than theirs)
-6/ All non animal enemies can drop gold, weapon or other items like Diablo to enrich the hero, the weapon they dont need they can sell to the market for other hero to buy (assuming the building is created) and the player get 10% transaction fee - if the unit killing the enemy is not a hero but the player's army like the starting soldier then the gold and artefact drop on the floor like a diablo game and its for the player to tap on it and the settler will carry them to the fire like if it was a chest gold
 10/ ranger attack have a miss chance based on distance (1 tile distnace 0 miss chance, 3 tile 50%)
-11/animate the fire by creating a spritesheet for this fire camp asset, make sure the first image is exactly the one we have now
-12/ change all untis to move half speed
-13/ double the numbers of enemies and the spawn quantities but have a population control max per region/species to keep a sensible biodome
 
 the beginning
-1/ add this big floor dark portal and make at the begining of the game the unit teleporting there by adding a fire telerportation alpha spritesheet effect of very high quality to make the teleportation animation
-2/ then fire spot at first should be off and the player unti move slowly to the fire camp and one of the settler start the fire after a small make fire animation and saying something like : starting fire..
+2/ then fire camp art at first should be fire off and the player unti move slowly to the fire camp and one of the settler start the fire after a small settler make fire animation for 4sec and saying something like : starting fire..
 3/ the player unit that teleported should also have a ressource chariot teleported and the unit at the start carry it next to the fire camp
 4/ remove the gameplay of building buildings by clicking on buildable tiles, instead automatically the settler will start to go to buildable house location and show a question mark on their head to ask if they can build here (they only do that if we have enough wood) - we can instruct them to not build, or build somewhere else, or say ok, the villager art icone should be a placeholder for now as i dont have the art. Also add a habitant ressource which show red if we have more unit than beds - house now do +3 habitant
 5/ one unit that got teleported is a priest hero, its hobbit is to protect town, it walk around the town and heal the units or speed buff them for few seconds (add alpha spritesheet special effect of high quality)

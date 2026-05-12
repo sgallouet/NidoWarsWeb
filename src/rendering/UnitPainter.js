@@ -72,6 +72,9 @@ export class UnitPainter {
     if (unit.faction === "player" && nightAmount > 0.08) {
       this.paintTorch(ctx, 18, -31, elapsed, nightAmount);
     }
+    if (unit.introFireStartMs > 0) {
+      this.paintFireStartingHands(ctx, elapsed);
+    }
     ctx.restore();
 
     if (carryingHeavy) {
@@ -221,6 +224,28 @@ export class UnitPainter {
     ctx.beginPath();
     ctx.ellipse(x, y + 3, width * scale, height * scale, -0.08, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  paintFireStartingHands(ctx, elapsed) {
+    const pulse = Math.sin(elapsed * 0.024) * 0.5 + 0.5;
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.28 + pulse * 0.16;
+
+    for (let i = 0; i < 5; i += 1) {
+      const age = (elapsed * 0.0012 + i * 0.19) % 1;
+      const x = 8 + Math.sin(elapsed * 0.009 + i) * 4;
+      const y = -18 - age * 16;
+      const radius = 1.2 + age * 2.4;
+
+      ctx.fillStyle = i % 2 ? "#ffb85a" : "#ff6330";
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius, radius * 1.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 

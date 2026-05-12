@@ -347,8 +347,8 @@ export function findCampTile(world) {
   return findNearestOpenTile(world, campCenter.column, campCenter.row, new Set());
 }
 
-export function createStartingUnits(world, campTile) {
-  const occupied = new Set([campTile.id]);
+export function createStartingUnits(world, campTile, { reservedTileIds = [] } = {}) {
+  const occupied = new Set([campTile.id, ...reservedTileIds]);
   const monsterSpawnOptions = {
     minDistanceFrom: campTile,
     minDistance: MONSTER_START_EXCLUSION_RADIUS,

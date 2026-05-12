@@ -4,11 +4,17 @@ import { ResourceNodePainter } from "./ResourceNodePainter.js";
 import { TreasurePainter } from "./TreasurePainter.js";
 import { UnitPainter } from "./UnitPainter.js";
 import { NightPainter } from "./NightPainter.js";
+import {
+  DarkPortalPainter,
+  getIntroTeleportUnitProgress,
+  getIntroTeleportUnitStartMs,
+} from "./DarkPortalPainter.js";
 import { FIRECAMP_ART } from "../content/objects/firecamp/art.js";
 import { getLoadedImage } from "../engine/assets/AssetLoader.js";
 import { gridToWorld, worldToGrid } from "./isoMath.js";
 
 const FIRECAMP_SPRITE_SRC = FIRECAMP_ART.fireplace;
+const FIRECAMP_UNLIT_SRC = FIRECAMP_ART.fireplaceUnlit;
 const FIRECAMP_SHEET = FIRECAMP_ART.fireplaceSheet;
 const TREE_OCCLUDED_ALPHA = 0.68;
 const TREE_OCCLUSION_MIN_ZOOM = 0.72;
@@ -26,7 +32,9 @@ export class CanvasRenderer {
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
     this.nightPainter = new NightPainter(config);
+    this.darkPortalPainter = new DarkPortalPainter(config);
     this.firecampSprite = null;
+    this.firecampUnlitSprite = null;
     this.firecampSheet = null;
     this.terrainCache = null;
     this.structureCache = null;
@@ -42,7 +50,9 @@ export class CanvasRenderer {
   setImageCache(imageCache) {
     this.imageCache = imageCache;
     this.firecampSprite = getLoadedImage(imageCache, FIRECAMP_SPRITE_SRC);
+    this.firecampUnlitSprite = getLoadedImage(imageCache, FIRECAMP_UNLIT_SRC);
     this.firecampSheet = getLoadedImage(imageCache, FIRECAMP_SHEET.src);
+    this.darkPortalPainter.setImageCache(imageCache);
     this.tilePainter.setImageCache(imageCache);
     this.herbPainter.setImageCache(imageCache);
     this.resourceNodePainter.setImageCache(imageCache);
@@ -72,6 +82,7 @@ export class CanvasRenderer {
     resourceNodes,
     fogOfWar,
     campTile,
+    portalTile,
     orderMarkers,
     hoveredTile,
     dayNight,
@@ -95,7 +106,8 @@ export class CanvasRenderer {
     this.paintWorld(ctx, world);
     this.paintStructures(ctx, world);
     this.paintConstructions(ctx, visibleTiles, elapsed);
-    this.paintCamp(ctx, campTile, elapsed);
+    this.darkPortalPainter.paint(ctx, { portalTile, intro, elapsed });
+    this.paintCamp(ctx, campTile, elapsed, intro);
     this.paintDynamicEntities(ctx, {
       visibleTiles,
       units,
@@ -106,6 +118,7 @@ export class CanvasRenderer {
       elapsed,
       dayNight,
       intro,
+      portalTile,
       visibleRect: dynamicRect,
     });
     this.paintFog(ctx, world, fogOfWar, visibleTiles);
@@ -180,21 +193,27 @@ export class CanvasRenderer {
   }
 
   paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed) {
-    if (!intro?.active || !campTile) {
+    if (intro?.didFireReveal || (Number.isFinite(intro?.walkStartMs) && intro.elapsedMs >= intro.walkStartMs)) {
+      return;
+    }
+
+    const focusTile = intro?.focusTile || campTile;
+
+    if (!intro?.active || !focusTile) {
       return;
     }
 
     const progress = Math.max(0, Math.min(1, intro.elapsedMs / intro.durationMs));
     const revealProgress = getIntroRevealProgress(intro);
     const eased = easeOutCubic(revealProgress);
-    const campCenter = this.getTileCenter(campTile);
-    const maxGridRadius = Math.max(world.columns, world.rows) * 0.78;
-    const revealGridRadius = -0.35 + eased * maxGridRadius;
+    const focusCenter = this.getTileCenter(focusTile);
+    const maxGridRadius = intro?.portalRevealRadius || 3.2;
+    const revealGridRadius = 1.2 + eased * maxGridRadius;
     const ringGridRadius = Math.max(0, revealGridRadius);
 
-    this.paintIntroUnrevealedTiles(ctx, visibleTiles, campTile, revealGridRadius);
-    this.paintIntroWaveTiles(ctx, visibleTiles, campTile, ringGridRadius, elapsed, revealProgress);
-    this.paintIntroWaveRings(ctx, campCenter, ringGridRadius, elapsed, progress, revealProgress);
+    this.paintIntroUnrevealedTiles(ctx, visibleTiles, focusTile, revealGridRadius);
+    this.paintIntroWaveTiles(ctx, visibleTiles, focusTile, ringGridRadius, elapsed, revealProgress);
+    this.paintIntroWaveRings(ctx, focusCenter, ringGridRadius, elapsed, progress, revealProgress);
   }
 
   paintIntroUnrevealedTiles(ctx, visibleTiles, campTile, revealGridRadius) {
@@ -620,32 +639,54 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintCamp(ctx, campTile, elapsed) {
+  paintCamp(ctx, campTile, elapsed, intro) {
     if (!campTile) {
       return;
     }
 
     const point = this.getTileCenter(campTile);
+    const fireProgress = getIntroFireProgress(intro);
+    const isUnlit = intro?.active && fireProgress <= 0;
+
+    if (isUnlit) {
+      if (this.firecampUnlitSprite) {
+        this.paintFirecampSprite(ctx, point, this.firecampUnlitSprite, 1);
+      } else {
+        this.paintProceduralCampUnlit(ctx, point);
+      }
+      return;
+    }
+
+    if (intro?.active && fireProgress < 1) {
+      if (this.firecampUnlitSprite) {
+        this.paintFirecampSprite(ctx, point, this.firecampUnlitSprite, 1);
+      } else {
+        this.paintProceduralCampUnlit(ctx, point);
+      }
+      this.paintCampFireStartingEffect(ctx, point, elapsed, fireProgress);
+      return;
+    }
 
     if (this.firecampSheet) {
-      this.paintFirecampSheet(ctx, point, elapsed);
+      this.paintFirecampSheet(ctx, point, elapsed, 0.78);
       return;
     }
 
     if (this.firecampSprite) {
-      this.paintFirecampSprite(ctx, point);
+      this.paintFirecampSprite(ctx, point, this.firecampSprite, 0.86);
       return;
     }
 
-    this.paintProceduralCamp(ctx, point, elapsed);
+    this.paintProceduralCamp(ctx, point, elapsed, 0.82);
   }
 
-  paintFirecampSheet(ctx, point, elapsed) {
+  paintFirecampSheet(ctx, point, elapsed, alpha = 1) {
     const width = this.config.tileWidth * 3;
     const height = this.config.tileHeight * 3;
     const frameIndex = Math.floor(elapsed / FIRECAMP_SHEET.frameDurationMs) % FIRECAMP_SHEET.frameCount;
 
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(
       this.firecampSheet,
@@ -661,20 +702,26 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintFirecampSprite(ctx, point) {
+  paintFirecampSprite(ctx, point, image = this.firecampSprite, alpha = 1) {
+    if (!image) {
+      return;
+    }
+
     const width = this.config.tileWidth * 3;
     const height = this.config.tileHeight * 3;
 
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(this.firecampSprite, point.x - width / 2, point.y - height / 2, width, height);
+    ctx.drawImage(image, point.x - width / 2, point.y - height / 2, width, height);
     ctx.restore();
   }
 
-  paintProceduralCamp(ctx, point, elapsed) {
+  paintProceduralCamp(ctx, point, elapsed, alpha = 1) {
     const flame = 1 + Math.sin(elapsed * 0.01) * 0.16;
 
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = "rgba(33, 21, 12, 0.32)";
     ctx.beginPath();
     ctx.ellipse(point.x, point.y + 8, 28, 11, 0, 0, Math.PI * 2);
@@ -703,6 +750,48 @@ export class CanvasRenderer {
     ctx.bezierCurveTo(point.x - 8, point.y - 8, point.x - 4, point.y + 3, point.x + 1, point.y + 1);
     ctx.bezierCurveTo(point.x + 9, point.y - 8, point.x + 7, point.y - 16, point.x + 1, point.y - 21 * flame);
     ctx.fill();
+    ctx.restore();
+  }
+
+  paintProceduralCampUnlit(ctx, point) {
+    ctx.save();
+    ctx.fillStyle = "rgba(33, 21, 12, 0.32)";
+    ctx.beginPath();
+    ctx.ellipse(point.x, point.y + 8, 28, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#5a3a27";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(point.x - 18, point.y + 7);
+    ctx.lineTo(point.x + 18, point.y - 2);
+    ctx.moveTo(point.x - 15, point.y - 3);
+    ctx.lineTo(point.x + 16, point.y + 8);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  paintCampFireStartingEffect(ctx, point, elapsed, progress) {
+    const pulse = Math.sin(elapsed * 0.019) * 0.5 + 0.5;
+    const strength = Math.sin(progress * Math.PI * 0.5);
+
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = (0.16 + pulse * 0.14) * strength;
+
+    for (let i = 0; i < 8; i += 1) {
+      const age = (progress + i * 0.13) % 1;
+      const x = point.x - 14 + i * 4 + Math.sin(elapsed * 0.006 + i) * 3;
+      const y = point.y + 4 - age * 34;
+      const radius = 1.5 + age * 3.5;
+
+      ctx.fillStyle = i % 2 ? "#ffb34b" : "#ff5b2b";
+      ctx.beginPath();
+      ctx.ellipse(x, y, radius, radius * 1.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 
@@ -866,18 +955,17 @@ export class CanvasRenderer {
     elapsed,
     dayNight,
     intro,
+    portalTile,
     visibleRect,
   }) {
     const renderables = this.visibleRenderables;
     const unitRenderables = this.visibleUnitRenderables;
-    const introScale = getIntroUnitScale(intro);
+    const portalPoint = intro?.active && portalTile ? this.getTileCenter(portalTile) : null;
 
     renderables.length = 0;
     unitRenderables.length = 0;
 
-    if (introScale > 0) {
-      this.collectUnitRenderables(renderables, unitRenderables, units, visibleRect, introScale);
-    }
+    this.collectUnitRenderables(renderables, unitRenderables, units, visibleRect, intro, portalPoint);
 
     this.collectCorpseRenderables(renderables, corpses, visibleRect);
     this.collectTreasureRenderables(renderables, treasures, visibleRect);
@@ -892,7 +980,7 @@ export class CanvasRenderer {
     }
   }
 
-  collectUnitRenderables(renderables, unitRenderables, units, visibleRect, introScale) {
+  collectUnitRenderables(renderables, unitRenderables, units, visibleRect, intro, portalPoint) {
     for (const unit of units) {
       const point = gridToWorld(
         unit.visualColumn,
@@ -900,8 +988,16 @@ export class CanvasRenderer {
         this.config.tileWidth,
         this.config.tileHeight,
       );
-      const x = point.x;
-      const y = point.y + this.config.tileHeight * 0.5 + (1 - Math.min(1, introScale)) * 18;
+      const targetX = point.x;
+      const targetY = point.y + this.config.tileHeight * 0.5;
+      const presentation = getIntroUnitPresentation(intro, unit, targetX, targetY, portalPoint);
+
+      if (!presentation) {
+        continue;
+      }
+
+      const x = presentation.x;
+      const y = presentation.y;
 
       if (!isPointInRect(x, y, visibleRect, this.config.tileWidth)) {
         continue;
@@ -909,7 +1005,9 @@ export class CanvasRenderer {
 
       const renderable = this.pushRenderable(renderables, "unit", unit, x, y, y, 60);
 
-      renderable.introScale = introScale;
+      renderable.introScale = presentation.scale;
+      renderable.introAlpha = presentation.alpha;
+      renderable.teleportProgress = presentation.teleportProgress;
       unitRenderables.push(renderable);
     }
   }
@@ -1032,8 +1130,10 @@ export class CanvasRenderer {
     renderable.depth = depth;
     renderable.sortOrder = sortOrder;
     renderable.alpha = 1;
+    renderable.introAlpha = 1;
     renderable.activeWorkerCount = 0;
     renderable.introScale = 1;
+    renderable.teleportProgress = 1;
     renderables.push(renderable);
     return renderable;
   }
@@ -1050,6 +1150,19 @@ export class CanvasRenderer {
               scale: (item.scale || 1) * renderable.introScale,
             };
 
+      if (renderable.teleportProgress < 1) {
+        this.darkPortalPainter.paintTeleportFrame(ctx, {
+          x,
+          y: y + 3,
+          progress: Math.max(0, Math.min(1, renderable.teleportProgress)),
+          elapsed,
+          scale: 0.72,
+          alpha: Math.sin(Math.max(0, Math.min(1, renderable.teleportProgress)) * Math.PI) * 0.36,
+        });
+      }
+
+      ctx.save();
+      ctx.globalAlpha = renderable.introAlpha;
       this.unitPainter.paint(ctx, {
         unit,
         x,
@@ -1057,6 +1170,7 @@ export class CanvasRenderer {
         elapsed,
         dayNight,
       });
+      ctx.restore();
       return;
     }
 
@@ -1512,26 +1626,68 @@ function getIntroRevealProgress(intro) {
   return Math.max(0, Math.min(1, (intro.elapsedMs - firstTileDelayMs) / remainingMs));
 }
 
+function getIntroUnitPresentation(intro, unit, targetX, targetY, portalPoint) {
+  if (!intro?.active) {
+    return {
+      x: targetX,
+      y: targetY,
+      scale: 1,
+      alpha: 1,
+      teleportProgress: 1,
+    };
+  }
+
+  if (unit.faction !== "player") {
+    return null;
+  }
+
+  const unitIndex = intro.playerUnitIds?.indexOf(unit.id) ?? -1;
+  const sequenceIndex = unitIndex >= 0 ? unitIndex : 0;
+  const teleportProgress = getIntroTeleportUnitProgress(intro.elapsedMs, sequenceIndex);
+
+  if (teleportProgress <= 0) {
+    return null;
+  }
+
+  const start = portalPoint || { x: targetX, y: targetY };
+  const walkStartMs = Number.isFinite(intro.walkStartMs) ? intro.walkStartMs : getIntroTeleportUnitStartMs(sequenceIndex) + 560;
+  const walkDurationMs = Number.isFinite(intro.walkDurationMs) ? intro.walkDurationMs : 3600;
+  const walkProgress = clamp01((intro.elapsedMs - walkStartMs) / walkDurationMs);
+  const travelProgress = walkProgress;
+  const easedTravel = easeOutCubic(travelProgress);
+  const arrivalArc = Math.sin(travelProgress * Math.PI) * 22;
+  const popProgress = clamp01((teleportProgress - 0.04) / 0.72);
+  const scale = teleportProgress >= 1 ? 1 : Math.max(0.16, Math.min(1.08, easeOutBack(popProgress)));
+
+  return {
+    x: lerp(start.x, targetX, easedTravel),
+    y: lerp(start.y - 6, targetY, easedTravel) - arrivalArc,
+    scale,
+    alpha: clamp01(teleportProgress / 0.18),
+    teleportProgress: teleportProgress >= 1 ? 1 : teleportProgress,
+  };
+}
+
+function getIntroFireProgress(intro) {
+  if (!intro?.active || !Number.isFinite(intro.fireStartMs) || !Number.isFinite(intro.fireDurationMs)) {
+    return 1;
+  }
+
+  return clamp01((intro.elapsedMs - intro.fireStartMs) / intro.fireDurationMs);
+}
+
 function easeOutBack(value) {
   const overshoot = 1.7;
 
   return 1 + (overshoot + 1) * Math.pow(value - 1, 3) + overshoot * Math.pow(value - 1, 2);
 }
 
-function getIntroUnitScale(intro) {
-  if (!intro?.active) {
-    return 1;
-  }
+function lerp(from, to, amount) {
+  return from + (to - from) * amount;
+}
 
-  const popStartMs = 1000;
-  const popDurationMs = 420;
-  const progress = Math.max(0, Math.min(1, (intro.elapsedMs - popStartMs) / popDurationMs));
-
-  if (progress <= 0) {
-    return 0;
-  }
-
-  return Math.max(0.12, easeOutBack(progress));
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
 }
 
 function parseHex(hex) {

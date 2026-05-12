@@ -149,6 +149,47 @@ export class UnitManager {
     }
   }
 
+  playIntroJourneySpeech() {
+    const lines = ["Where is everyone?", "Something is missing...", "Stay close.", "Find the fire.", "Keep moving.", "Quiet now."];
+    let index = 0;
+
+    for (const unit of this.units) {
+      if (unit.faction !== "player" || unit.defeated) {
+        continue;
+      }
+
+      say(unit, lines[index % lines.length], index % 2 ? "eye" : "rest", 3600);
+      index += 1;
+    }
+  }
+
+  playIntroFireStart(unitId, durationMs) {
+    const starter =
+      this.units.find((unit) => unit.id === unitId && !unit.defeated) ||
+      this.units.find((unit) => unit.faction === "player" && unit.role === "Settler" && !unit.defeated);
+
+    if (!starter) {
+      return;
+    }
+
+    starter.waveMs = Math.max(starter.waveMs || 0, durationMs);
+    starter.pauseMs = Math.max(starter.pauseMs || 0, durationMs);
+    starter.introFireStartMs = durationMs;
+    say(starter, "Starting fire...", "wood", durationMs);
+  }
+
+  clearIntroSpeech() {
+    for (const unit of this.units) {
+      if (unit.faction !== "player") {
+        continue;
+      }
+
+      unit.introFireStartMs = 0;
+      unit.speech = null;
+      unit.orderIcon = null;
+    }
+  }
+
   getUnitAt(column, row) {
     return this.units.find((unit) => unit.column === column && unit.row === row) || null;
   }
