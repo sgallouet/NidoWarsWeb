@@ -19,6 +19,7 @@ import { createStartingUnits, findCampTile } from "../content/units/definitions.
 import { BUILDINGS, getBuildingById } from "../content/buildings/definitions.js";
 import { getResourceIcon } from "../content/resources/definitions.js";
 import { TILE_TYPES, isTilePassable } from "../content/tiles/definitions.js";
+import { duneSettlerArt } from "../content/units/dune-settler/art.js";
 
 const CONSTRUCTION_MS = 12 * 1000;
 const START_CLEAR_RADIUS = 5;
@@ -62,7 +63,10 @@ export class Game {
       reservedTileIds: this.portalTile ? [this.portalTile.id] : [],
     });
     const startingReservedKeys = this.getStartingReservedKeys(startingUnits);
-    const reservedSpawnKeys = new Set([...startingReservedKeys, ...this.getPortalReservedKeys()]);
+    const reservedSpawnKeys = new Set([
+      ...startingReservedKeys,
+      ...this.getPortalReservedKeys(),
+    ]);
     this.treasures = new TreasureManager({
       world: this.world,
       count: 36,
@@ -586,6 +590,7 @@ export class Game {
     }
     this.syncPauseState();
     this.buildMenu.hidden = !isOpen;
+    this.buildMenu.classList.remove("is-settler-dialog");
 
     if (isOpen) {
       this.renderBuildHeader(tile);
@@ -609,11 +614,12 @@ export class Game {
     }
     this.syncPauseState();
     this.buildMenu.hidden = !isOpen;
+    this.buildMenu.classList.toggle("is-settler-dialog", isOpen);
 
     if (isOpen) {
       this.renderBuildProposalHeader(proposal);
       this.renderBuildProposalCards(proposal);
-      this.buildCloseButton?.focus();
+      this.buildGrid?.querySelector('[data-build-proposal="ok"]')?.focus();
     }
   }
 
@@ -632,6 +638,7 @@ export class Game {
     }
     this.syncPauseState();
     this.buildMenu.hidden = !isOpen;
+    this.buildMenu.classList.remove("is-settler-dialog");
 
     if (isOpen) {
       this.renderHeroHeader();
@@ -655,6 +662,7 @@ export class Game {
     }
     this.syncPauseState();
     this.buildMenu.hidden = !isOpen;
+    this.buildMenu.classList.remove("is-settler-dialog");
 
     if (isOpen) {
       this.renderQuestHeader();
@@ -721,16 +729,12 @@ export class Game {
 
   renderBuildProposalHeader(proposal) {
     if (this.buildTitle) {
-      this.buildTitle.textContent = "Build Here?";
+      this.buildTitle.textContent = "Settler Question";
     }
 
     if (this.buildCaption) {
       const name = proposal?.unit?.name || "A settler";
-      const tile = proposal?.tile;
-
-      this.buildCaption.textContent = tile
-        ? `${name} found a house site at ${tile.column}, ${tile.row}`
-        : `${name} found a house site`;
+      this.buildCaption.textContent = `${name} awaits your answer`;
       this.buildTileLabel = null;
     }
   }
@@ -856,7 +860,7 @@ export class Game {
       return;
     }
 
-    this.buildGrid.classList.remove("is-proposal-grid");
+    this.buildGrid.classList.remove("is-proposal-grid", "is-settler-dialog-grid");
     this.buildGrid.innerHTML = "";
 
     if (this.buildTileLabel) {
@@ -901,7 +905,7 @@ export class Game {
       return;
     }
 
-    this.buildGrid.classList.remove("is-proposal-grid");
+    this.buildGrid.classList.remove("is-proposal-grid", "is-settler-dialog-grid");
     this.buildGrid.innerHTML = "";
 
     for (const hero of this.heroRoster) {
@@ -970,7 +974,7 @@ export class Game {
       return;
     }
 
-    this.buildGrid.classList.remove("is-proposal-grid");
+    this.buildGrid.classList.remove("is-proposal-grid", "is-settler-dialog-grid");
     const availableHeroes = this.units.getAvailableHeroes(this.selectedGuildTile || this.campTile);
     const activeQuestCards = this.activeQuests.map((quest) => renderActiveQuestCard(quest)).join("");
 
@@ -1376,7 +1380,7 @@ export class Game {
       return;
     }
 
-    this.buildGrid.classList.add("is-proposal-grid");
+    this.buildGrid.classList.add("is-proposal-grid", "is-settler-dialog-grid");
     const building = getBuildingById(proposal.buildingId);
 
     if (!building) {
@@ -1384,26 +1388,35 @@ export class Game {
     }
 
     const canAfford = this.canAfford(building.cost);
-    const cost = formatResourcePips(building.cost);
-    const effect = formatEffect(building);
+    const cost = formatDialogCost(building.cost);
+    const habitants = building.habitants || 0;
+    const name = proposal.unit?.name || "Settler";
 
     this.buildGrid.innerHTML = `
-      <article class="build-card build-proposal-card build-card-${building.tone}">
-        <div class="build-card-art villager-placeholder" aria-hidden="true"><span></span></div>
-        <div class="build-card-body">
-          <div class="build-card-title">
-            <span class="build-card-kind">house plan</span>
-            <h3>${escapeHtml(building.name)}</h3>
-          </div>
-          <p class="build-card-effect">${effect}</p>
-          <dl>
-            <div><dt>Build</dt><dd>${cost}</dd></div>
-            <div><dt>Beds</dt><dd><span class="hero-chip">+${building.habitants || 0} Habitants</span></dd></div>
-          </dl>
-          <div class="build-proposal-actions">
-            <button type="button" ${canAfford ? "" : "disabled"} data-build-proposal="ok">OK</button>
-            <button type="button" data-build-proposal="elsewhere">Elsewhere</button>
-            <button type="button" data-build-proposal="no">Not now</button>
+      <article class="settler-dialog" aria-labelledby="settler-dialog-speaker">
+        <div class="settler-dialog-portrait" aria-hidden="true">
+          <img src="${duneSettlerArt.questionPortrait}" alt="" />
+        </div>
+        <div class="settler-dialog-body">
+          <p id="settler-dialog-speaker" class="settler-dialog-speaker">${escapeHtml(name)}</p>
+          <p class="settler-dialog-message">
+            My lord, should we build a house here
+            <span class="dialog-token dialog-token-cost">${cost}</span>
+            <span class="dialog-token dialog-token-gain">[+${habitants} Population]</span>?
+          </p>
+          <div class="settler-dialog-actions">
+            <button type="button" ${canAfford ? "" : "disabled"} data-build-proposal="ok">
+              <span>Build here</span>
+              <small>${canAfford ? "Begin the house" : "Need wood"}</small>
+            </button>
+            <button type="button" data-build-proposal="elsewhere">
+              <span>Find another place</span>
+              <small>Keep looking</small>
+            </button>
+            <button type="button" data-build-proposal="no">
+              <span>Not now</span>
+              <small>Return to work</small>
+            </button>
           </div>
         </div>
       </article>
@@ -2046,6 +2059,12 @@ function formatResourcePips(resources, options = {}) {
       return `<span class="resource-pip"><img src="${icon}" alt="" /><span>${amount}${suffix}</span><span class="sr-only"> ${label}</span></span>`;
     })
     .join("");
+}
+
+function formatDialogCost(resources) {
+  return Object.entries(resources)
+    .map(([resource, amount]) => `[-${amount} ${capitalize(resource)}]`)
+    .join(" ");
 }
 
 function escapeHtml(value) {

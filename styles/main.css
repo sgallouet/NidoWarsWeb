@@ -545,6 +545,30 @@ body {
   justify-content: center;
 }
 
+.build-overlay.is-settler-dialog {
+  place-items: end center;
+  padding: 76px 18px max(18px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgba(7, 9, 12, 0.1), rgba(7, 9, 12, 0.68) 62%, rgba(7, 9, 12, 0.88));
+  backdrop-filter: none;
+}
+
+.build-overlay.is-settler-dialog .build-sheet {
+  width: min(1040px, 100%);
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.build-overlay.is-settler-dialog .build-header {
+  display: none;
+}
+
+.build-grid.is-settler-dialog-grid {
+  display: block;
+  padding: 0;
+}
+
 .build-card {
   display: grid;
   min-height: 390px;
@@ -1046,20 +1070,112 @@ body {
   cursor: not-allowed;
 }
 
-.build-proposal-card {
-  max-width: 380px;
-}
-
-.build-proposal-actions {
+.settler-dialog {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: minmax(142px, 230px) minmax(0, 1fr);
+  align-items: end;
+  min-height: 248px;
+  color: #fff4d6;
 }
 
-.build-proposal-actions button {
-  min-width: 0;
-  padding: 0 8px;
+.settler-dialog-portrait {
+  position: relative;
+  align-self: stretch;
+  min-height: 248px;
+  overflow: visible;
+}
+
+.settler-dialog-portrait img {
+  position: absolute;
+  left: 50%;
+  bottom: -18px;
+  width: min(250px, 34vw);
+  max-width: none;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.62));
+}
+
+.settler-dialog-body {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 244, 214, 0.24);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(34, 31, 25, 0.96), rgba(24, 35, 32, 0.95)),
+    radial-gradient(circle at 16% 0, rgba(234, 181, 86, 0.14), transparent 34%);
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 244, 214, 0.12);
+}
+
+.settler-dialog-speaker {
+  margin: 0;
+  color: rgba(143, 232, 239, 0.9);
+  font-size: 0.76rem;
+  font-weight: 920;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.settler-dialog-message {
+  margin: 0;
+  color: #fff4d6;
+  font-size: clamp(1rem, 2.2vh, 1.24rem);
+  font-weight: 820;
+  line-height: 1.42;
+}
+
+.dialog-token {
+  display: inline-block;
   white-space: nowrap;
+}
+
+.dialog-token-cost {
+  color: #f08b67;
+}
+
+.dialog-token-gain {
+  color: #91e6a4;
+}
+
+.settler-dialog-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settler-dialog-actions button {
+  display: grid;
+  gap: 3px;
+  min-height: 56px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 244, 214, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 244, 214, 0.1);
+  color: #fff4d6;
+  font: 900 0.82rem/1.1 Inter, system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settler-dialog-actions button:hover,
+.settler-dialog-actions button:focus-visible {
+  border-color: rgba(255, 226, 142, 0.56);
+  background: rgba(255, 226, 142, 0.16);
+}
+
+.settler-dialog-actions button:disabled {
+  color: rgba(255, 244, 214, 0.48);
+  cursor: not-allowed;
+}
+
+.settler-dialog-actions small {
+  color: rgba(255, 244, 214, 0.62);
+  font-size: 0.66rem;
+  font-weight: 780;
 }
 
 .help-sheet {
@@ -1576,6 +1692,10 @@ body {
     padding: 58px 8px 84px;
   }
 
+  .build-overlay.is-settler-dialog {
+    padding: 52px 8px max(10px, env(safe-area-inset-bottom));
+  }
+
   .help-header {
     padding: 14px;
   }
@@ -1588,6 +1708,40 @@ body {
     grid-template-columns: 1fr;
     gap: 10px;
     padding: 10px;
+  }
+
+  .settler-dialog {
+    grid-template-columns: 104px minmax(0, 1fr);
+    min-height: 188px;
+  }
+
+  .settler-dialog-portrait {
+    min-height: 188px;
+  }
+
+  .settler-dialog-portrait img {
+    bottom: -12px;
+    width: 148px;
+  }
+
+  .settler-dialog-body {
+    gap: 9px;
+    margin-bottom: 8px;
+    padding: 12px;
+  }
+
+  .settler-dialog-message {
+    font-size: 0.94rem;
+  }
+
+  .settler-dialog-actions {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .settler-dialog-actions button {
+    min-height: 44px;
+    padding: 7px 9px;
   }
 
   .build-card {
