@@ -1,6 +1,7 @@
 export const duneSettlerArt = {
   idleSheet: "./src/content/units/dune-settler/art/idle_sheet.png",
   walkSheet: "./src/content/units/dune-settler/art/walk_sheet.png",
+  workSheet: "./src/content/units/dune-settler/art/work_sheet.png",
   questionPortrait: "./src/content/units/dune-settler/art/question_portrait.png",
   sourceSize: 186,
   drawSize: 66,
@@ -8,4 +9,14 @@ export const duneSettlerArt = {
   idleFrameMs: 140,
   walkFrameCount: 8,
   walkFrameMs: 125,
+  workFrameWidth: 240,
+  workFrameHeight: 204,
+  workFrameCount: 8,
+  workFrameMs: 135,
+  workRows: {
+    fire: 0,
+    wood: 1,
+    gather: 2,
+    rock: 3,
+  },
 };

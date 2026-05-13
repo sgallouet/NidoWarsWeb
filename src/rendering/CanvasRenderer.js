@@ -3,6 +3,7 @@ import { HerbPainter } from "./HerbPainter.js";
 import { ResourceNodePainter } from "./ResourceNodePainter.js";
 import { TreasurePainter } from "./TreasurePainter.js";
 import { UnitPainter } from "./UnitPainter.js";
+import { WorldPropPainter } from "./WorldPropPainter.js";
 import { NightPainter } from "./NightPainter.js";
 import {
   DarkPortalPainter,
@@ -31,6 +32,7 @@ export class CanvasRenderer {
     this.resourceNodePainter = new ResourceNodePainter();
     this.treasurePainter = new TreasurePainter();
     this.unitPainter = new UnitPainter(config);
+    this.worldPropPainter = new WorldPropPainter(config);
     this.nightPainter = new NightPainter(config);
     this.darkPortalPainter = new DarkPortalPainter(config);
     this.firecampSprite = null;
@@ -57,6 +59,7 @@ export class CanvasRenderer {
     this.herbPainter.setImageCache(imageCache);
     this.resourceNodePainter.setImageCache(imageCache);
     this.unitPainter.setImageCache(imageCache);
+    this.worldPropPainter.setImageCache(imageCache);
   }
 
   resize() {
@@ -80,6 +83,7 @@ export class CanvasRenderer {
     treasures,
     herbs,
     resourceNodes,
+    worldProps,
     fogOfWar,
     campTile,
     portalTile,
@@ -88,6 +92,7 @@ export class CanvasRenderer {
     dayNight,
     elapsed,
     intro,
+    campFire,
   }) {
     const ctx = this.context;
     const { width, height, dpr } = this.viewport;
@@ -107,7 +112,7 @@ export class CanvasRenderer {
     this.paintStructures(ctx, world);
     this.paintConstructions(ctx, visibleTiles, elapsed);
     this.darkPortalPainter.paint(ctx, { portalTile, intro, elapsed });
-    this.paintCamp(ctx, campTile, elapsed, intro);
+    this.paintCamp(ctx, campTile, elapsed, intro, campFire);
     this.paintDynamicEntities(ctx, {
       visibleTiles,
       units,
@@ -115,6 +120,7 @@ export class CanvasRenderer {
       treasures,
       herbs,
       resourceNodes,
+      worldProps,
       elapsed,
       dayNight,
       intro,
@@ -131,7 +137,7 @@ export class CanvasRenderer {
       dayNight,
       elapsed,
       visibleRect: dynamicRect,
-      campLightStrength: getIntroFireProgress(intro),
+      campLightStrength: getCampFireProgress(campFire),
     });
 
     ctx.restore();
@@ -530,14 +536,14 @@ export class CanvasRenderer {
     ctx.restore();
   }
 
-  paintCamp(ctx, campTile, elapsed, intro) {
+  paintCamp(ctx, campTile, elapsed, intro, campFire) {
     if (!campTile) {
       return;
     }
 
     const point = this.getTileCenter(campTile);
-    const fireProgress = getIntroFireProgress(intro);
-    const isUnlit = intro?.active && fireProgress <= 0;
+    const fireProgress = getCampFireProgress(campFire);
+    const isUnlit = !campFire?.isLit && fireProgress <= 0;
 
     if (isUnlit) {
       if (this.firecampUnlitSprite) {
@@ -548,7 +554,7 @@ export class CanvasRenderer {
       return;
     }
 
-    if (intro?.active && fireProgress < 1) {
+    if (!campFire?.isLit && fireProgress < 1) {
       if (this.firecampUnlitSprite) {
         this.paintFirecampSprite(ctx, point, this.firecampUnlitSprite, 1);
       } else {
@@ -849,6 +855,7 @@ export class CanvasRenderer {
     treasures = [],
     herbs = [],
     resourceNodes = [],
+    worldProps = [],
     elapsed,
     dayNight,
     intro,
@@ -868,6 +875,7 @@ export class CanvasRenderer {
     this.collectHerbRenderables(renderables, herbs, visibleRect);
     this.collectBuildingRenderables(renderables, visibleTiles, visibleRect);
     this.collectResourceNodeRenderables(renderables, resourceNodes, units, unitRenderables, visibleRect);
+    this.collectWorldPropRenderables(renderables, worldProps, visibleRect);
 
     renderables.sort((a, b) => a.depth - b.depth || a.sortOrder - b.sortOrder || a.x - b.x);
 
@@ -1014,6 +1022,25 @@ export class CanvasRenderer {
     }
   }
 
+  collectWorldPropRenderables(renderables, worldProps, visibleRect) {
+    if (!worldProps) {
+      return;
+    }
+
+    for (const prop of worldProps) {
+      const point = gridToWorld(prop.column, prop.row, this.config.tileWidth, this.config.tileHeight);
+      const x = point.x;
+      const y = point.y + this.config.tileHeight * 0.5;
+      const bounds = this.worldPropPainter.getBounds(prop, x, y);
+
+      if (!isRectInRect(bounds, visibleRect)) {
+        continue;
+      }
+
+      this.pushRenderable(renderables, "worldProp", prop, x, y, y, 55);
+    }
+  }
+
   pushRenderable(renderables, kind, item, x, y, depth, sortOrder) {
     const index = renderables.length;
     const renderable = this.renderablePool[index] || {};
@@ -1107,6 +1134,15 @@ export class CanvasRenderer {
         x,
         y,
         elapsed,
+      });
+      return;
+    }
+
+    if (kind === "worldProp") {
+      this.worldPropPainter.paint(ctx, {
+        prop: item,
+        x,
+        y,
       });
       return;
     }
@@ -1578,12 +1614,16 @@ function getIntroUnitPresentation(intro, unit, targetX, targetY) {
   };
 }
 
-function getIntroFireProgress(intro) {
-  if (!intro?.active || !Number.isFinite(intro.fireStartMs) || !Number.isFinite(intro.fireDurationMs)) {
+function getCampFireProgress(campFire) {
+  if (!campFire || campFire.isLit) {
     return 1;
   }
 
-  return clamp01((intro.elapsedMs - intro.fireStartMs) / intro.fireDurationMs);
+  if (!campFire.isLighting || !Number.isFinite(campFire.lightingDurationMs) || campFire.lightingDurationMs <= 0) {
+    return 0;
+  }
+
+  return clamp01(campFire.lightingMs / campFire.lightingDurationMs);
 }
 
 function easeOutBack(value) {

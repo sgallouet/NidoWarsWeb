@@ -9,9 +9,11 @@ import { createQuestRoster, getQuestTeamPower, seededQuestRoll } from "../conten
 import { createDesertMap } from "../world/createDesertMap.js";
 import { DayNightCycle } from "../world/DayNightCycle.js";
 import { FogOfWar } from "../world/FogOfWar.js";
+import { WorldPropManager } from "../world/WorldPropManager.js";
 import { HerbManager } from "../gameplay/resources/HerbManager.js";
 import { ResourceNodeManager } from "../gameplay/resources/ResourceNodeManager.js";
 import { BuilderProposalSystem } from "../gameplay/builders/BuilderProposalSystem.js";
+import { FirepitSystem } from "../gameplay/fire/FirepitSystem.js";
 import { BuilderQuestionDock } from "../ui/BuilderQuestionDock.js";
 import { Hud } from "../ui/Hud.js";
 import { PerformanceMonitor } from "../ui/PerformanceMonitor.js";
@@ -29,11 +31,11 @@ const BUILD_FOOTPRINT_RADIUS = 1;
 const BUILD_CONNECTOR_DISTANCE = BUILD_FOOTPRINT_RADIUS + 1;
 const BUILD_ANCHOR_DISTANCE = BUILD_FOOTPRINT_RADIUS + 2;
 const BUILD_ANCHOR_CLEARANCE = BUILD_FOOTPRINT_RADIUS + 1;
-const INTRO_GROUP_WALK_START_MS = 3350;
+const INTRO_GROUP_WALK_START_MS = 650;
 const INTRO_GROUP_WALK_MS = 3600;
-const INTRO_FIRE_SPOTTED_MS = 6200;
-const INTRO_FIRE_MOVE_MS = 7000;
-const INTRO_FIRE_START_MS = 15100;
+const INTRO_FIRE_SPOTTED_MS = 6700;
+const INTRO_FIRE_MOVE_MS = 10600;
+const INTRO_FIRE_START_MS = 10600;
 const INTRO_FIRE_DURATION_MS = 4000;
 const INTRO_DURATION_MS = 20000;
 const INTRO_UI_REVEAL_MS = 19700;
@@ -45,8 +47,9 @@ const INTRO_FIRE_REVEAL_RADIUS = 12;
 const INTRO_PORTAL_ARRIVAL_RADIUS = 2;
 const INTRO_PORTAL_SCATTER_RADIUS = 4;
 const INTRO_EXPLORE_RADIUS = 8;
-const INTRO_FIRE_REACTION_STEP_MS = 420;
-const BASE_HABITANT_CAPACITY = 6;
+const INTRO_FIRE_REACTION_DELAY_MS = 3000;
+const INTRO_FIRE_REACTION_STEP_MS = 520;
+const BASE_HABITANT_CAPACITY = 0;
 
 export class Game {
   constructor({ canvas, root, config }) {
@@ -92,6 +95,11 @@ export class Game {
       },
       reservedKeys: reservedSpawnKeys,
       startAreaReservedKeys: startingReservedKeys,
+    });
+    this.worldProps = new WorldPropManager({
+      world: this.world,
+      reservedKeys: reservedSpawnKeys,
+      count: 56,
     });
     this.units = new UnitManager({
       world: this.world,
@@ -158,9 +166,24 @@ export class Game {
     this.didRevealIntroUi = false;
     this.introUnitRevealElapsedMs = INTRO_UNIT_REVEAL_INTERVAL_MS;
     this.campFire = {
+      id: "camp-fire",
+      tile: this.campTile,
       isLit: false,
+      isLighting: false,
+      lightingMs: 0,
+      lightingDurationMs: INTRO_FIRE_DURATION_MS,
       revealRadius: INTRO_FIRE_REVEAL_RADIUS,
     };
+    this.firepits = new FirepitSystem({
+      onLightingStarted: (unit, firepit) => this.startFirepitLighting(unit, firepit),
+      onLit: (firepit) => this.completeFirepitLighting(firepit),
+    });
+    this.firepits.registerFirepit({
+      id: this.campFire.id,
+      tile: this.campTile,
+      isLit: this.campFire.isLit,
+      revealRadius: this.campFire.revealRadius,
+    });
     this.intro = {
       active: true,
       elapsedMs: 0,
@@ -191,6 +214,7 @@ export class Game {
     this.nextQuestRunId = 1;
     this.pausedElapsed = 0;
     this.hudRefreshMs = 0;
+    this.housingComplaintMs = 2400;
     this.heroDockStateKey = "";
     this.buildProposalSystem = new BuilderProposalSystem({
       world: this.world,
@@ -293,6 +317,8 @@ export class Game {
     if (this.isIntroActive) {
       this.updateIntro(delta);
       this.units.updateIntro(delta);
+      this.firepits.update(delta, this.units.units);
+      this.syncCampFireState();
     }
 
     if (!this.isPaused) {
@@ -311,6 +337,9 @@ export class Game {
       if (!this.isIntroActive) {
         this.units.update(delta, dayNight);
         this.buildProposalSystem.update(delta, { isDialogOpen: this.isBuildMenuOpen });
+        this.firepits.update(delta, this.units.units);
+        this.syncCampFireState();
+        this.updateHousingPressure(delta);
       }
       this.treasures.update(delta);
       this.updateConstructions(delta);
@@ -341,6 +370,7 @@ export class Game {
       treasures: this.treasures.treasures,
       herbs: this.herbs.herbs,
       resourceNodes: this.resourceNodes.nodes,
+      worldProps: this.worldProps.getVisibleProps(),
       fogOfWar: this.fogOfWar,
       campTile: this.campTile,
       portalTile: this.portalTile,
@@ -349,6 +379,7 @@ export class Game {
       dayNight,
       elapsed,
       intro: this.intro,
+      campFire: this.campFire,
     });
 
     this.performanceMonitor.record(performance.now() - frameStart);
@@ -400,14 +431,12 @@ export class Game {
   }
 
   updateIntroCinematic() {
-    this.runIntroStep("scatter", INTRO_GROUP_WALK_START_MS, () => this.scatterIntroUnits());
-    this.runIntroStep("arrivalSpeech", INTRO_GROUP_WALK_START_MS + 900, () => this.playIntroArrivalSpeech());
+    this.scheduleIntroArrivals();
     this.runIntroStep("explore", INTRO_GROUP_WALK_START_MS + INTRO_GROUP_WALK_MS, () => this.sendIntroExplorers());
     this.runIntroStep("spotFire", INTRO_FIRE_SPOTTED_MS, () => this.spotIntroFire());
     this.scheduleIntroFireReactions();
     this.runIntroStep("moveToFire", INTRO_FIRE_MOVE_MS, () => this.moveIntroGroupToFire());
-    this.runIntroStep("lightFire", INTRO_FIRE_START_MS, () => this.startIntroFire());
-    this.runIntroStep("revealFire", INTRO_FIRE_START_MS + INTRO_FIRE_DURATION_MS, () => this.lightCampFire());
+    this.runIntroStep("requestFire", INTRO_FIRE_START_MS, () => this.startIntroFire());
     this.runIntroStep("greeting", INTRO_GREETING_MS, () => this.units.playIntroGreeting());
   }
 
@@ -420,32 +449,34 @@ export class Game {
     action();
   }
 
-  scatterIntroUnits() {
-    const origin = this.portalTile || this.campTile;
-    const occupied = new Set([origin.id]);
+  scheduleIntroArrivals() {
+    this.intro.playerUnitIds.forEach((unitId, index) => {
+      const delay = INTRO_GROUP_WALK_START_MS + index * (360 + ((index * 137) % 180));
 
-    for (const unitId of this.intro.playerUnitIds) {
-      const tile = this.findIntroTile(origin, INTRO_PORTAL_SCATTER_RADIUS, occupied, unitId.length, { minDistance: 2 });
-
-      if (!tile) {
-        continue;
-      }
-
-      occupied.add(tile.id);
-      this.units.commandIntroMove(unitId, tile, {
-        speech: getIntroLine(unitId, "arrival"),
-        icon: "eye",
-        stage: "leavePortal",
-        pauseAfterPathMs: 650,
-      });
-    }
+      this.runIntroStep(`scatter:${unitId}`, delay, () => this.scatterIntroUnit(unitId, index));
+    });
   }
 
-  playIntroArrivalSpeech() {
-    const lines = ["New air...", "Where did it send us?", "Quiet. Listen.", "No tracks.", "Stay near."];
+  scatterIntroUnit(unitId, index) {
+    const origin = this.portalTile || this.campTile;
+    const occupied = new Set(
+      this.units.units
+        .filter((unit) => unit.faction === "player" && unit.id !== unitId)
+        .map((unit) => `${unit.column}:${unit.row}`),
+    );
+    const tile = this.findIntroTile(origin, INTRO_PORTAL_SCATTER_RADIUS, occupied, unitId.length + index, {
+      minDistance: 2,
+    });
 
-    this.intro.playerUnitIds.forEach((unitId, index) => {
-      this.units.setIntroSpeech(unitId, lines[index % lines.length], index % 2 ? "rest" : "eye", 3000);
+    if (!tile) {
+      return;
+    }
+
+    this.units.commandIntroMove(unitId, tile, {
+      speech: getIntroLine(unitId, "arrival"),
+      icon: index % 2 ? "rest" : "eye",
+      stage: "leavePortal",
+      pauseAfterPathMs: 650,
     });
   }
 
@@ -482,15 +513,16 @@ export class Game {
     const responders = this.intro.playerUnitIds.filter((unitId) => unitId !== this.intro.fireStarterUnitId);
 
     responders.forEach((unitId, index) => {
-      this.runIntroStep(`fireReaction:${unitId}`, INTRO_FIRE_SPOTTED_MS + 850 + index * INTRO_FIRE_REACTION_STEP_MS, () => {
+      const jitter = (index * 173) % 420;
+
+      this.runIntroStep(`fireReaction:${unitId}`, INTRO_FIRE_SPOTTED_MS + INTRO_FIRE_REACTION_DELAY_MS + index * INTRO_FIRE_REACTION_STEP_MS + jitter, () => {
         this.units.setIntroSpeech(unitId, getIntroLine(unitId, "fireReaction"), index % 2 ? "smile" : "eye", 2200);
       });
     });
   }
 
   startIntroFire() {
-    this.units.clearIntroSpeech();
-    this.units.playIntroFireStart(this.intro.fireStarterUnitId, INTRO_FIRE_DURATION_MS);
+    this.firepits.requestLight(this.campFire.id, this.intro.fireStarterUnitId);
   }
 
   moveIntroGroupToFire() {
@@ -578,8 +610,38 @@ export class Game {
     }
 
     this.campFire.isLit = true;
+    this.campFire.isLighting = false;
+    this.campFire.lightingMs = this.campFire.lightingDurationMs;
     this.intro.didFireReveal = true;
     this.revealFirelitArea();
+  }
+
+  syncCampFireState() {
+    const firepit = this.firepits.getFirepit(this.campFire.id);
+
+    if (!firepit) {
+      return;
+    }
+
+    this.campFire.isLit = firepit.isLit;
+    this.campFire.isLighting = firepit.isLighting;
+    this.campFire.lightingMs = firepit.lightingMs;
+    this.campFire.lightingDurationMs = firepit.lightingDurationMs;
+  }
+
+  startFirepitLighting(unit, firepit) {
+    this.campFire.isLighting = true;
+    this.campFire.lightingMs = 0;
+    this.campFire.lightingDurationMs = firepit.lightingDurationMs;
+    this.units.beginFirepitLighting(unit.id, firepit.lightingDurationMs);
+  }
+
+  completeFirepitLighting(firepit) {
+    if (firepit.id !== this.campFire.id) {
+      return;
+    }
+
+    this.lightCampFire();
   }
 
   revealFirelitArea() {
@@ -1748,6 +1810,24 @@ export class Game {
     }
 
     return capacity;
+  }
+
+  updateHousingPressure(delta) {
+    const status = this.getHabitantStatus();
+
+    if (!status.overCapacity) {
+      this.housingComplaintMs = 3200;
+      return;
+    }
+
+    this.housingComplaintMs -= delta;
+
+    if (this.housingComplaintMs > 0) {
+      return;
+    }
+
+    this.housingComplaintMs = 5200 + Math.random() * 3800;
+    this.units.showHousingComplaint();
   }
 
   advanceDay() {

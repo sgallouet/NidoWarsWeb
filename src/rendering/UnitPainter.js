@@ -16,6 +16,8 @@ const SETTLER_SPRITE_FRAME_COUNT = SETTLER_ART.idleFrameCount;
 const SETTLER_SPRITE_FRAME_MS = SETTLER_ART.idleFrameMs;
 const SETTLER_WALK_FRAME_COUNT = SETTLER_ART.walkFrameCount;
 const SETTLER_WALK_FRAME_MS = SETTLER_ART.walkFrameMs;
+const SETTLER_WORK_FRAME_COUNT = SETTLER_ART.workFrameCount || 8;
+const SETTLER_WORK_FRAME_MS = SETTLER_ART.workFrameMs || 135;
 const UNIT_SHADOW_FILL = "rgba(18, 12, 9, 0.5)";
 
 export class UnitPainter {
@@ -27,6 +29,7 @@ export class UnitPainter {
     this.warriorWalkSpriteSheet = null;
     this.settlerSpriteSheet = null;
     this.settlerWalkSpriteSheet = null;
+    this.settlerWorkSpriteSheet = null;
   }
 
   setImageCache(imageCache) {
@@ -35,6 +38,7 @@ export class UnitPainter {
     this.warriorWalkSpriteSheet = getLoadedImage(imageCache, WARRIOR_ART.walkSheet);
     this.settlerSpriteSheet = getLoadedImage(imageCache, SETTLER_ART.idleSheet);
     this.settlerWalkSpriteSheet = getLoadedImage(imageCache, SETTLER_ART.walkSheet);
+    this.settlerWorkSpriteSheet = getLoadedImage(imageCache, SETTLER_ART.workSheet);
   }
 
   paint(ctx, { unit, x, y, elapsed, dayNight }) {
@@ -611,6 +615,33 @@ export class UnitPainter {
       return false;
     }
 
+    const workRow = getSettlerWorkRow(unit);
+
+    if (workRow !== null && isImageReady(this.settlerWorkSpriteSheet)) {
+      const frameIndex = Math.floor(elapsed / SETTLER_WORK_FRAME_MS) % SETTLER_WORK_FRAME_COUNT;
+      const facing = getMovementFacing(unit);
+      const drawWidth = SETTLER_SPRITE_DRAW_SIZE * 1.14;
+      const drawHeight = drawWidth * (SETTLER_ART.workFrameHeight / SETTLER_ART.workFrameWidth);
+
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.translate(x, y);
+      ctx.scale(facing, 1);
+      ctx.drawImage(
+        this.settlerWorkSpriteSheet,
+        frameIndex * SETTLER_ART.workFrameWidth,
+        workRow * SETTLER_ART.workFrameHeight,
+        SETTLER_ART.workFrameWidth,
+        SETTLER_ART.workFrameHeight,
+        -drawWidth / 2,
+        -drawHeight + 8,
+        drawWidth,
+        drawHeight,
+      );
+      ctx.restore();
+      return true;
+    }
+
     const isWalking = this.isSettlerWalking(unit);
     const spriteSheet = isWalking && isImageReady(this.settlerWalkSpriteSheet)
       ? this.settlerWalkSpriteSheet
@@ -1134,6 +1165,22 @@ export class UnitPainter {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("?", x, y + 1);
+    } else if (icon === "habitants") {
+      ctx.strokeStyle = "#f4db9a";
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y);
+      ctx.lineTo(x, y - 7);
+      ctx.lineTo(x + 7, y);
+      ctx.lineTo(x + 7, y + 7);
+      ctx.lineTo(x - 7, y + 7);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillStyle = "#f4db9a";
+      ctx.beginPath();
+      ctx.arc(x, y + 2, 2.4, 0, Math.PI * 2);
+      ctx.fill();
     } else if (icon === "build") {
       ctx.strokeStyle = "#f4db9a";
       ctx.lineWidth = 2;
@@ -1368,6 +1415,20 @@ function hasCarriedLoad(unit) {
 
 function isImageReady(image) {
   return Boolean(image);
+}
+
+function getSettlerWorkRow(unit) {
+  const action = unit.workAnimation || (unit.introFireStartMs > 0 ? "fire" : null);
+
+  if (!action || unit.movementSegment || unit.movementQueue?.length) {
+    return null;
+  }
+
+  if (action === "mine") {
+    return SETTLER_ART.workRows?.rock ?? null;
+  }
+
+  return SETTLER_ART.workRows?.[action] ?? null;
 }
 
 function getMovementFacing(unit) {

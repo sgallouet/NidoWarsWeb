@@ -277,6 +277,10 @@ export class UnitManager {
   }
 
   playIntroFireStart(unitId, durationMs) {
+    this.beginFirepitLighting(unitId, durationMs);
+  }
+
+  beginFirepitLighting(unitId, durationMs) {
     const starter =
       this.units.find((unit) => unit.id === unitId && !unit.defeated) ||
       this.units.find((unit) => unit.faction === "player" && unit.role === "Settler" && !unit.defeated);
@@ -288,7 +292,32 @@ export class UnitManager {
     starter.waveMs = Math.max(starter.waveMs || 0, durationMs);
     starter.pauseMs = Math.max(starter.pauseMs || 0, durationMs);
     starter.introFireStartMs = durationMs;
+    starter.workAnimation = "fire";
+    starter.workAnimationMs = durationMs;
     say(starter, "Starting fire...", "wood", durationMs);
+  }
+
+  showHousingComplaint() {
+    const candidates = this.units.filter(
+      (unit) =>
+        unit.faction === "player" &&
+        unit.role === "Settler" &&
+        !unit.defeated &&
+        !unit.isAwayOnQuest &&
+        !unit.speech &&
+        unit.order !== "buildProposal" &&
+        unit.order !== "build",
+    );
+    const unit = candidates[Math.floor(Math.random() * candidates.length)];
+
+    if (!unit) {
+      return false;
+    }
+
+    const lines = ["We need beds.", "No roof yet?", "My lord, houses?", "Where do we sleep?"];
+
+    say(unit, lines[Math.floor(Math.random() * lines.length)], "habitants", 2600);
+    return true;
   }
 
   clearIntroSpeech() {
@@ -298,6 +327,8 @@ export class UnitManager {
       }
 
       unit.introFireStartMs = 0;
+      unit.workAnimation = null;
+      unit.workAnimationMs = 0;
       unit.speech = null;
       unit.orderIcon = null;
     }
@@ -1386,6 +1417,8 @@ export class UnitManager {
       unit.stage = "harvesting";
       unit.workMs = HERB_WORK_MS;
       unit.pauseMs = 160;
+      unit.workAnimation = "gather";
+      unit.workAnimationMs = HERB_WORK_MS;
       say(unit, "Gathering...", "herb", 900);
       return;
     }
@@ -1469,6 +1502,8 @@ export class UnitManager {
       unit.stage = "harvesting";
       unit.workMs = workMs;
       unit.pauseMs = 160;
+      unit.workAnimation = getResourceWorkAnimation(node?.type);
+      unit.workAnimationMs = workMs;
       say(unit, getWorkSpeech(node?.type), node?.type || "pick", 900);
       return;
     }
@@ -1560,6 +1595,8 @@ export class UnitManager {
       unit.stage = "cleaning";
       unit.workMs = CLEAN_WORK_MS;
       unit.pauseMs = 160;
+      unit.workAnimation = "gather";
+      unit.workAnimationMs = CLEAN_WORK_MS;
       say(unit, "Clearing...", "clean", 900);
       return;
     }
@@ -1590,6 +1627,8 @@ export class UnitManager {
       unit.stage = "harvesting";
       unit.workMs = MEAT_WORK_MS;
       unit.pauseMs = 160;
+      unit.workAnimation = "gather";
+      unit.workAnimationMs = MEAT_WORK_MS;
       say(unit, "Butchering...", "meat", 900);
       return;
     }
@@ -1725,6 +1764,8 @@ export class UnitManager {
       unit.stage = "working";
       unit.workMs = BUILD_WORK_MS;
       unit.pauseMs = 160;
+      unit.workAnimation = "gather";
+      unit.workAnimationMs = BUILD_WORK_MS;
       say(unit, "Raising frame!", "build", 900);
       return;
     }
@@ -2686,6 +2727,8 @@ export class UnitManager {
     unit.carryingReviveCorpseId = null;
     unit.guardTargetId = null;
     unit.workMs = 0;
+    unit.workAnimation = null;
+    unit.workAnimationMs = 0;
     unit.targetMonsterId = null;
     unit.targetUnitId = null;
     unit.recoverMs = 0;
@@ -2769,6 +2812,8 @@ export class UnitManager {
     unit.carryingReviveCorpseId = null;
     unit.guardTargetId = null;
     unit.workMs = 0;
+    unit.workAnimation = null;
+    unit.workAnimationMs = 0;
   }
 
   dropCarriedReviveCorpse(unit) {
@@ -3284,9 +3329,22 @@ function getWorkSpeech(type) {
   return "Gathering...";
 }
 
+function getResourceWorkAnimation(type) {
+  if (type === "wood") {
+    return "wood";
+  }
+
+  if (type === "rock") {
+    return "rock";
+  }
+
+  return "gather";
+}
+
 function tickUnitEffects(unit, delta) {
   tickSpeech(unit, delta);
   unit.waveMs = Math.max(0, (unit.waveMs || 0) - delta);
+  unit.workAnimationMs = Math.max(0, (unit.workAnimationMs || 0) - delta);
   unit.attackCooldownMs = Math.max(0, unit.attackCooldownMs - delta);
   unit.attackFlashMs = Math.max(0, (unit.attackFlashMs || 0) - delta);
   unit.hitFlashMs = Math.max(0, (unit.hitFlashMs || 0) - delta);
@@ -3298,6 +3356,10 @@ function tickUnitEffects(unit, delta) {
     if (unit.combatText.remainingMs <= 0) {
       unit.combatText = null;
     }
+  }
+
+  if (unit.workAnimationMs <= 0) {
+    unit.workAnimation = null;
   }
 }
 

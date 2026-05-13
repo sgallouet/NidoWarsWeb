@@ -5,6 +5,14 @@ export class BuilderQuestionDock {
     this.node = root.querySelector('[data-ui="builder-question-dock"]');
     this.onSelect = onSelect;
     this.stateKey = "";
+
+    this.node?.addEventListener(
+      "pointerdown",
+      (event) => {
+        event.stopPropagation();
+      },
+      { capture: true },
+    );
   }
 
   render(proposals) {

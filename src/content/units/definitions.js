@@ -720,6 +720,8 @@ function createUnit({ id, definition, name, tile, overrides = {} }) {
     order: template.faction === "player" ? "patrol" : "monsterPatrol",
     orderIcon: null,
     speech: null,
+    workAnimation: null,
+    workAnimationMs: 0,
     pauseMs: Math.random() * 900,
     carryingTreasureId: null,
     carryingHerbId: null,

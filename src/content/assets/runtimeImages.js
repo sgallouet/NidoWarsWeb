@@ -7,13 +7,14 @@ import { DESERT_TILE_ART } from "../tiles/desert/art.js";
 import { CAMPGROUND_TILE_ART } from "../tiles/campground/art.js";
 import { FIRECAMP_ART } from "../objects/firecamp/art.js";
 import { DARK_PORTAL_ART } from "../objects/dark-portal/art.js";
+import { WORLD_PROP_ATLASES } from "../objects/world-props/definitions.js";
 
 export const RUNTIME_IMAGE_ASSETS = [
   ...Object.values(RESOURCE_ICONS),
   ...Object.values(RESOURCE_NODE_ART),
   ...Object.values(HERO_PORTRAITS),
   duneSettlerArt.questionPortrait,
-  ...Object.values(PLAYER_UNIT_ART).flatMap((art) => [art.idleSheet, art.walkSheet]),
+  ...Object.values(PLAYER_UNIT_ART).flatMap((art) => [art.idleSheet, art.walkSheet, art.workSheet]),
   ...Object.values(UNIT_V2_ART).map((art) => art.atlas?.src),
   DESERT_TILE_ART.sprite,
   CAMPGROUND_TILE_ART.ground.src,
@@ -24,4 +25,5 @@ export const RUNTIME_IMAGE_ASSETS = [
   DARK_PORTAL_ART.portal.src,
   DARK_PORTAL_ART.portal.offSrc,
   DARK_PORTAL_ART.teleportSheet.src,
+  ...Object.values(WORLD_PROP_ATLASES),
 ].filter(Boolean);
