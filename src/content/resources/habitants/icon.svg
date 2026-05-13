@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Habitants">
+  <defs>
+    <linearGradient id="bed" x1="12" x2="52" y1="18" y2="50" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8fd6c8"/>
+      <stop offset="1" stop-color="#2b746f"/>
+    </linearGradient>
+  </defs>
+  <path fill="#2a1c15" d="M10 27h8v18h36v7H10V27Z"/>
+  <path fill="url(#bed)" d="M17 26h34c4 0 7 3 7 7v12H17V26Z"/>
+  <path fill="#fff0a6" d="M21 19h14c4 0 7 3 7 7v3H21V19Z"/>
+  <circle cx="28" cy="18" r="7" fill="#f2cf79"/>
+  <path fill="#173e42" d="M15 44h44v8H15z"/>
+</svg>

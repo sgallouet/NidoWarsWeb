@@ -12,6 +12,7 @@ export class Hud {
       berries: root.querySelector('[data-ui="berries"]'),
       wood: root.querySelector('[data-ui="wood"]'),
       rock: root.querySelector('[data-ui="rock"]'),
+      habitants: root.querySelector('[data-ui="habitants"]'),
       cycle: root.querySelector('[data-ui="cycle"]'),
       cycleHand: root.querySelector('[data-ui="cycle-hand"]'),
     };
@@ -30,14 +31,31 @@ export class Hud {
     }
   }
 
-  setResources({ gold, herbs, fish, meat, berries, wood, rock }) {
-    const resources = { gold, herbs, fish, meat, berries, wood, rock };
+  setResources({ gold, herbs, fish, meat, berries, wood, rock, habitants }) {
+    const resources = { gold, herbs, fish, meat, berries, wood, rock, habitants };
 
     for (const key of RESOURCE_KEYS) {
-      this.setResourceValue(key, resources[key]);
+      if (key === "habitants") {
+        this.setHabitantsValue(resources[key]);
+      } else {
+        this.setResourceValue(key, resources[key]);
+      }
     }
 
     this.hasRenderedResources = true;
+  }
+
+  setHabitantsValue(status = {}) {
+    const node = this.nodes.habitants;
+    const state = this.resourceState.get("habitants");
+    const used = Number(status.used) || 0;
+    const capacity = Number(status.capacity) || 0;
+    const nextValue = `${used}/${capacity}`;
+
+    state.value = used;
+    state.targetValue = used;
+    node.textContent = nextValue;
+    state.container.classList.toggle("is-over-capacity", used > capacity);
   }
 
   setResourceValue(key, rawValue) {

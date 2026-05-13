@@ -1128,6 +1128,12 @@ export class UnitPainter {
       ctx.moveTo(x + 4, y - 2);
       ctx.lineTo(x + 10, y - 8);
       ctx.stroke();
+    } else if (icon === "question") {
+      ctx.fillStyle = "#ffe28e";
+      ctx.font = "900 18px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("?", x, y + 1);
     } else if (icon === "build") {
       ctx.strokeStyle = "#f4db9a";
       ctx.lineWidth = 2;

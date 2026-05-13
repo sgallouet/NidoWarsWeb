@@ -35,7 +35,7 @@ export class NightPainter {
     ctx.restore();
   }
 
-  paintGroundLights(ctx, { units, campTile, dayNight, elapsed, visibleRect }) {
+  paintGroundLights(ctx, { units, campTile, dayNight, elapsed, visibleRect, campLightStrength = 1 }) {
     const night = dayNight?.nightAmount || 0;
 
     if (night <= 0.05) {
@@ -45,7 +45,7 @@ export class NightPainter {
     ctx.save();
     ctx.globalCompositeOperation = "screen";
 
-    if (campTile) {
+    if (campTile && campLightStrength > 0.05) {
       const campPoint = this.getTileGroundPoint(campTile);
       this.paintLightPool(ctx, {
         x: campPoint.x,
@@ -55,7 +55,7 @@ export class NightPainter {
         night,
         elapsed,
         palette: CAMP_LIGHT,
-        strength: 1,
+        strength: campLightStrength,
       });
     }
 

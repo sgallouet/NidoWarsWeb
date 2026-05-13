@@ -131,8 +131,8 @@ export class CanvasRenderer {
       dayNight,
       elapsed,
       visibleRect: dynamicRect,
+      campLightStrength: getIntroFireProgress(intro),
     });
-    this.paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed);
 
     ctx.restore();
     this.paintVignette(ctx, width, height);
@@ -190,115 +190,6 @@ export class CanvasRenderer {
     const cache = this.getTerrainCache(world);
 
     this.nightPainter.paintWorldShade(ctx, cache.bounds, dayNight);
-  }
-
-  paintIntroReveal(ctx, world, visibleTiles, campTile, intro, elapsed) {
-    if (intro?.didFireReveal || (Number.isFinite(intro?.walkStartMs) && intro.elapsedMs >= intro.walkStartMs)) {
-      return;
-    }
-
-    const focusTile = intro?.focusTile || campTile;
-
-    if (!intro?.active || !focusTile) {
-      return;
-    }
-
-    const progress = Math.max(0, Math.min(1, intro.elapsedMs / intro.durationMs));
-    const revealProgress = getIntroRevealProgress(intro);
-    const eased = easeOutCubic(revealProgress);
-    const focusCenter = this.getTileCenter(focusTile);
-    const maxGridRadius = intro?.portalRevealRadius || 3.2;
-    const revealGridRadius = 1.2 + eased * maxGridRadius;
-    const ringGridRadius = Math.max(0, revealGridRadius);
-
-    this.paintIntroUnrevealedTiles(ctx, visibleTiles, focusTile, revealGridRadius);
-    this.paintIntroWaveTiles(ctx, visibleTiles, focusTile, ringGridRadius, elapsed, revealProgress);
-    this.paintIntroWaveRings(ctx, focusCenter, ringGridRadius, elapsed, progress, revealProgress);
-  }
-
-  paintIntroUnrevealedTiles(ctx, visibleTiles, campTile, revealGridRadius) {
-    ctx.save();
-    ctx.fillStyle = "#000";
-
-    for (const tile of visibleTiles) {
-      const distance = Math.hypot(tile.column - campTile.column, tile.row - campTile.row);
-
-      if (distance <= revealGridRadius) {
-        continue;
-      }
-
-      drawDiamond(ctx, this.getTileCorners(tile, 3.4));
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  paintIntroWaveTiles(ctx, visibleTiles, campTile, ringGridRadius, elapsed, progress) {
-    const ringWidth = 1.7;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-
-    for (const tile of visibleTiles) {
-      const distance = Math.hypot(tile.column - campTile.column, tile.row - campTile.row);
-      const waveDelta = Math.abs(distance - ringGridRadius);
-
-      if (waveDelta > ringWidth) {
-        continue;
-      }
-
-      const point = gridToWorld(tile.column, tile.row, this.config.tileWidth, this.config.tileHeight);
-      const wave = Math.max(0, 1 - waveDelta / ringWidth);
-      const bob = Math.sin(elapsed * 0.008 + tile.seed) * 4 * wave - 12 * wave;
-      const alpha = (0.16 + wave * 0.58) * (1 - Math.max(0, progress - 0.82) / 0.18);
-      const corners = this.getTileCorners(tile, 1.8);
-
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      this.tilePainter.paint(ctx, {
-        tile,
-        x: point.x,
-        y: point.y + bob,
-        elapsed,
-        isHovered: false,
-      });
-      ctx.restore();
-
-      ctx.globalAlpha = Math.min(0.9, alpha + 0.14);
-      ctx.strokeStyle = "#8fe8ef";
-      ctx.lineWidth = 1.2 + wave * 1.4;
-      drawDiamond(ctx, corners);
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  }
-
-  paintIntroWaveRings(ctx, point, ringGridRadius, elapsed, progress, revealProgress) {
-    const pulse = Math.sin(elapsed * 0.015) * 0.5 + 0.5;
-    const alpha = Math.max(0, 1 - Math.max(0, progress - 0.88) / 0.12);
-    const baseRadius = Math.max(18, ringGridRadius * this.config.tileWidth * 0.54);
-    const charge = 1 - revealProgress;
-
-    ctx.save();
-    ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = alpha;
-    ctx.lineWidth = 2.4;
-
-    for (let i = 0; i < 3; i += 1) {
-      const radius = revealProgress <= 0 ? 22 + i * 16 + pulse * 5 : baseRadius - i * 24 + pulse * 4;
-
-      if (radius <= 10) {
-        continue;
-      }
-
-      ctx.strokeStyle = `rgba(${i === 0 ? "143, 232, 239" : "255, 226, 142"}, ${0.22 + charge * 0.35 + pulse * 0.18})`;
-      ctx.beginPath();
-      ctx.ellipse(point.x, point.y, radius, radius * 0.46, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    ctx.restore();
   }
 
   paintGroundLights(ctx, options) {
@@ -910,6 +801,12 @@ export class CanvasRenderer {
       ctx.moveTo(x + 4, y - 2);
       ctx.lineTo(x + 12, y - 9);
       ctx.stroke();
+    } else if (type === "question") {
+      ctx.fillStyle = "#ffe28e";
+      ctx.font = "900 18px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("?", x, y + 1);
     } else if (type === "build") {
       ctx.strokeStyle = "#f4db9a";
       ctx.lineWidth = 2.4;
@@ -1590,6 +1487,10 @@ function getMarkerBackground(type) {
     return "rgba(62, 65, 69, 0.92)";
   }
 
+  if (type === "question") {
+    return "rgba(71, 54, 25, 0.94)";
+  }
+
   return "rgba(74, 48, 20, 0.92)";
 }
 
@@ -1617,13 +1518,6 @@ function mixColor(fromHex, toHex, amount) {
 
 function easeOutCubic(value) {
   return 1 - Math.pow(1 - value, 3);
-}
-
-function getIntroRevealProgress(intro) {
-  const firstTileDelayMs = 300;
-  const remainingMs = Math.max(1, intro.durationMs - firstTileDelayMs);
-
-  return Math.max(0, Math.min(1, (intro.elapsedMs - firstTileDelayMs) / remainingMs));
 }
 
 function getIntroUnitPresentation(intro, unit, targetX, targetY, portalPoint) {

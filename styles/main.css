@@ -262,6 +262,19 @@ body {
   text-shadow: 0 0 12px rgba(255, 112, 93, 0.42);
 }
 
+.resource-value.is-over-capacity {
+  border-color: rgba(255, 100, 86, 0.62);
+  background: rgba(89, 23, 22, 0.72);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 160, 128, 0.18),
+    0 0 18px rgba(255, 80, 58, 0.18);
+}
+
+.resource-value.is-over-capacity span {
+  color: #ff9f80;
+  text-shadow: 0 0 12px rgba(255, 112, 93, 0.42);
+}
+
 .resource-value.show-delta::after {
   position: absolute;
   top: -11px;
@@ -527,6 +540,11 @@ body {
   padding: 16px;
 }
 
+.build-grid.is-proposal-grid {
+  grid-template-columns: minmax(260px, 380px);
+  justify-content: center;
+}
+
 .build-card {
   display: grid;
   min-height: 390px;
@@ -595,6 +613,44 @@ body {
   border-radius: 4px 4px 0 0;
   background: rgba(33, 22, 14, 0.82);
   content: "";
+}
+
+.villager-placeholder {
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 226, 142, 0.3), transparent 32%),
+    linear-gradient(135deg, #314541, #785438 58%, #4a2738);
+}
+
+.villager-placeholder span {
+  bottom: 24px;
+  width: 58px;
+  height: 72px;
+  border-radius: 28px 28px 12px 12px;
+  background: #8f6f45;
+  box-shadow:
+    -28px 10px 0 -20px rgba(143, 214, 200, 0.82),
+    28px 10px 0 -20px rgba(255, 226, 142, 0.72);
+}
+
+.villager-placeholder span::before {
+  top: -27px;
+  left: 10px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #f2cf79;
+  clip-path: none;
+}
+
+.villager-placeholder span::after {
+  right: 18px;
+  bottom: 33px;
+  width: auto;
+  height: auto;
+  background: transparent;
+  color: #24150f;
+  content: "?";
+  font: 950 1.35rem/1 Inter, system-ui, sans-serif;
 }
 
 .build-card-food .build-card-art,
@@ -988,6 +1044,22 @@ body {
   background: rgba(255, 244, 214, 0.09);
   color: rgba(255, 244, 214, 0.54);
   cursor: not-allowed;
+}
+
+.build-proposal-card {
+  max-width: 380px;
+}
+
+.build-proposal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.build-proposal-actions button {
+  min-width: 0;
+  padding: 0 8px;
+  white-space: nowrap;
 }
 
 .help-sheet {

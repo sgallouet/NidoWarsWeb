@@ -1,4 +1,4 @@
-export const RESOURCE_KEYS = ["gold", "herbs", "fish", "meat", "berries", "wood", "rock"];
+export const RESOURCE_KEYS = ["gold", "herbs", "fish", "meat", "berries", "wood", "rock", "habitants"];
 
 export const RESOURCE_ICONS = {
   gold: "./src/content/resources/gold/icon.png",
@@ -8,6 +8,7 @@ export const RESOURCE_ICONS = {
   berries: "./src/content/resources/berries/icon.png",
   wood: "./src/content/resources/wood/icon.png",
   rock: "./src/content/resources/rock/icon.png",
+  habitants: "./src/content/resources/habitants/icon.svg",
 };
 
 export const RESOURCE_NODE_ART = {

@@ -62,6 +62,7 @@ export class UnitManager {
     onResourceDelivered,
     onTileCleaned,
     onConstructionStarted,
+    onBuildProposalReady,
     corpseTtlMs,
   }) {
     this.world = world;
@@ -76,6 +77,7 @@ export class UnitManager {
     this.onResourceDelivered = onResourceDelivered;
     this.onTileCleaned = onTileCleaned;
     this.onConstructionStarted = onConstructionStarted;
+    this.onBuildProposalReady = onBuildProposalReady;
     this.corpseTtlMs = corpseTtlMs;
     this.activeMarkers = [];
     this.nextMarkerId = 1;
@@ -770,6 +772,79 @@ export class UnitManager {
     return true;
   }
 
+  commandProposeBuildTile(tile, buildingId) {
+    if (tile.buildReservedBy || tile.construction || tile.building) {
+      return null;
+    }
+
+    const proposer = this.getAvailableSettlers(tile)[0];
+
+    if (!proposer) {
+      return null;
+    }
+
+    const marker = this.addMarker("question", tile);
+
+    tile.buildReservedBy = proposer.id;
+    proposer.targetBuildTileId = tile.id;
+    proposer.targetBuildingId = buildingId;
+
+    const assigned = this.assignUnitPath(proposer, tile, {
+      order: "buildProposal",
+      orderIcon: "question",
+      markerId: marker.id,
+      stage: "toProposal",
+    });
+
+    if (!assigned) {
+      this.removeMarker(marker.id);
+      tile.buildReservedBy = null;
+      proposer.targetBuildTileId = null;
+      proposer.targetBuildingId = null;
+      this.setPatrol(proposer);
+      return null;
+    }
+
+    say(proposer, "Maybe here?", "question", 1400);
+    return proposer;
+  }
+
+  confirmBuildProposal(unitId, tile, buildingId) {
+    const builder = this.units.find((unit) => unit.id === unitId);
+
+    if (!builder || builder.targetBuildTileId !== tile?.id || builder.targetBuildingId !== buildingId) {
+      return false;
+    }
+
+    this.removeMarker(builder.markerId);
+    const marker = this.addMarker("build", tile);
+
+    tile.buildReservedBy = builder.id;
+    builder.order = "build";
+    builder.orderIcon = "build";
+    builder.markerId = marker.id;
+    builder.stage = "toBuild";
+    builder.targetBuildTileId = tile.id;
+    builder.targetBuildingId = buildingId;
+    builder.pauseMs = 0;
+    builder.workMs = 0;
+    say(builder, "Building!", "build", 1000);
+    return true;
+  }
+
+  cancelBuildProposal(unitId, speech = "Somewhere else?") {
+    const unit = this.units.find((candidate) => candidate.id === unitId);
+
+    if (!unit || unit.order !== "buildProposal") {
+      return false;
+    }
+
+    this.removeMarker(unit.markerId);
+    this.setPatrol(unit);
+    say(unit, speech, "question", 1100);
+    return true;
+  }
+
   getAvailablePlayerUnits(targetTile) {
     return this.units
       .filter((unit) => unit.faction === "player" && unit.order === "patrol" && unit.health >= unit.maxHealth)
@@ -1096,6 +1171,11 @@ export class UnitManager {
 
     if (unit.order === "build") {
       this.updateBuild(unit, delta);
+      return;
+    }
+
+    if (unit.order === "buildProposal") {
+      this.updateBuildProposal(unit);
       return;
     }
 
@@ -1500,6 +1580,31 @@ export class UnitManager {
     say(unit, "Healing by fire.", "herb", 1200);
     this.removeMarker(unit.markerId);
     this.setPatrol(unit);
+  }
+
+  updateBuildProposal(unit) {
+    const tile = this.getTileById(unit.targetBuildTileId);
+
+    if (!tile || tile.construction || tile.building) {
+      this.removeMarker(unit.markerId);
+      this.setPatrol(unit);
+      return;
+    }
+
+    if (unit.stage === "toProposal") {
+      unit.stage = "waiting";
+      unit.orderIcon = "question";
+      unit.pauseMs = 260;
+      say(unit, "Build here?", "question", 5000);
+      this.onBuildProposalReady?.(unit, tile, unit.targetBuildingId);
+      return;
+    }
+
+    unit.pauseMs = 260;
+
+    if (!unit.speech || unit.speech.remainingMs <= 0) {
+      say(unit, "Build here?", "question", 5000);
+    }
   }
 
   updateBuild(unit, delta) {

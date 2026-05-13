@@ -8,6 +8,7 @@ const RESOURCE_LABELS = {
   berries: "Berries",
   wood: "Wood",
   rock: "Rock",
+  habitants: "Habitants",
 };
 
 const HELP_ACTIONS = [
