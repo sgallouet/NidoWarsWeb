@@ -114,9 +114,12 @@ export class DarkPortalPainter {
         continue;
       }
 
+      const arrival = intro.arrivals?.[index]?.tile;
+      const burstPoint = arrival ? this.getTileCenter(arrival) : point;
+
       this.paintTeleportFrame(ctx, {
-        x: point.x,
-        y: point.y - 6,
+        x: burstPoint.x,
+        y: burstPoint.y - 6,
         progress,
         elapsed: elapsed + index * 97,
         scale: 1,

@@ -63,6 +63,7 @@ body {
 
 .game-shell.is-intro-active:not(.is-intro-ui-ready) .hud,
 .game-shell.is-intro-active:not(.is-intro-ui-ready) .cycle-hud,
+.game-shell.is-intro-active:not(.is-intro-ui-ready) .builder-question-dock,
 .game-shell.is-intro-active:not(.is-intro-ui-ready) .hero-dock,
 .game-shell.is-intro-active:not(.is-intro-ui-ready) .help-button,
 .game-shell.is-intro-active:not(.is-intro-ui-ready) .fullscreen-button,
@@ -73,6 +74,7 @@ body {
 
 .hud,
 .cycle-hud,
+.builder-question-dock,
 .hero-dock,
 .help-button,
 .fullscreen-button,
@@ -125,13 +127,26 @@ body {
 .hero-dock {
   position: absolute;
   top: 68px;
-  left: 12px;
+  left: 64px;
   z-index: 3;
   display: grid;
   gap: 7px;
 }
 
+.builder-question-dock {
+  position: absolute;
+  top: 68px;
+  left: 12px;
+  z-index: 4;
+  display: grid;
+  gap: 7px;
+}
+
 .hero-dock[hidden] {
+  display: none;
+}
+
+.builder-question-dock[hidden] {
   display: none;
 }
 
@@ -154,6 +169,75 @@ body {
     0 8px 20px rgba(0, 0, 0, 0.26),
     inset 0 1px 0 rgba(255, 244, 214, 0.14);
   cursor: pointer;
+}
+
+.builder-question-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 226, 142, 0.5);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 226, 142, 0.28), transparent 42%),
+    rgba(18, 17, 15, 0.88);
+  box-shadow:
+    0 0 0 0 rgba(255, 226, 142, 0.34),
+    0 10px 24px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 244, 214, 0.16);
+  cursor: pointer;
+  animation: builder-question-arrive 580ms cubic-bezier(0.2, 1.2, 0.2, 1), builder-question-pulse 1600ms ease-in-out infinite;
+}
+
+.builder-question-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.builder-question-button span {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgba(35, 24, 14, 0.72);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fff1b6, #d99b35);
+  color: #24150f;
+  font: 950 0.86rem/1 Inter, system-ui, sans-serif;
+}
+
+@keyframes builder-question-arrive {
+  from {
+    opacity: 0;
+    transform: translateX(-12px) scale(0.76);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes builder-question-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(255, 226, 142, 0.28),
+      0 10px 24px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 244, 214, 0.16);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(255, 226, 142, 0),
+      0 10px 24px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 244, 214, 0.16);
+  }
 }
 
 .hero-dock-button img {
@@ -1127,17 +1211,71 @@ body {
   line-height: 1.42;
 }
 
-.dialog-token {
-  display: inline-block;
+.dialog-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 2px 0 4px;
+}
+
+.dialog-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 3px 9px 3px 4px;
+  border: 1px solid rgba(255, 244, 214, 0.18);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 950;
+  line-height: 1;
   white-space: nowrap;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 5px 12px rgba(0, 0, 0, 0.22);
 }
 
-.dialog-token-cost {
-  color: #f08b67;
+.dialog-badge img,
+.dialog-badge > span:first-child {
+  width: 21px;
+  height: 21px;
 }
 
-.dialog-token-gain {
-  color: #91e6a4;
+.dialog-badge img {
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.46));
+}
+
+.dialog-badge > span:first-child {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 950;
+}
+
+.dialog-badge-cost {
+  background:
+    linear-gradient(180deg, rgba(255, 134, 101, 0.2), rgba(34, 18, 15, 0.42)),
+    rgba(74, 32, 27, 0.46);
+  color: #ff9b78;
+}
+
+.dialog-badge-cost > span:first-child {
+  background: linear-gradient(180deg, #ffb68f, #9a3f2e);
+  color: #24110d;
+}
+
+.dialog-badge-gain {
+  background:
+    linear-gradient(180deg, rgba(145, 230, 164, 0.2), rgba(18, 40, 25, 0.42)),
+    rgba(24, 74, 42, 0.42);
+  color: #9cf0ae;
+}
+
+.dialog-badge-gain > span:first-child {
+  background: linear-gradient(180deg, #bdf6c8, #337d4f);
+  color: #102017;
 }
 
 .settler-dialog-actions {
@@ -1661,6 +1799,12 @@ body {
 
   .hero-dock {
     top: max(58px, calc(env(safe-area-inset-top) + 58px));
+    left: max(60px, calc(env(safe-area-inset-left) + 60px));
+    gap: 6px;
+  }
+
+  .builder-question-dock {
+    top: max(58px, calc(env(safe-area-inset-top) + 58px));
     left: max(8px, env(safe-area-inset-left));
     gap: 6px;
   }
@@ -1668,6 +1812,11 @@ body {
   .hero-dock-button {
     width: 40px;
     height: 40px;
+  }
+
+  .builder-question-button {
+    width: 42px;
+    height: 42px;
   }
 
   .fullscreen-button {
@@ -1732,6 +1881,23 @@ body {
 
   .settler-dialog-message {
     font-size: 0.94rem;
+  }
+
+  .dialog-tag-row {
+    gap: 5px;
+    margin: 4px 0 0;
+  }
+
+  .dialog-badge {
+    min-height: 25px;
+    padding-right: 7px;
+    font-size: 0.7rem;
+  }
+
+  .dialog-badge img,
+  .dialog-badge > span:first-child {
+    width: 18px;
+    height: 18px;
   }
 
   .settler-dialog-actions {

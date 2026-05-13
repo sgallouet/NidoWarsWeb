@@ -857,12 +857,11 @@ export class CanvasRenderer {
   }) {
     const renderables = this.visibleRenderables;
     const unitRenderables = this.visibleUnitRenderables;
-    const portalPoint = intro?.active && portalTile ? this.getTileCenter(portalTile) : null;
 
     renderables.length = 0;
     unitRenderables.length = 0;
 
-    this.collectUnitRenderables(renderables, unitRenderables, units, visibleRect, intro, portalPoint);
+    this.collectUnitRenderables(renderables, unitRenderables, units, visibleRect, intro);
 
     this.collectCorpseRenderables(renderables, corpses, visibleRect);
     this.collectTreasureRenderables(renderables, treasures, visibleRect);
@@ -877,7 +876,7 @@ export class CanvasRenderer {
     }
   }
 
-  collectUnitRenderables(renderables, unitRenderables, units, visibleRect, intro, portalPoint) {
+  collectUnitRenderables(renderables, unitRenderables, units, visibleRect, intro) {
     for (const unit of units) {
       const point = gridToWorld(
         unit.visualColumn,
@@ -887,7 +886,7 @@ export class CanvasRenderer {
       );
       const targetX = point.x;
       const targetY = point.y + this.config.tileHeight * 0.5;
-      const presentation = getIntroUnitPresentation(intro, unit, targetX, targetY, portalPoint);
+      const presentation = getIntroUnitPresentation(intro, unit, targetX, targetY);
 
       if (!presentation) {
         continue;
@@ -1193,6 +1192,8 @@ export class CanvasRenderer {
     });
 
     fogOfWar.consumeChangedTiles();
+    fogOfWar.consumeChangedRegions();
+    this.eraseFogAtRegions(ctx, fogOfWar.revealedRegions);
     this.fogCache = {
       canvas,
       bounds: terrainCache.bounds,
@@ -1224,6 +1225,7 @@ export class CanvasRenderer {
         }
       }
 
+      this.eraseFogAtRegions(ctx, fogOfWar.revealedRegions);
       this.fogCache = {
         canvas,
         bounds: terrainCache.bounds,
@@ -1232,13 +1234,15 @@ export class CanvasRenderer {
         version: fogOfWar.version,
       };
       fogOfWar.consumeChangedTiles();
+      fogOfWar.consumeChangedRegions();
       return this.fogCache;
     }
 
     const changedTiles = fogOfWar.consumeChangedTiles();
+    const changedRegions = fogOfWar.consumeChangedRegions();
 
-    if (changedTiles.length > 0) {
-      this.clearRevealedFogTiles(changedTiles);
+    if (changedTiles.length > 0 || changedRegions.length > 0) {
+      this.clearRevealedFogTiles(changedTiles, changedRegions);
     }
 
     this.fogCache.key = key;
@@ -1247,7 +1251,7 @@ export class CanvasRenderer {
     return this.fogCache;
   }
 
-  clearRevealedFogTiles(tiles) {
+  clearRevealedFogTiles(tiles, regions = []) {
     const cache = this.fogCache;
     const ctx = cache.canvas.getContext("2d");
 
@@ -1259,6 +1263,8 @@ export class CanvasRenderer {
     for (const tile of tiles) {
       this.eraseFogAtTile(ctx, tile);
     }
+
+    this.eraseFogAtRegions(ctx, regions);
 
     ctx.restore();
   }
@@ -1273,6 +1279,27 @@ export class CanvasRenderer {
     const brush = this.getFogRevealBrush();
 
     ctx.drawImage(brush, center.x - brush.width / 2, center.y - brush.height / 2);
+  }
+
+  eraseFogAtRegions(ctx, regions = []) {
+    for (const region of regions) {
+      this.eraseFogAtRegion(ctx, region);
+    }
+  }
+
+  eraseFogAtRegion(ctx, region) {
+    const center = this.getTileCenter(region);
+    const radius = Math.max(this.config.tileWidth, this.config.tileHeight) * (region.radius + 0.8) * 0.56;
+    const gradient = ctx.createRadialGradient(center.x, center.y, radius * 0.74, center.x, center.y, radius);
+
+    gradient.addColorStop(0, "rgba(0, 0, 0, 1)");
+    gradient.addColorStop(0.82, "rgba(0, 0, 0, 1)");
+    gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   getFogRevealBrush() {
@@ -1516,11 +1543,7 @@ function mixColor(fromHex, toHex, amount) {
   return `rgb(${mix(from.r, to.r)}, ${mix(from.g, to.g)}, ${mix(from.b, to.b)})`;
 }
 
-function easeOutCubic(value) {
-  return 1 - Math.pow(1 - value, 3);
-}
-
-function getIntroUnitPresentation(intro, unit, targetX, targetY, portalPoint) {
+function getIntroUnitPresentation(intro, unit, targetX, targetY) {
   if (!intro?.active) {
     return {
       x: targetX,
@@ -1543,19 +1566,12 @@ function getIntroUnitPresentation(intro, unit, targetX, targetY, portalPoint) {
     return null;
   }
 
-  const start = portalPoint || { x: targetX, y: targetY };
-  const walkStartMs = Number.isFinite(intro.walkStartMs) ? intro.walkStartMs : getIntroTeleportUnitStartMs(sequenceIndex) + 560;
-  const walkDurationMs = Number.isFinite(intro.walkDurationMs) ? intro.walkDurationMs : 3600;
-  const walkProgress = clamp01((intro.elapsedMs - walkStartMs) / walkDurationMs);
-  const travelProgress = walkProgress;
-  const easedTravel = easeOutCubic(travelProgress);
-  const arrivalArc = Math.sin(travelProgress * Math.PI) * 22;
   const popProgress = clamp01((teleportProgress - 0.04) / 0.72);
   const scale = teleportProgress >= 1 ? 1 : Math.max(0.16, Math.min(1.08, easeOutBack(popProgress)));
 
   return {
-    x: lerp(start.x, targetX, easedTravel),
-    y: lerp(start.y - 6, targetY, easedTravel) - arrivalArc,
+    x: targetX,
+    y: targetY,
     scale,
     alpha: clamp01(teleportProgress / 0.18),
     teleportProgress: teleportProgress >= 1 ? 1 : teleportProgress,

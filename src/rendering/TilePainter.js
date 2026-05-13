@@ -50,12 +50,6 @@ export class TilePainter {
   paintStructure(ctx, { tile, x, y, elapsed }) {
     const corners = this.getCorners(x, y);
 
-    if (tile.hasRoad) {
-      this.paintRoad(ctx, corners, tile);
-    }
-    if (tile.canBuild) {
-      this.paintBuildSite(ctx, corners, tile, elapsed);
-    }
     if (tile.building) {
       this.paintBuildingGround(ctx, corners, tile);
     }
@@ -373,160 +367,6 @@ export class TilePainter {
     }
   }
 
-  paintRoad(ctx, corners, tile) {
-    const cx = corners.top.x;
-    const cy = corners.top.y + this.tileHeight * 0.5;
-    const connections = tile.roadConnections || {};
-    const endpoints = [];
-
-    if (connections.columnPlus) {
-      endpoints.push(midPoint(corners.right, corners.bottom));
-    }
-    if (connections.columnMinus) {
-      endpoints.push(midPoint(corners.left, corners.top));
-    }
-    if (connections.rowPlus) {
-      endpoints.push(midPoint(corners.left, corners.bottom));
-    }
-    if (connections.rowMinus) {
-      endpoints.push(midPoint(corners.top, corners.right));
-    }
-
-    ctx.save();
-    drawDiamond(ctx, corners);
-    ctx.clip();
-
-    const palette =
-      tile.biome === "snow"
-        ? {
-            shadow: "rgba(65, 54, 42, 0.38)",
-            edge: "rgba(85, 74, 58, 0.62)",
-            base: "#9a8a68",
-            light: "rgba(221, 213, 178, 0.3)",
-            rut: "rgba(64, 55, 42, 0.34)",
-            stone: "rgba(229, 224, 201, 0.36)",
-          }
-        : {
-            shadow: "rgba(52, 31, 17, 0.34)",
-            edge: "rgba(86, 55, 30, 0.68)",
-            base: "#a87942",
-            light: "rgba(238, 202, 131, 0.32)",
-            rut: "rgba(73, 45, 23, 0.3)",
-            stone: "rgba(255, 226, 159, 0.24)",
-          };
-
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-
-    if (endpoints.length === 0) {
-      ctx.fillStyle = palette.shadow;
-      ctx.beginPath();
-      ctx.ellipse(cx + 2, cy + 3, 24, 9, -0.06, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = palette.base;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, 22, 8, -0.06, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      for (const point of endpoints) {
-        this.strokeRoadArm(ctx, cx, cy, point, palette.shadow, 22, 3);
-      }
-
-      for (const point of endpoints) {
-        this.strokeRoadArm(ctx, cx, cy, point, palette.edge, 18, 0);
-      }
-
-      for (const point of endpoints) {
-        this.strokeRoadArm(ctx, cx, cy, point, palette.base, 14, -1);
-      }
-    }
-
-    ctx.fillStyle = palette.base;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, 19, 8.5, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    for (const point of endpoints) {
-      this.strokeRoadArm(ctx, cx, cy, point, palette.light, 5, -2);
-    }
-
-    ctx.strokeStyle = palette.rut;
-    ctx.lineWidth = 1.2;
-    for (const point of endpoints) {
-      const offset = seeded(tile.seed, Math.floor(point.x + point.y)) > 0.5 ? 3 : -3;
-
-      ctx.beginPath();
-      ctx.moveTo(cx + offset * 0.35, cy + offset * 0.12);
-      ctx.quadraticCurveTo(
-        (cx + point.x) * 0.5 + offset,
-        (cy + point.y) * 0.5 - offset * 0.2,
-        point.x - offset * 0.25,
-        point.y - offset * 0.08,
-      );
-      ctx.stroke();
-    }
-
-    this.paintRoadPebbles(ctx, corners, tile, palette.stone);
-    ctx.restore();
-  }
-
-  strokeRoadArm(ctx, cx, cy, point, color, width, verticalOffset) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = width;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy + verticalOffset);
-    ctx.quadraticCurveTo(
-      (cx + point.x) * 0.5,
-      (cy + point.y) * 0.5 + verticalOffset,
-      point.x,
-      point.y + verticalOffset,
-    );
-    ctx.stroke();
-  }
-
-  paintRoadPebbles(ctx, corners, tile, color) {
-    ctx.fillStyle = color;
-
-    for (let i = 0; i < 5; i += 1) {
-      const x = corners.left.x + 18 + seeded(tile.seed, i + 41) * (this.tileWidth - 36);
-      const y = corners.top.y + 10 + seeded(tile.seed, i + 64) * (this.tileHeight - 18);
-      const radius = 0.8 + seeded(tile.seed, i + 83) * 1.2;
-
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  paintBuildSite(ctx, corners, tile, elapsed) {
-    const cx = corners.top.x;
-    const cy = corners.top.y + this.tileHeight * 0.5;
-    const pulse = Math.sin(elapsed * 0.005 + tile.seed) * 0.5 + 0.5;
-
-    ctx.save();
-    ctx.globalAlpha = 0.72 + pulse * 0.2;
-    ctx.fillStyle = "rgba(255, 226, 142, 0.18)";
-    ctx.strokeStyle = "rgba(255, 235, 174, 0.72)";
-    ctx.lineWidth = 1.4;
-    ctx.beginPath();
-    ctx.roundRect(cx - 18, cy - 13, 36, 25, 5);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.strokeStyle = "#ffe28e";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(cx - 10, cy + 4);
-    ctx.lineTo(cx, cy - 7);
-    ctx.lineTo(cx + 10, cy + 4);
-    ctx.moveTo(cx - 6, cy + 4);
-    ctx.lineTo(cx + 6, cy + 4);
-    ctx.stroke();
-    ctx.restore();
-  }
-
   getBuildingObjectDepth(tile, x, y) {
     const mask = getBuildingRenderMask(tile.building).object;
     const depthY = Number.isFinite(mask.depthY) ? mask.depthY : mask.bottom;
@@ -771,13 +611,6 @@ function drawDiamond(ctx, corners) {
   ctx.lineTo(corners.bottom.x, corners.bottom.y);
   ctx.lineTo(corners.left.x, corners.left.y);
   ctx.closePath();
-}
-
-function midPoint(first, second) {
-  return {
-    x: (first.x + second.x) * 0.5,
-    y: (first.y + second.y) * 0.5,
-  };
 }
 
 function seeded(seed, salt) {

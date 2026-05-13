@@ -127,11 +127,122 @@ export class UnitManager {
     this.removeDefeatedUnits();
   }
 
+  updateIntro(delta) {
+    for (const unit of this.units) {
+      tickUnitEffects(unit, delta);
+      this.updateMovement(unit, delta);
+    }
+
+    this.pathJobs.update();
+  }
+
   revealStartingArea() {
     this.fogOfWar.revealAround(this.campTile, CAMP_REVEAL_RADIUS);
 
     for (const unit of this.units.filter((candidate) => candidate.faction === "player")) {
       this.fogOfWar.revealAround(unit, REVEAL_RADIUS);
+    }
+  }
+
+  placeIntroUnitsAtPortal(portalTile, placements = []) {
+    const occupied = new Set();
+
+    for (const unit of this.units) {
+      if (unit.faction !== "player" || unit.defeated) {
+        continue;
+      }
+
+      const placement = placements.find((candidate) => candidate.unitId === unit.id);
+      const tile = placement?.tile || portalTile;
+
+      if (!tile || occupied.has(tile.id)) {
+        continue;
+      }
+
+      this.cancelQueuedPath(unit);
+      unit.column = tile.column;
+      unit.row = tile.row;
+      unit.visualColumn = tile.column;
+      unit.visualRow = tile.row;
+      unit.movementQueue = [];
+      unit.movementSegment = null;
+      unit.order = "introCinematic";
+      unit.orderIcon = null;
+      unit.stage = "arriving";
+      unit.pauseMs = 0;
+      unit.introSlowMove = true;
+      occupied.add(tile.id);
+      this.fogOfWar.revealAround(unit, REVEAL_RADIUS);
+    }
+  }
+
+  commandIntroMove(unitId, destination, { speech = null, icon = "eye", stage = "introMove", pauseAfterPathMs = 0 } = {}) {
+    const unit = this.units.find((candidate) => candidate.id === unitId && candidate.faction === "player" && !candidate.defeated);
+
+    if (!unit || !destination) {
+      return false;
+    }
+
+    const assigned = this.assignUnitPath(unit, destination, {
+      order: "introCinematic",
+      orderIcon: icon,
+      stage,
+      pauseAfterPathMs,
+    });
+
+    if (assigned && speech) {
+      say(unit, speech, icon, 2600);
+    }
+
+    return assigned;
+  }
+
+  setIntroSpeech(unitId, text, icon = "eye", duration = 2400) {
+    const unit = this.units.find((candidate) => candidate.id === unitId && candidate.faction === "player" && !candidate.defeated);
+
+    if (!unit) {
+      return false;
+    }
+
+    say(unit, text, icon, duration);
+    return true;
+  }
+
+  setIntroFollowers(unitIds, leaderTile, { speech = null } = {}) {
+    let index = 0;
+
+    for (const unitId of unitIds) {
+      const unit = this.units.find((candidate) => candidate.id === unitId && candidate.faction === "player" && !candidate.defeated);
+
+      if (!unit) {
+        continue;
+      }
+
+      const destination = this.getNearbyPassableTile(leaderTile, index + 1) || leaderTile;
+
+      this.assignUnitPath(unit, destination, {
+        order: "introCinematic",
+        orderIcon: "smile",
+        stage: "followFire",
+        pauseAfterPathMs: 700,
+      });
+
+      if (speech) {
+        say(unit, speech[index % speech.length], index % 2 ? "smile" : "eye", 2400);
+      }
+
+      index += 1;
+    }
+  }
+
+  finishIntroCinematic() {
+    for (const unit of this.units) {
+      if (unit.faction !== "player" || unit.defeated || unit.order !== "introCinematic") {
+        continue;
+      }
+
+      unit.introSlowMove = false;
+      this.setPatrol(unit);
     }
   }
 
@@ -3626,6 +3737,10 @@ function getVisualMovementProgress(unit, progress) {
 }
 
 function getMovementDurationMultiplier(unit) {
+  if (unit.introSlowMove) {
+    return 0.8;
+  }
+
   const body = unit.body || unit.definition;
 
   if (body === "duneVanguard") {

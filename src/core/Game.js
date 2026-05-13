@@ -11,6 +11,8 @@ import { DayNightCycle } from "../world/DayNightCycle.js";
 import { FogOfWar } from "../world/FogOfWar.js";
 import { HerbManager } from "../gameplay/resources/HerbManager.js";
 import { ResourceNodeManager } from "../gameplay/resources/ResourceNodeManager.js";
+import { BuilderProposalSystem } from "../gameplay/builders/BuilderProposalSystem.js";
+import { BuilderQuestionDock } from "../ui/BuilderQuestionDock.js";
 import { Hud } from "../ui/Hud.js";
 import { PerformanceMonitor } from "../ui/PerformanceMonitor.js";
 import { TreasureManager } from "../gameplay/resources/TreasureManager.js";
@@ -28,20 +30,23 @@ const BUILD_CONNECTOR_DISTANCE = BUILD_FOOTPRINT_RADIUS + 1;
 const BUILD_ANCHOR_DISTANCE = BUILD_FOOTPRINT_RADIUS + 2;
 const BUILD_ANCHOR_CLEARANCE = BUILD_FOOTPRINT_RADIUS + 1;
 const INTRO_GROUP_WALK_START_MS = 3350;
-const INTRO_GROUP_WALK_MS = 4600;
-const INTRO_FIRE_START_MS = 8200;
+const INTRO_GROUP_WALK_MS = 3600;
+const INTRO_FIRE_SPOTTED_MS = 6200;
+const INTRO_FIRE_MOVE_MS = 7000;
+const INTRO_FIRE_START_MS = 15100;
 const INTRO_FIRE_DURATION_MS = 4000;
-const INTRO_DURATION_MS = 12800;
-const INTRO_UI_REVEAL_MS = 12400;
-const INTRO_GREETING_MS = 12500;
+const INTRO_DURATION_MS = 20000;
+const INTRO_UI_REVEAL_MS = 19700;
+const INTRO_GREETING_MS = 19400;
 const INTRO_PORTAL_REVEAL_RADIUS = 7;
 const INTRO_UNIT_REVEAL_RADIUS = 4;
 const INTRO_UNIT_REVEAL_INTERVAL_MS = 180;
 const INTRO_FIRE_REVEAL_RADIUS = 12;
+const INTRO_PORTAL_ARRIVAL_RADIUS = 2;
+const INTRO_PORTAL_SCATTER_RADIUS = 4;
+const INTRO_EXPLORE_RADIUS = 8;
+const INTRO_FIRE_REACTION_STEP_MS = 420;
 const BASE_HABITANT_CAPACITY = 6;
-const HOUSE_BUILDING_ID = "settler-hut";
-const AUTO_HOUSE_SCAN_MS = 2200;
-const AUTO_HOUSE_DECLINE_COOLDOWN_MS = 18000;
 
 export class Game {
   constructor({ canvas, root, config }) {
@@ -101,11 +106,14 @@ export class Game {
       onResourceDelivered: (type, amount) => this.addResource(type, amount),
       onTileCleaned: (tile) => this.cleanTile(tile),
       onConstructionStarted: (tile, buildingId) => this.startConstruction(tile, buildingId),
-      onBuildProposalReady: (unit, tile, buildingId) => this.openBuildProposal(unit, tile, buildingId),
+      onBuildProposalReady: (unit, tile, buildingId) => this.markBuildProposalReady(unit, tile, buildingId),
       corpseTtlMs: this.dayNightCycle.totalMs,
     });
     this.camera = new Camera2D(config.render);
     this.hud = new Hud(root);
+    this.builderQuestionDock = new BuilderQuestionDock(root, {
+      onSelect: (proposalId) => this.selectBuildProposal(proposalId),
+    });
     this.renderer = new CanvasRenderer({
       canvas,
       camera: this.camera,
@@ -146,15 +154,8 @@ export class Game {
     this.isBuildMenuOpen = false;
     this.isHeroProfileOpen = false;
     this.isIntroActive = true;
-    this.didIntroGreeting = false;
-    this.didIntroJourneySpeech = false;
-    this.didIntroFireStart = false;
-    this.didIntroFireReveal = false;
+    this.introCinematicSteps = new Set();
     this.didRevealIntroUi = false;
-    this.activeBuildProposal = null;
-    this.autoHouseScanMs = AUTO_HOUSE_SCAN_MS;
-    this.autoHouseCooldownMs = AUTO_HOUSE_SCAN_MS;
-    this.rejectedHouseTileIds = new Set();
     this.introUnitRevealElapsedMs = INTRO_UNIT_REVEAL_INTERVAL_MS;
     this.campFire = {
       isLit: false,
@@ -168,6 +169,7 @@ export class Game {
       focusTile: this.portalTile || this.campTile,
       portalTile: this.portalTile,
       playerUnitIds: startingUnits.filter((unit) => unit.faction === "player").map((unit) => unit.id),
+      arrivals: [],
       walkStartMs: INTRO_GROUP_WALK_START_MS,
       walkDurationMs: INTRO_GROUP_WALK_MS,
       portalRevealRadius: INTRO_PORTAL_REVEAL_RADIUS,
@@ -190,6 +192,22 @@ export class Game {
     this.pausedElapsed = 0;
     this.hudRefreshMs = 0;
     this.heroDockStateKey = "";
+    this.buildProposalSystem = new BuilderProposalSystem({
+      world: this.world,
+      units: this.units,
+      campTile: this.campTile,
+      getBuilding: (buildingId) => getBuildingById(buildingId),
+      getHabitantStatus: () => this.getHabitantStatus(),
+      canAfford: (cost) => this.canAfford(cost),
+      spendResources: (cost) => this.spendResources(cost),
+      getRoadConnector: (tile) => this.getBuildRoadConnector(tile),
+      isBuildSite: (tile) => this.isBuildSiteCenter(tile),
+      refreshBuildSitesAndRoads: () => this.refreshBuildSitesAndRoads(),
+      touchStructure: (tile) => this.world.touchStructure(tile),
+      syncHudResources: () => this.syncHudResources(),
+      getTileById: (tileId) => this.getTileById(tileId),
+      onChanged: () => this.renderBuilderQuestionDock(),
+    });
     this.lastHudTileId = null;
     this.input = new InputController({
       canvas,
@@ -212,6 +230,7 @@ export class Game {
     this.syncHudResources();
     this.hud.setCycle(this.dayNightCycle.getState());
     this.hud.setTile(this.campTile);
+    this.setupIntroCinematic();
     this.revealIntroPortalArea();
     this.hud.setUnitSummary(this.units.units);
     this.setupHelpOverlay();
@@ -273,6 +292,7 @@ export class Game {
 
     if (this.isIntroActive) {
       this.updateIntro(delta);
+      this.units.updateIntro(delta);
     }
 
     if (!this.isPaused) {
@@ -290,7 +310,7 @@ export class Game {
     if (!this.isPaused) {
       if (!this.isIntroActive) {
         this.units.update(delta, dayNight);
-        this.updateAutoHouseProposal(delta);
+        this.buildProposalSystem.update(delta, { isDialogOpen: this.isBuildMenuOpen });
       }
       this.treasures.update(delta);
       this.updateConstructions(delta);
@@ -336,29 +356,8 @@ export class Game {
 
   updateIntro(delta) {
     this.intro.elapsedMs = Math.min(this.intro.durationMs, this.intro.elapsedMs + delta);
+    this.updateIntroCinematic();
     this.updateIntroFogReveal(delta);
-
-    if (!this.didIntroJourneySpeech && this.intro.elapsedMs >= INTRO_GROUP_WALK_START_MS + 650) {
-      this.didIntroJourneySpeech = true;
-      this.units.playIntroJourneySpeech();
-    }
-
-    if (!this.didIntroFireStart && this.intro.elapsedMs >= INTRO_FIRE_START_MS) {
-      this.didIntroFireStart = true;
-      this.units.clearIntroSpeech();
-      this.units.playIntroFireStart(this.intro.fireStarterUnitId, INTRO_FIRE_DURATION_MS);
-    }
-
-    if (!this.didIntroFireReveal && this.intro.elapsedMs >= INTRO_FIRE_START_MS + INTRO_FIRE_DURATION_MS) {
-      this.didIntroFireReveal = true;
-      this.lightCampFire();
-    }
-
-    if (!this.didIntroGreeting && this.intro.elapsedMs >= INTRO_GREETING_MS) {
-      this.didIntroGreeting = true;
-      this.units.clearIntroSpeech();
-      this.units.playIntroGreeting();
-    }
 
     if (!this.didRevealIntroUi && this.intro.elapsedMs >= INTRO_UI_REVEAL_MS) {
       this.didRevealIntroUi = true;
@@ -370,10 +369,176 @@ export class Game {
     }
 
     this.refreshBuildSitesAndRoads();
+    this.units.finishIntroCinematic();
     this.isIntroActive = false;
     this.intro.active = false;
     this.root.classList.remove("is-intro-active");
     this.root.classList.remove("is-intro-ui-ready");
+  }
+
+  setupIntroCinematic() {
+    const origin = this.portalTile || this.campTile;
+    const occupied = new Set([origin.id]);
+    const arrivals = [];
+
+    this.intro.playerUnitIds.forEach((unitId, index) => {
+      const unit = this.units.units.find((candidate) => candidate.id === unitId);
+      const tile = this.findIntroTile(origin, INTRO_PORTAL_ARRIVAL_RADIUS, occupied, index, {
+        minDistance: index === 0 ? 0 : 1,
+      });
+
+      if (!unit || !tile) {
+        return;
+      }
+
+      occupied.add(tile.id);
+      arrivals.push({ unitId, tile });
+    });
+
+    this.intro.arrivals = arrivals;
+    this.units.placeIntroUnitsAtPortal(origin, arrivals);
+  }
+
+  updateIntroCinematic() {
+    this.runIntroStep("scatter", INTRO_GROUP_WALK_START_MS, () => this.scatterIntroUnits());
+    this.runIntroStep("arrivalSpeech", INTRO_GROUP_WALK_START_MS + 900, () => this.playIntroArrivalSpeech());
+    this.runIntroStep("explore", INTRO_GROUP_WALK_START_MS + INTRO_GROUP_WALK_MS, () => this.sendIntroExplorers());
+    this.runIntroStep("spotFire", INTRO_FIRE_SPOTTED_MS, () => this.spotIntroFire());
+    this.scheduleIntroFireReactions();
+    this.runIntroStep("moveToFire", INTRO_FIRE_MOVE_MS, () => this.moveIntroGroupToFire());
+    this.runIntroStep("lightFire", INTRO_FIRE_START_MS, () => this.startIntroFire());
+    this.runIntroStep("revealFire", INTRO_FIRE_START_MS + INTRO_FIRE_DURATION_MS, () => this.lightCampFire());
+    this.runIntroStep("greeting", INTRO_GREETING_MS, () => this.units.playIntroGreeting());
+  }
+
+  runIntroStep(key, atMs, action) {
+    if (this.introCinematicSteps.has(key) || this.intro.elapsedMs < atMs) {
+      return;
+    }
+
+    this.introCinematicSteps.add(key);
+    action();
+  }
+
+  scatterIntroUnits() {
+    const origin = this.portalTile || this.campTile;
+    const occupied = new Set([origin.id]);
+
+    for (const unitId of this.intro.playerUnitIds) {
+      const tile = this.findIntroTile(origin, INTRO_PORTAL_SCATTER_RADIUS, occupied, unitId.length, { minDistance: 2 });
+
+      if (!tile) {
+        continue;
+      }
+
+      occupied.add(tile.id);
+      this.units.commandIntroMove(unitId, tile, {
+        speech: getIntroLine(unitId, "arrival"),
+        icon: "eye",
+        stage: "leavePortal",
+        pauseAfterPathMs: 650,
+      });
+    }
+  }
+
+  playIntroArrivalSpeech() {
+    const lines = ["New air...", "Where did it send us?", "Quiet. Listen.", "No tracks.", "Stay near."];
+
+    this.intro.playerUnitIds.forEach((unitId, index) => {
+      this.units.setIntroSpeech(unitId, lines[index % lines.length], index % 2 ? "rest" : "eye", 3000);
+    });
+  }
+
+  sendIntroExplorers() {
+    const origin = this.portalTile || this.campTile;
+    const occupied = new Set([origin.id]);
+
+    for (const unitId of this.intro.playerUnitIds) {
+      if (unitId === this.intro.fireStarterUnitId) {
+        continue;
+      }
+
+      const tile = this.findIntroTile(origin, INTRO_EXPLORE_RADIUS, occupied, unitId.charCodeAt(0), { minDistance: 5 });
+
+      if (!tile) {
+        continue;
+      }
+
+      occupied.add(tile.id);
+      this.units.commandIntroMove(unitId, tile, {
+        speech: getIntroLine(unitId, "explore"),
+        icon: "eye",
+        stage: "exploreNewLand",
+        pauseAfterPathMs: 900,
+      });
+    }
+  }
+
+  spotIntroFire() {
+    this.units.setIntroSpeech(this.intro.fireStarterUnitId, "Hey, I spot a fire.", "alert", 2500);
+  }
+
+  scheduleIntroFireReactions() {
+    const responders = this.intro.playerUnitIds.filter((unitId) => unitId !== this.intro.fireStarterUnitId);
+
+    responders.forEach((unitId, index) => {
+      this.runIntroStep(`fireReaction:${unitId}`, INTRO_FIRE_SPOTTED_MS + 850 + index * INTRO_FIRE_REACTION_STEP_MS, () => {
+        this.units.setIntroSpeech(unitId, getIntroLine(unitId, "fireReaction"), index % 2 ? "smile" : "eye", 2200);
+      });
+    });
+  }
+
+  startIntroFire() {
+    this.units.clearIntroSpeech();
+    this.units.playIntroFireStart(this.intro.fireStarterUnitId, INTRO_FIRE_DURATION_MS);
+  }
+
+  moveIntroGroupToFire() {
+    const fireTile = this.getIntroFireAccessTile();
+
+    this.units.commandIntroMove(this.intro.fireStarterUnitId, fireTile, {
+      speech: "I'll light it.",
+      icon: "wood",
+      stage: "toFire",
+      pauseAfterPathMs: 400,
+    });
+    this.units.setIntroFollowers(
+      this.intro.playerUnitIds.filter((unitId) => unitId !== this.intro.fireStarterUnitId),
+      fireTile,
+    );
+  }
+
+  getIntroFireAccessTile() {
+    return this.findIntroTile(this.campTile, 2, new Set([this.campTile.id]), 0, { minDistance: 1 }) || this.campTile;
+  }
+
+  findIntroTile(origin, radius, occupied, seed = 0, options = {}) {
+    const minDistance = options.minDistance || 0;
+    const candidates = [];
+
+    for (let row = origin.row - radius; row <= origin.row + radius; row += 1) {
+      for (let column = origin.column - radius; column <= origin.column + radius; column += 1) {
+        const tile = this.world.getTile(column, row);
+
+        if (!tile || occupied.has(tile.id) || !isTilePassable(tile) || tile.building || tile.construction) {
+          continue;
+        }
+
+        const distanceSquared = (column - origin.column) ** 2 + (row - origin.row) ** 2;
+
+        if (distanceSquared > radius * radius || distanceSquared < minDistance * minDistance) {
+          continue;
+        }
+
+        candidates.push(tile);
+      }
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    return candidates[Math.abs(seed * 7 + origin.column + origin.row) % candidates.length];
   }
 
   revealIntroPortalArea() {
@@ -398,32 +563,13 @@ export class Game {
   }
 
   revealIntroUnitAreas() {
-    const origin = this.portalTile || this.campTile;
-    const walkStartMs = this.intro.walkStartMs;
-    const walkDurationMs = Math.max(1, this.intro.walkDurationMs);
-    const walkProgress = Math.max(0, Math.min(1, (this.intro.elapsedMs - walkStartMs) / walkDurationMs));
-    const easedProgress = easeOutCubic(walkProgress);
-
     for (const unit of this.units.units) {
       if (unit.faction !== "player" || unit.defeated) {
         continue;
       }
 
-      const tile = this.getIntroUnitRevealTile(unit, origin, easedProgress);
-
-      this.fogOfWar.revealAround(tile, INTRO_UNIT_REVEAL_RADIUS);
+      this.fogOfWar.revealAround(unit, INTRO_UNIT_REVEAL_RADIUS);
     }
-  }
-
-  getIntroUnitRevealTile(unit, origin, progress) {
-    if (!origin || progress <= 0) {
-      return origin || unit;
-    }
-
-    const column = Math.round(origin.column + (unit.column - origin.column) * progress);
-    const row = Math.round(origin.row + (unit.row - origin.row) * progress);
-
-    return this.world.getTile(column, row) || unit;
   }
 
   lightCampFire() {
@@ -1087,166 +1233,45 @@ export class Game {
     this.renderQuestCards();
   }
 
-  updateAutoHouseProposal(delta) {
-    if (this.activeBuildProposal && !this.getActiveBuildProposalDetails()) {
-      this.activeBuildProposal = null;
-      this.refreshBuildSitesAndRoads();
-    }
+  markBuildProposalReady(unit, tile, buildingId) {
+    this.buildProposalSystem.markReady(unit, tile, buildingId);
+  }
 
-    if (this.isBuildMenuOpen || this.activeBuildProposal) {
+  renderBuilderQuestionDock() {
+    this.builderQuestionDock.render(this.buildProposalSystem.getVisibleProposals());
+  }
+
+  selectBuildProposal(proposalId) {
+    const proposal = this.buildProposalSystem.getVisibleProposals().find((candidate) => candidate.id === proposalId);
+
+    if (!proposal) {
       return;
     }
 
-    const house = getBuildingById(HOUSE_BUILDING_ID);
-    const habitantStatus = this.getHabitantStatus();
+    this.camera.frameTile(proposal.unit, this.renderer.viewport, this.config.render.maxZoom * 0.9);
 
-    if (!house || habitantStatus.used < habitantStatus.capacity || !this.canAffordAutoHouse(house)) {
+    if (proposal.state !== "ready") {
       return;
     }
 
-    this.autoHouseCooldownMs = Math.max(0, this.autoHouseCooldownMs - delta);
-    this.autoHouseScanMs = Math.max(0, this.autoHouseScanMs - delta);
-
-    if (this.autoHouseCooldownMs > 0 || this.autoHouseScanMs > 0) {
-      return;
-    }
-
-    this.autoHouseScanMs = AUTO_HOUSE_SCAN_MS;
-    this.tryStartHouseProposal();
-  }
-
-  canAffordAutoHouse(house) {
-    return (this.resources.wood || 0) >= (house.cost?.wood || 0);
-  }
-
-  tryStartHouseProposal() {
-    const house = getBuildingById(HOUSE_BUILDING_ID);
-    const tile = house ? this.findAutomaticHouseTile() : null;
-
-    if (!house || !tile) {
-      this.autoHouseCooldownMs = AUTO_HOUSE_SCAN_MS;
-      return false;
-    }
-
-    const unit = this.units.commandProposeBuildTile(tile, house.id);
-
-    if (!unit) {
-      this.autoHouseCooldownMs = AUTO_HOUSE_SCAN_MS;
-      return false;
-    }
-
-    const roadConnector = this.getBuildRoadConnector(tile);
-
-    tile.roadConnector = roadConnector ? { column: roadConnector.column, row: roadConnector.row } : null;
-    this.activeBuildProposal = {
-      unitId: unit.id,
-      tileId: tile.id,
-      buildingId: house.id,
-      state: "traveling",
-    };
-    this.refreshBuildSitesAndRoads();
-    return true;
-  }
-
-  findAutomaticHouseTile() {
-    const candidates = this.world.tiles.filter(
-      (tile) =>
-        tile.canBuild &&
-        !tile.building &&
-        !tile.construction &&
-        !tile.buildReservedBy &&
-        !this.rejectedHouseTileIds.has(tile.id),
-    );
-
-    candidates.sort((a, b) => tileDistance(a, this.campTile) - tileDistance(b, this.campTile));
-    return candidates[0] || null;
-  }
-
-  openBuildProposal(unit, tile, buildingId) {
-    if (
-      !this.activeBuildProposal ||
-      this.activeBuildProposal.unitId !== unit.id ||
-      this.activeBuildProposal.tileId !== tile.id
-    ) {
-      return;
-    }
-
-    this.activeBuildProposal.state = "ready";
-    this.setBuildProposalOpen(true, { unit, tile, buildingId });
+    this.builderQuestionDock.render([]);
+    this.setBuildProposalOpen(true, proposal);
   }
 
   confirmBuildProposal() {
-    const proposal = this.getActiveBuildProposalDetails();
-
-    if (!proposal || !this.canAfford(proposal.building.cost)) {
-      return;
+    if (this.buildProposalSystem.confirm()) {
+      this.setBuildProposalOpen(false);
     }
-
-    const roadConnector = this.getBuildRoadConnector(proposal.tile) || proposal.tile.roadConnector;
-
-    if (!roadConnector || !this.units.confirmBuildProposal(proposal.unit.id, proposal.tile, proposal.building.id)) {
-      return;
-    }
-
-    proposal.tile.roadConnector = { column: roadConnector.column, row: roadConnector.row };
-
-    for (const [resource, amount] of Object.entries(proposal.building.cost)) {
-      this.resources[resource] -= amount;
-    }
-
-    this.activeBuildProposal = null;
-    this.rejectedHouseTileIds.clear();
-    this.autoHouseCooldownMs = AUTO_HOUSE_SCAN_MS;
-    this.refreshBuildSitesAndRoads();
-    this.world.touchStructure(proposal.tile);
-    this.syncHudResources();
-    this.setBuildProposalOpen(false);
   }
 
   rerouteBuildProposal() {
-    const proposal = this.getActiveBuildProposalDetails();
-
-    if (proposal) {
-      this.rejectedHouseTileIds.add(proposal.tile.id);
-      this.units.cancelBuildProposal(proposal.unit.id, "Elsewhere.");
-    }
-
-    this.activeBuildProposal = null;
     this.setBuildProposalOpen(false);
-    this.autoHouseCooldownMs = 0;
-    this.autoHouseScanMs = 0;
-    this.refreshBuildSitesAndRoads();
-    this.tryStartHouseProposal();
+    this.buildProposalSystem.reroute();
   }
 
   rejectBuildProposal() {
-    const proposal = this.getActiveBuildProposalDetails();
-
-    if (proposal) {
-      this.units.cancelBuildProposal(proposal.unit.id, "Not now.");
-    }
-
-    this.activeBuildProposal = null;
     this.setBuildProposalOpen(false);
-    this.autoHouseCooldownMs = AUTO_HOUSE_DECLINE_COOLDOWN_MS;
-    this.autoHouseScanMs = AUTO_HOUSE_SCAN_MS;
-    this.refreshBuildSitesAndRoads();
-  }
-
-  getActiveBuildProposalDetails() {
-    if (!this.activeBuildProposal) {
-      return null;
-    }
-
-    const unit = this.units.units.find((candidate) => candidate.id === this.activeBuildProposal.unitId);
-    const tile = this.getTileById(this.activeBuildProposal.tileId);
-    const building = getBuildingById(this.activeBuildProposal.buildingId);
-
-    if (!unit || !tile || !building || unit.targetBuildTileId !== tile.id || unit.targetBuildingId !== building.id) {
-      return null;
-    }
-
-    return { unit, tile, building };
+    this.buildProposalSystem.reject();
   }
 
   buildOnSelectedTile(buildingId) {
@@ -1288,6 +1313,12 @@ export class Game {
 
   canAfford(cost) {
     return Object.entries(cost).every(([resource, amount]) => (this.resources[resource] || 0) >= amount);
+  }
+
+  spendResources(cost) {
+    for (const [resource, amount] of Object.entries(cost)) {
+      this.resources[resource] -= amount;
+    }
   }
 
   isCleanableTile(tile) {
@@ -1381,7 +1412,7 @@ export class Game {
     }
 
     this.buildGrid.classList.add("is-proposal-grid", "is-settler-dialog-grid");
-    const building = getBuildingById(proposal.buildingId);
+    const building = proposal.building || getBuildingById(proposal.buildingId);
 
     if (!building) {
       return;
@@ -1390,6 +1421,7 @@ export class Game {
     const canAfford = this.canAfford(building.cost);
     const cost = formatDialogCost(building.cost);
     const habitants = building.habitants || 0;
+    const population = formatDialogBonus("Population", habitants, "habitants");
     const name = proposal.unit?.name || "Settler";
 
     this.buildGrid.innerHTML = `
@@ -1400,10 +1432,9 @@ export class Game {
         <div class="settler-dialog-body">
           <p id="settler-dialog-speaker" class="settler-dialog-speaker">${escapeHtml(name)}</p>
           <p class="settler-dialog-message">
-            My lord, should we build a house here
-            <span class="dialog-token dialog-token-cost">${cost}</span>
-            <span class="dialog-token dialog-token-gain">[+${habitants} Population]</span>?
+            My lord, should we build a house here?
           </p>
+          <div class="dialog-tag-row" aria-label="Action cost and reward">${cost}${population}</div>
           <div class="settler-dialog-actions">
             <button type="button" ${canAfford ? "" : "disabled"} data-build-proposal="ok">
               <span>Build here</span>
@@ -1787,6 +1818,32 @@ function addReservedTileRadius(world, keys, center, radius) {
   }
 }
 
+function getIntroLine(unitId, phase) {
+  const lines = {
+    arrival: {
+      "warrior-asha": "Weapons ready.",
+      "settler-tor": "This ground feels wrong.",
+      "settler-vale": "Where are the others?",
+      "archer-mira": "I see no road.",
+      "wolf-nyx": "Grr...",
+    },
+    explore: {
+      "warrior-asha": "I'll sweep the edge.",
+      "settler-vale": "Looking for tracks.",
+      "archer-mira": "I'll scout ahead.",
+      "wolf-nyx": "Sniff...",
+    },
+    fireReaction: {
+      "warrior-asha": "A fire? Move.",
+      "settler-vale": "I see the glow.",
+      "archer-mira": "Good eyes.",
+      "wolf-nyx": "Hrrr.",
+    },
+  };
+
+  return lines[phase]?.[unitId] || (phase === "arrival" ? "We made it." : "Checking ahead.");
+}
+
 function clearPortalLandingArea(world, center) {
   for (let row = center.row - 4; row <= center.row + 4; row += 1) {
     for (let column = center.column - 4; column <= center.column + 4; column += 1) {
@@ -1847,12 +1904,6 @@ function findCampPortalTile(world, campTile) {
 
 function isOpenPortalTile(tile) {
   return Boolean(tile?.isEmpty && !tile.building && !tile.construction && isTilePassable(tile));
-}
-
-function easeOutCubic(value) {
-  const clamped = Math.max(0, Math.min(1, value));
-
-  return 1 - Math.pow(1 - clamped, 3);
 }
 
 function tileDistance(a, b) {
@@ -2063,8 +2114,38 @@ function formatResourcePips(resources, options = {}) {
 
 function formatDialogCost(resources) {
   return Object.entries(resources)
-    .map(([resource, amount]) => `[-${amount} ${capitalize(resource)}]`)
+    .map(([resource, amount]) =>
+      renderDialogBadge({
+        tone: "cost",
+        sign: "-",
+        amount,
+        label: capitalize(resource),
+        icon: getResourceIcon(resource),
+      }),
+    )
     .join(" ");
+}
+
+function formatDialogBonus(label, amount, resource = "") {
+  return renderDialogBadge({
+    tone: "gain",
+    sign: "+",
+    amount,
+    label,
+    icon: resource ? getResourceIcon(resource) : "",
+  });
+}
+
+function renderDialogBadge({ tone, sign, amount, label, icon }) {
+  const iconMarkup = icon ? `<img src="${icon}" alt="" />` : `<span aria-hidden="true">${escapeHtml(label.charAt(0))}</span>`;
+
+  return `
+    <strong class="dialog-badge dialog-badge-${tone}">
+      ${iconMarkup}
+      <span>${sign}${amount}</span>
+      <span class="sr-only"> ${escapeHtml(label)}</span>
+    </strong>
+  `;
 }
 
 function escapeHtml(value) {

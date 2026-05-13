@@ -56,6 +56,7 @@ function renderCycleHud() {
 
 function renderHeroDock() {
   return `
+    <nav class="builder-question-dock" data-ui="builder-question-dock" aria-label="Builder questions" hidden></nav>
     <nav class="hero-dock" data-ui="hero-dock" aria-label="Hired heroes"></nav>
   `;
 }
